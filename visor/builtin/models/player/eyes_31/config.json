@@ -1,0 +1,13 @@
+{
+	"texture": "assets:models/player/eyes/alex.png",
+	"pose_group": "player/eyes",
+	"bones": {
+		"eye_l": {"hidden": true, "opposite": "eye_r"},
+		"eye_r": {"hidden": true},
+		"pupil_l": {"opposite": "pupil_r"},
+		"eyelid_lt": {"opposite": "eyelid_rt"},
+		"eyelid_lb": {"opposite": "eyelid_rb"},
+		"eyebrow_l": {"opposite": "eyebrow_r"},
+		"eyebrow_el": {"opposite": "eyebrow_er"}
+	}
+}

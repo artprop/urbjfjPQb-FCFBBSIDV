@@ -1,0 +1,65 @@
+/* pestañas de pantalla */
+.vistas { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--linea); border-radius: 10px; padding: 4px; }
+.vistas button { border: 0; background: transparent; padding: 9px 18px; border-radius: 7px; cursor: pointer; font-weight: 700; color: var(--texto-suave); }
+.vistas button:hover { background: var(--panel-alto); }
+.vistas button[aria-selected="true"] { background: var(--panel-alto); color: var(--texto); box-shadow: inset 0 -3px 0 var(--oro); }
+@media (max-width: 700px) { .vistas { width: 100%; } .vistas button { flex: 1; } }
+
+.top { flex-wrap: wrap; row-gap: 10px; }
+/* modo: cuerpo o cara (ojos) */
+.modos { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--linea); border-radius: 10px; padding: 4px; }
+.modos button { border: 0; background: transparent; padding: 9px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; color: var(--texto-suave); }
+.modos button:hover { background: var(--panel-alto); }
+.modos button[aria-selected="true"] { background: var(--pasto-osc); color: #fff; box-shadow: inset 0 -3px 0 var(--pasto); }
+body[data-modo="cuerpo"] .solo-cara, body[data-modo="cara"] .solo-cuerpo { display: none !important; }
+@media (max-width: 700px) { .modos { width: 100%; } .modos button { flex: 1; } }
+
+/* vista 3D */
+.vista3d { padding: 16px 24px 24px; display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 1001px) { .vista3d { flex: 1; min-height: 0; overflow-y: auto; } }
+.v3-barra { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.v3-barra select { max-width: 300px; }
+.v3-vistas { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .v3-vistas { grid-template-columns: 1fr; } }
+.v3-caja { position: relative; aspect-ratio: 4 / 3; max-height: 48vh; background: #1a1c20; border: 1px solid var(--linea); border-radius: 10px; overflow: hidden; }
+.v3-caja video, #v3-escena { position: absolute; inset: 0; width: 100%; height: 100%; }
+.v3-caja video { object-fit: contain; background: #000; }
+.v3-cap { position: absolute; top: 8px; left: 10px; z-index: 2; font-size: 14px; color: var(--texto-suave);
+  background: rgba(37,40,45,.85); padding: 2px 9px; border-radius: 5px; pointer-events: none; }
+.v3-vacio { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 20px; text-align: center; color: var(--texto-suave); z-index: 1; }
+.v3-msg { background: rgba(26,28,32,.8); z-index: 3; }
+.v3-tiempo { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--linea); border-radius: 10px; padding: 10px 14px; flex-wrap: wrap; }
+.v3-play { min-width: 130px; background: var(--pasto); color: #0f2208; border-color: var(--pasto); }
+.v3-linea { position: relative; flex: 1; min-width: 200px; padding-top: 10px; }
+.v3-marcas { position: absolute; left: 8px; right: 8px; top: 0; height: 10px; pointer-events: none; }
+.v3-marcas i { position: absolute; top: 0; width: 3px; height: 10px; margin-left: -1px; background: var(--oro); border-radius: 1px; }
+.v3-lectura { min-width: 130px; text-align: right; font-weight: 700; color: var(--oro); white-space: nowrap; }
+.v3-leyenda { margin: -6px 0 0; }
+.v3-pie { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.v3-grupo { display: flex; align-items: center; gap: 6px; }
+.v3-grupo > span { font-weight: 700; margin-right: 2px; }
+.chip-btn { padding: 4px 12px; border-radius: 16px; border: 1px solid var(--linea); background: transparent; cursor: pointer; color: var(--texto-suave); }
+.chip-btn:hover { border-color: var(--texto-suave); }
+.chip-btn.on { border-color: var(--oro); color: var(--oro); }
+.v3-rehacer { margin-left: auto; background: var(--pasto); color: #0f2208; border-color: var(--pasto); }
+.v3-rehacer:disabled { background: var(--panel-alto); color: var(--texto-suave); border-color: var(--linea); cursor: not-allowed; }
+
+/* ---------- poses a mano (estilo "A mano"): cinta roja sobre la linea de tiempo ---------- */
+.v3-linea.con-rojas { padding-top: 34px; }
+.v3-rojas { position: absolute; left: 8px; right: 8px; top: 0; height: 26px; display: none; }
+.v3-linea.con-rojas .v3-rojas { display: block; }
+.v3-marcas { top: 22px; }
+.v3-linea:not(.con-rojas) .v3-marcas { top: 0; }
+.v3-rojas .cinta { position: absolute; top: 9px; height: 8px; background: #e5484d; border-radius: 4px; min-width: 6px; }
+.v3-rojas .union { position: absolute; top: 11px; height: 4px; background: #e5484d; opacity: .7; border-radius: 2px; }
+.v3-rojas .punta { position: absolute; top: 5px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: #e5484d; border: 2px solid #fff; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,.5); padding: 0; }
+.v3-rojas .ext { position: absolute; top: 8px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; border: 2px solid #b3bac3; background: #1b1d21; }
+.v3-rojas .hilo { position: absolute; top: 12px; height: 0; border-top: 2px dotted #e5484d; opacity: .6; }
+.v3-manual { background: var(--panel); border: 1px solid var(--linea); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.v3-manual[hidden] { display: none; }
+.v3-manual-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.v3-manual-cab h3 { margin: 0; }
+.v3-manual-lista { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.v3-manual-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; background: var(--panel-alto); border-radius: 8px; padding: 8px 10px; border-left: 4px solid #e5484d; }
+.v3-manual-lista input[type="number"] { width: 4.2em; }
+.v3-manual-lista .quitar { margin-left: auto; }

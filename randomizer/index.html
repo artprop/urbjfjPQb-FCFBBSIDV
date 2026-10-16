@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Randomizer de cameos</title>
+<link rel="icon" href="../icono.svg">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div class="marca">🎲 Randomizer de cameos</div>
+  <div class="acciones">
+    <button id="btnCarpeta" title="Elegí la carpeta bbs (adentro de .minecraft/config). Solo se lee, no se cambia nada.">📂 Abrir carpeta bbs</button>
+    <label class="boton" title="Un .zip con la carpeta bbs (o el paquete del Visor)">🗜️ Abrir .zip<input type="file" id="inZip" accept=".zip,application/zip" hidden></label>
+  </div>
+  <div id="estadoFuente" class="sub">Sin carpeta bbs: abrila para ver las capas y usar las carpetas enteras.</div>
+</header>
+<nav id="pestanas">
+  <button data-panel="prefabs" class="activa">Prefabs</button>
+  <button data-panel="editor">Editar</button>
+  <button data-panel="generar">Generar</button>
+  <button data-panel="vista">Vista 3D</button>
+</nav>
+<main>
+  <!-- Lista de prefabs -->
+  <section id="pPrefabs" data-panel="prefabs" class="panel activa">
+    <h3>PREFABS</h3>
+    <div id="listaPrefabs" class="lista" tabindex="0"></div>
+    <div id="txtMarcados" class="sub">Shift o Ctrl + clic (o la casilla) para marcar varios.</div>
+    <div class="botones">
+      <button id="btnNuevo">Nuevo</button>
+      <button id="btnDuplicar" title="Duplica todos los marcados">Duplicar</button>
+      <button id="btnEliminar" title="Saca de la lista todos los marcados (tecla Supr). Quedan en la papelera.">Eliminar</button>
+    </div>
+    <div class="botones">
+      <button id="btnPapelera" title="Prefabs eliminados: se pueden recuperar">🗑️ Papelera</button>
+      <button id="btnExportar" title="Guarda todos los prefabs en un .zip">Exportar prefabs</button>
+      <label class="boton" title="Archivos .json de prefabs (los de la carpeta Prefabs del programa de Windows) o un .zip">Importar prefabs<input type="file" id="inImportar" accept=".json,.zip,application/json,application/zip" multiple hidden></label>
+    </div>
+  </section>
+
+  <!-- Editor del prefab -->
+  <section id="pEditor" data-panel="editor" class="panel">
+    <div id="editorVacio" class="sub">Elegí o creá un prefab.</div>
+    <div id="editor" hidden>
+      <h3>PREFAB</h3>
+      <div class="campos">
+        <label>Nombre <input id="inNombre" size="14"></label>
+        <label title="Letra(s) del nombre de cada personaje: M → M:01">Prefijo <input id="inPrefijo" size="3"></label>
+        <label title="Modelos que hay en la carpeta assets/models (más steve y alex)">Modelo <input id="inModelo" list="dlModelos" size="16"></label>
+        <label title="Tamaño de la textura (informativo)">Textura <input id="inTextura" list="dlTexturas" size="6"></label>
+        <label title="Carpeta dentro de assets donde están las capas" class="ancho">Raíz de capas <input id="inRaiz"></label>
+      </div>
+      <datalist id="dlModelos"></datalist>
+      <datalist id="dlTexturas"><option value="64x64"><option value="64x32"><option value="32x64"></datalist>
+      <div class="titulo-barra">
+        <h3>GRUPOS DE CAPAS (DE ABAJO HACIA ARRIBA)</h3>
+        <span class="botones">
+          <button id="btnSubir" title="Subir grupo (queda más abajo en la pila)">▲</button>
+          <button id="btnBajar" title="Bajar grupo">▼</button>
+          <button id="btnGrupoNuevo">+ Grupo</button>
+          <button id="btnGrupoQuitar">Quitar grupo</button>
+        </span>
+      </div>
+      <div id="tablaGrupos" class="tabla"></div>
+
+      <div id="panelGrupo">
+        <div class="col-cands">
+          <h3 id="tituloCands">CANDIDATOS (SE ELIGE UNO)</h3>
+          <div class="fila-buscar">
+            <input id="inBuscar" type="search" placeholder="Buscar archivo o carpeta…">
+            <span id="txtOcultos" class="aviso"></span>
+          </div>
+          <div id="listaCands" class="lista cands" tabindex="0"></div>
+          <div class="botones">
+            <button id="btnAgregar" title="Elegir archivos o una carpeta entera de tu carpeta bbs">+ Archivos / carpeta…</button>
+            <button id="btnQuitarCand" title="Quita lo marcado. De una carpeta se pueden quitar archivos sueltos (tecla Supr)">Quitar</button>
+            <button id="btnRestaurar" title="Vuelve a incluir los archivos marcados como excluidos">Volver a poner</button>
+          </div>
+        </div>
+        <div class="col-color">
+          <h3 id="tituloColor">COLOR</h3>
+          <div id="notaColor" class="sub"></div>
+          <div id="panelCanales" hidden>
+            <div class="sub">Marcá un canal para dejarlo fijo (0 a 255); los demás salen al azar.</div>
+            <div class="canal"><label><input type="checkbox" data-c="R"> Rojo (R)</label><input type="number" min="0" max="255" data-v="R"></div>
+            <div class="canal"><label><input type="checkbox" data-c="G"> Verde (G)</label><input type="number" min="0" max="255" data-v="G"></div>
+            <div class="canal"><label><input type="checkbox" data-c="B"> Azul (B)</label><input type="number" min="0" max="255" data-v="B"></div>
+            <div class="canal" id="filaA"><label><input type="checkbox" data-c="A"> Opacidad (A)</label><input type="number" min="0" max="255" data-v="A"></div>
+          </div>
+          <div id="panelGrises" hidden>
+            <div class="canal"><label title="0 = negro">Gris más oscuro</label><input type="number" min="0" max="255" id="inGrisMin"></div>
+            <div class="canal"><label title="255 = blanco">Gris más claro</label><input type="number" min="0" max="255" id="inGrisMax"></div>
+          </div>
+          <div id="panelPaleta" hidden>
+            <div id="listaPaleta"></div>
+            <button id="btnColorNuevo">+ Color</button>
+          </div>
+          <div id="panelColorProp" hidden>
+            <h3>COLOR DEL ARCHIVO MARCADO</h3>
+            <select id="selColorProp">
+              <option value="0">Como el grupo</option>
+              <option value="1">Sin color (blanco)</option>
+              <option value="2">Un color fijo</option>
+            </select>
+            <div id="filaColorFijo" class="color-fila" hidden>
+              <input type="color" id="inColorPropPick" value="#ffffff"><input id="inColorProp" value="#FFFFFF" size="10" title="#RRGGBB">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Generar -->
+  <section id="pGenerar" data-panel="generar" class="panel">
+    <h3>GENERAR</h3>
+    <div id="listaCantidades"></div>
+    <label class="fila">Semilla (vacío = al azar) <input id="inSemilla" inputmode="numeric" size="8" placeholder="al azar"></label>
+    <h3>NOMBRE DEL ARCHIVO EN BBS</h3>
+    <input id="inTitulo" readonly>
+    <div class="botones">
+      <button id="btnGenerar" class="principal" title="Tecla F5">Generar</button>
+      <button id="btnGuardar" title="Guardar otra vez el último archivo generado" disabled>Guardar archivo</button>
+      <button id="btnSalida" hidden>Abrir carpeta Salida</button>
+    </div>
+    <label class="sub"><input type="checkbox" id="chkAuto"> Guardar el archivo al generar</label>
+    <div id="estado" class="estado"></div>
+    <h3>VISTA PREVIA</h3>
+    <div id="listaPreview" class="lista preview"></div>
+  </section>
+
+  <!-- Vista 3D -->
+  <section id="pVista" data-panel="vista" class="panel">
+    <div class="titulo-barra"><h3>VISTA 3D (ARRASTRÁ = GIRAR, RUEDA O PELLIZCO = ZOOM)</h3><button id="btnCentrar" title="Volver a encuadrar">🎯</button></div>
+    <div id="visorNombre"></div>
+    <div id="vista3d"></div>
+    <h3>TEXTURA</h3>
+    <div class="plano"><canvas id="lienzo" width="64" height="64"></canvas></div>
+    <div id="visorAviso" class="aviso"></div>
+  </section>
+</main>
+
+<!-- Elegir archivos de la carpeta bbs -->
+<dialog id="dlgElegir">
+  <div class="dlg-cab"><b>Elegí capas candidatas</b><span class="esp"></span><button id="btnElegirCerrar">✕</button></div>
+  <div id="elegirRuta" class="ruta"></div>
+  <input id="elegirBuscar" type="search" placeholder="Buscar en esta carpeta…">
+  <div id="elegirLista" class="lista elegir"></div>
+  <div class="dlg-pie">
+    <span id="elegirCuenta" class="sub"></span>
+    <span class="esp"></span>
+    <label class="sub"><input type="checkbox" id="elegirSub"> con subcarpetas</label>
+    <button id="btnElegirCarpeta" title="Todos los PNG de esta carpeta son candidatos (también los que agregues después)">+ Esta carpeta entera</button>
+    <button id="btnElegirArchivos" class="principal">+ Agregar marcados</button>
+  </div>
+</dialog>
+
+<!-- Papelera -->
+<dialog id="dlgPapelera">
+  <div class="dlg-cab"><b>Papelera de prefabs</b><span class="esp"></span><button id="btnPapeleraCerrar">✕</button></div>
+  <div id="listaPapelera" class="lista"></div>
+</dialog>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

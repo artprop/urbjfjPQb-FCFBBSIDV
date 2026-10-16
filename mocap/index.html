@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#25282d">
+<title>Mocap BBS</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icono.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./app.css">
+<link rel="stylesheet" href="./vista.css">
+</head>
+<body>
+<header class="top">
+  <h1 class="logo">Mocap BBS</h1>
+  <nav class="modos" id="modos" aria-label="Qué animar">
+    <button data-modo="cuerpo" aria-selected="true">Cuerpo</button>
+    <button data-modo="cara" aria-selected="false">Cara (ojos y boca)</button>
+  </nav>
+  <nav class="vistas" aria-label="Pantallas">
+    <button data-vista="grabar" aria-selected="true">Grabar y convertir</button>
+    <button data-vista="3d" aria-selected="false">Vista 3D</button>
+  </nav>
+  <div class="modo solo-cuerpo" role="tablist" aria-label="Estilo de animación">
+    <button role="tab" id="modo-minecraft" data-estilo="minecraft" aria-selected="true">
+      <span class="modo-titulo">Estilo Minecraft</span>
+      <span class="modo-sub">Pose a pose, transiciones sine in/out</span>
+    </button>
+    <button role="tab" id="modo-realista" data-estilo="realista" aria-selected="false">
+      <span class="modo-titulo">Realista</span>
+      <span class="modo-sub">Copia fiel del movimiento</span>
+    </button>
+    <button role="tab" id="modo-manual" data-estilo="manual" aria-selected="false">
+      <span class="modo-titulo">A mano</span>
+      <span class="modo-sub">Elegís los fotogramas que serán poses</span>
+    </button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- CAMARA -->
+  <section class="escenario" aria-label="Cámara">
+    <div class="pantalla" id="pantalla">
+      <video id="cam" autoplay playsinline muted></video>
+      <canvas id="overlay"></canvas>
+      <video id="reproductor" controls playsinline hidden></video>
+      <button class="btn btn-chico cerrar-video" id="btn-cerrar-video" hidden>Volver a la cámara</button>
+      <div class="cuenta" id="cuenta" hidden>3</div>
+      <div class="rec-badge" id="rec-badge" hidden><span class="punto"></span><span id="rec-tiempo">0,0 s</span></div>
+      <div class="vacio" id="cam-vacio">
+        <p>La cámara está apagada.</p>
+        <button class="btn" id="btn-activar">Activar cámara</button>
+        <p class="nota" id="cam-error"></p>
+      </div>
+    </div>
+
+    <div class="visibles solo-cuerpo" id="visibles" aria-label="Partes del cuerpo que se ven">
+      <span class="chip" data-parte="cabeza">Cabeza</span>
+      <span class="chip" data-parte="manos">Manos</span>
+      <span class="chip" data-parte="cadera">Cadera</span>
+      <span class="chip" data-parte="pies">Pies</span>
+      <span class="chip-nota" id="esqueleto-estado"></span>
+    </div>
+
+    <div class="controles">
+      <button class="grabar" id="btn-grabar" disabled>
+        <span class="grabar-icono"></span><span id="grabar-texto">Grabar toma</span>
+      </button>
+      <div class="controles-lado">
+        <label class="campo-inline">Cámara
+          <select id="sel-camara"></select>
+        </label>
+        <label class="check solo-cuerpo"><input type="checkbox" id="chk-esqueleto" checked> Mostrar esqueleto</label>
+        <label class="check"><input type="checkbox" id="chk-auto"> Convertir al terminar</label>
+      </div>
+    </div>
+    <p class="consejo">Espacio para grabar o parar. Quedate quieto en pose neutral el primer segundo: define el cero de la cabeza y el torso.</p>
+    <div class="salida">
+      <div class="resultado" id="resultado" hidden></div>
+      <details class="registro" id="registro-box" hidden>
+        <summary>Detalles</summary>
+        <pre id="registro"></pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- PASOS -->
+  <section class="pasos">
+    <div class="paso">
+      <div class="paso-cab">
+        <h2><span class="num">1</span>Toma</h2>
+        <div class="paso-acciones">
+          <label class="btn btn-chico">Subir video<input type="file" id="subir" accept="video/*" hidden></label>
+        </div>
+      </div>
+      <ul class="tomas" id="tomas" aria-label="Tomas grabadas"></ul>
+    </div>
+
+    <div class="paso solo-cuerpo">
+      <div class="paso-cab"><h2><span class="num">2</span>Ajustes del estilo</h2></div>
+      <div class="campo">
+        <div class="campo-cab"><label for="modelo">Modelo del personaje</label></div>
+        <select id="modelo">
+          <option value="auto">El del film (steve_bends si no hay film)</option>
+          <option value="steve_bends">steve_bends</option>
+          <option value="emoticons_steve">emoticons_steve</option>
+        </select>
+        <p class="ayuda">emoticons_steve tiene el torso en dos huesos y otra orientación de huesos: el programa lo adapta solo. Con un film nuevo se crea con el modelo que elijas.</p>
+      </div>
+      <div class="campo" id="campo-partes">
+        <div class="campo-cab"><label>Qué animar</label></div>
+        <div class="mas-grid" id="partes">
+          <label class="check"><input type="checkbox" data-parte="cabeza"> Cabeza</label>
+          <label class="check"><input type="checkbox" data-parte="torso"> Torso</label>
+          <label class="check"><input type="checkbox" data-parte="brazo_izq"> Brazo izquierdo</label>
+          <label class="check"><input type="checkbox" data-parte="brazo_der"> Brazo derecho</label>
+          <label class="check"><input type="checkbox" data-parte="pierna_izq"> Pierna izquierda</label>
+          <label class="check"><input type="checkbox" data-parte="pierna_der"> Pierna derecha</label>
+        </div>
+        <p class="ayuda">Lo que dejes sin marcar no se toca: queda como está en el film (izquierda y derecha son las del personaje).</p>
+      </div>
+      <div class="campo">
+        <div class="campo-cab"><label for="torso">Cuánto se inclina el torso</label><output id="out-torso"></output></div>
+        <input type="range" id="torso" min="0" max="1" step="0.05">
+        <p class="ayuda">La cámara no mide bien si te inclinás hacia adelante o atrás. Con menos, el torso queda más derecho; si el personaje se ve jorobado o se va para atrás al gesticular, bajalo.</p>
+      </div>
+      <div id="ajustes-minecraft" class="ajustes">
+        <div class="campo">
+          <div class="campo-cab"><label for="transicion_max">Duración de las transiciones</label><output id="out-trans"></output></div>
+          <div class="doble">
+            <input type="range" id="transicion_min" min="2" max="20" step="1" aria-label="Mínimo en ticks">
+            <input type="range" id="transicion_max" min="4" max="30" step="1" aria-label="Máximo en ticks">
+            <span>mín</span><span>máx</span>
+          </div>
+          <p class="ayuda">En tus films la mitad de las transiciones dura 8 ticks o menos.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="velocidad_transicion">Velocidad de transición</label><output id="out-vel"></output></div>
+          <input type="range" id="velocidad_transicion" min="0.2" max="1" step="0.05">
+          <p class="ayuda">Más a la izquierda, más rápida que tu actuación real.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="quietud_gps">Qué tan quieto contar como pose</label><output id="out-quietud"></output></div>
+          <input type="range" id="quietud_gps" min="20" max="150" step="5">
+          <p class="ayuda">Si detecta pocas poses, subilo. Si detecta de más, bajalo.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="detalle_grados">Detalle en gestos continuos</label><output id="out-detalle"></output></div>
+          <input type="range" id="detalle_grados" min="5" max="45" step="1">
+          <p class="ayuda">Un saludo o una sacudida: menos grados, más poses intermedias.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="cambio_min_grados">Ignorar movimientos menores a</label><output id="out-cambio"></output></div>
+          <input type="range" id="cambio_min_grados" min="0" max="25" step="1">
+        </div>
+      </div>
+
+      <div id="ajustes-manual" class="ajustes" hidden>
+        <p class="ayuda">Primero convertí la toma una vez (te queda la copia fiel como guía). Después, en la <b>Vista 3D</b>, marcá los fotogramas que querés como poses y convertí de nuevo. Cada pose son 4 keyframes: dos de afuera (pose por defecto) y dos iguales de adentro (la pose del video). Estos valores son los de las poses nuevas; después los cambiás pose por pose.</p>
+        <div class="campo">
+          <div class="campo-cab"><label for="manual_sostener">Duración de la pose (entre los dos de adentro)</label><output id="out-m-sost"></output></div>
+          <input type="range" id="manual_sostener" min="1" max="60" step="1">
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="manual_antes">Distancia antes de la pose</label><output id="out-m-antes"></output></div>
+          <input type="range" id="manual_antes" min="1" max="40" step="1">
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="manual_despues">Distancia después de la pose</label><output id="out-m-desp"></output></div>
+          <input type="range" id="manual_despues" min="1" max="40" step="1">
+        </div>
+      </div>
+
+      <div id="ajustes-realista" class="ajustes" hidden>
+        <div class="campo">
+          <div class="campo-cab"><label for="suavizado">Suavizado</label><output id="out-suav"></output></div>
+          <input type="range" id="suavizado" min="0.02" max="0.25" step="0.01">
+          <p class="ayuda">Más suavizado quita temblores, pero también detalle.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="simplificar_grados">Reducir keyframes</label><output id="out-simp"></output></div>
+          <input type="range" id="simplificar_grados" min="0" max="5" step="0.2">
+          <p class="ayuda">0 guarda un keyframe por tick.</p>
+        </div>
+      </div>
+
+      <details class="mas" id="poses-fijas">
+        <summary>Poses prefabricadas (brazos cruzados, atrás, etc.)</summary>
+        <p class="ayuda">Para gestos que la cámara no ve bien. En el tramo que indiques se usa una pose armada de antemano en vez de lo que detecta el programa. Los tiempos son segundos del video. Si no ponés nada, no cambia nada.</p>
+        <div class="mas-grid">
+          <label class="campo-inline">Pose <select id="pf-pose"></select></label>
+          <label class="campo-inline">Desde (s) <input type="number" id="pf-desde" min="0" step="0.5" value="0" style="width:5em"></label>
+          <label class="campo-inline">Hasta (s) <input type="number" id="pf-hasta" min="0" step="0.5" value="5" style="width:5em"></label>
+          <button type="button" id="pf-agregar">Agregar</button>
+        </div>
+        <textarea id="poses_fijas" rows="3" style="width:100%" placeholder="Ej.: 18-30: Manos_atras" aria-label="Poses prefabricadas por tramo"></textarea>
+        <p class="ayuda">Una por línea: <code>desde-hasta: nombre</code>. Para usar también tus poses de BBS, importá tu <code>poses.json</code> de steve_bends (aparecen con "BBS: ").</p>
+        <label class="btn btn-chico">Importar poses.json de BBS<input type="file" id="importar-poses" accept=".json,application/json" hidden></label>
+      </details>
+
+      <details class="mas">
+        <summary>Más opciones</summary>
+        <div class="mas-grid">
+          <label class="check"><input type="checkbox" id="sin_piernas"> No animar piernas</label>
+          <label class="check"><input type="checkbox" id="sin_giro"> No girar el cuerpo entero</label>
+          <label class="check"><input type="checkbox" id="espejo"> El video está espejado</label>
+          <label class="campo-inline">Precisión
+            <select id="calidad">
+              <option value="rapida">Rápida</option>
+              <option value="normal">Normal</option>
+              <option value="alta">Alta (más lenta)</option>
+            </select>
+          </label>
+        </div>
+      </details>
+    </div>
+
+    <div class="paso solo-cara" id="paso-ojos">
+      <div class="paso-cab"><h2><span class="num">2</span>Ojos y boca con tu cara</h2></div>
+      <p class="ayuda">Se animan los ojos y la boca con tu cara. Se agregan al film y al actor del paso 3, que tienen que tener ya puestos los ojos (eyes o eyes_1px) y/o la boca (boca_Man o boca_Woman); el cuerpo del film no se toca. Grabá la cara de frente, cerca de la cámara y con buena luz.</p>
+      <label class="check"><input type="checkbox" id="cara_ojos"> Animar los ojos</label>
+      <div id="ajustes-ojos">
+        <div class="campo">
+          <div class="campo-cab"><label for="ojos_mirada">Cuánto se mueve la mirada</label><output id="out-ojos-mirada"></output></div>
+          <input type="range" id="ojos_mirada" min="0.5" max="2" step="0.1">
+          <p class="ayuda">Más a la derecha, los ojos se mueven más con el mismo movimiento de tu cara.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="ojos_parpadeo">Qué tan cerrado cuenta como parpadeo</label><output id="out-ojos-parpadeo"></output></div>
+          <input type="range" id="ojos_parpadeo" min="0.2" max="0.8" step="0.05">
+          <p class="ayuda">Si se pierden parpadeos, bajalo. Si aparecen de más, subilo.</p>
+        </div>
+        <label class="check"><input type="checkbox" id="ojos_cejas"> Mover también las cejas</label>
+      </div>
+      <label class="check" style="margin-top:14px"><input type="checkbox" id="cara_boca"> Animar la boca</label>
+      <div id="ajustes-boca">
+        <p class="ayuda">Copia la forma de tu boca cuadro por cuadro (hables o hagas muecas): cerrada, A, E, I, O, U, dientes, dientes apretados o sonrisa con dientes.</p>
+        <div class="campo">
+          <div class="campo-cab"><label for="boca_sens">Sensibilidad de la boca</label><output id="out-boca-sens"></output></div>
+          <input type="range" id="boca_sens" min="0.5" max="2" step="0.1">
+          <p class="ayuda">Si la boca casi no se abre en el muñeco, subilo. Si se abre de más, bajalo.</p>
+        </div>
+        <div class="campo">
+          <div class="campo-cab"><label for="boca_min_ticks">Lo mínimo que dura cada forma</label><output id="out-boca-min"></output></div>
+          <input type="range" id="boca_min_ticks" min="1" max="6" step="1">
+          <p class="ayuda">Más alto = menos cambios y más tranquilo. Más bajo = sigue cada movimiento.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="paso">
+      <div class="paso-cab"><h2><span class="num">3</span>Dónde guardarla</h2></div>
+      <div class="carpeta" id="carpeta-box">
+        <div class="fila solo-pc" hidden>
+          <button class="btn btn-chico" id="btn-carpeta-elegir">Elegir carpeta de films</button>
+          <button class="btn btn-chico" id="btn-carpeta-reconectar" hidden>Permitir</button>
+        </div>
+        <div class="fila">
+          <label class="btn btn-chico">Importar film (.dat)<input type="file" id="importar-film" accept=".dat,application/octet-stream" hidden></label>
+          <button class="btn btn-chico" id="btn-exportar-film">Exportar el film elegido</button>
+        </div>
+        <p class="ayuda" id="carpeta-msg"></p>
+      </div>
+      <div class="destino">
+        <label class="campo-inline">Film
+          <select id="sel-film"><option value="">Film nuevo</option></select>
+        </label>
+        <label class="campo-inline">Actor
+          <select id="sel-actor" disabled><option value="0">—</option></select>
+        </label>
+        <label class="campo-inline">Empieza en el tick
+          <input type="number" id="desde" min="0" step="1" value="0">
+        </label>
+      </div>
+      <p class="ayuda" id="destino-ayuda">Se crea un film nuevo con tu actor en steve_bends.</p>
+    </div>
+
+    <div class="convertir">
+      <button class="btn-convertir" id="btn-convertir" disabled>Convertir a animación</button>
+      <div class="progreso" id="progreso" hidden><div class="barra" id="barra"></div></div>
+    </div>
+  </section>
+</main>
+
+<!-- VISTA 3D -->
+<main class="vista3d" id="vista3d" hidden>
+  <div class="v3-barra">
+    <label class="campo-inline">Toma <select id="v3-toma"></select></label>
+    <label class="campo-inline">Film <select id="v3-film"><option value="">El de la toma</option></select></label>
+    <label class="campo-inline">Actor <select id="v3-actor" disabled><option value="">El de la toma</option></select></label>
+    <label class="campo-inline">Modelo
+      <select id="v3-modelo">
+        <option value="auto">El del film</option>
+        <option value="steve_bends">steve_bends</option>
+        <option value="alex_bends">alex_bends (brazos finos)</option>
+        <option value="emoticons_steve">emoticons_steve</option>
+      </select>
+    </label>
+    <label class="campo-inline">Probar pose
+      <select id="v3-pose"><option value="">(ninguna: sigue la animación)</option></select>
+    </label>
+    <span class="campo-inline">Skin
+      <button type="button" class="chip-btn" id="v3-skin-elegir">Elegir…</button>
+      <button type="button" class="chip-btn" id="v3-skin-defecto">Por defecto</button>
+      <input type="file" id="v3-skin-archivo" accept="image/png" hidden>
+    </span>
+    <span class="campo-inline" title="Solo para la vista previa: no cambia el film">Posición de los ojos
+      <label>← → <input type="range" id="v3-ojos-x" min="-3" max="3" step="0.25" value="0" style="width:7em"></label>
+      <label>↑ ↓ <input type="range" id="v3-ojos-y" min="-3" max="3" step="0.25" value="0" style="width:7em"></label>
+      <output id="v3-ojos-pos"></output>
+      <button type="button" class="chip-btn" id="v3-ojos-reset">Reiniciar</button>
+    </span>
+    <label class="campo-inline">Ojos
+      <select id="v3-ojos">
+        <option value="auto">Los del film</option>
+        <option value="eyes">eyes (2×2)</option>
+        <option value="eyes_1px">eyes_1px (1 píxel)</option>
+        <option value="ninguno">Sin ojos</option>
+      </select>
+    </label>
+  </div>
+  <div class="v3-vistas">
+    <div class="v3-caja">
+      <span class="v3-cap">Tu video</span>
+      <video id="v3-video" playsinline muted hidden></video>
+      <p class="v3-vacio" id="v3-sin-video">No encuentro el video de esta toma.</p>
+    </div>
+    <div class="v3-caja">
+      <span class="v3-cap">Vista previa 3D · arrastrá para girar, rueda para acercar</span>
+      <div id="v3-escena"></div>
+      <p class="v3-vacio v3-msg" id="v3-msg" hidden></p>
+    </div>
+  </div>
+  <div class="v3-tiempo">
+    <button class="btn btn-chico" id="v3-ant" title="Ir a la pose anterior">Pose anterior</button>
+    <button class="btn v3-play" id="v3-play">Reproducir</button>
+    <button class="btn btn-chico" id="v3-sig" title="Ir a la pose siguiente">Pose siguiente</button>
+    <div class="v3-linea" id="v3-linea">
+      <div class="v3-rojas" id="v3-rojas"></div>
+      <div class="v3-marcas" id="v3-marcas" aria-hidden="true"></div>
+      <input type="range" id="v3-t" min="0" max="100" step="1" value="0" aria-label="Posición en la animación">
+    </div>
+    <span class="v3-lectura" id="v3-lectura">0,0 s · tick 0</span>
+  </div>
+  <p class="ayuda v3-leyenda">Las marcas amarillas son las poses clave del film.</p>
+  <section class="v3-manual" id="v3-manual" hidden>
+    <div class="v3-manual-cab">
+      <h3>Poses a mano</h3>
+      <button type="button" class="btn" id="v3-manual-marcar">Marcar este fotograma</button>
+    </div>
+    <p class="ayuda">Mové la línea de tiempo hasta un fotograma que te sirva y marcalo: se vuelve una pose (cinta roja arriba de la línea). Los círculos grises de los costados son la pose por defecto; si unís una pose con la siguiente, no pasan por la pose por defecto. Cuando termines, tocá "Convertir de nuevo".</p>
+    <ol class="v3-manual-lista" id="v3-manual-lista"></ol>
+  </section>
+  <div class="v3-pie">
+    <div class="v3-grupo" id="v3-vel"><span>Velocidad</span>
+      <button class="chip-btn on" data-v="1">1x</button><button class="chip-btn" data-v="0.5">0,5x</button><button class="chip-btn" data-v="0.25">0,25x</button>
+    </div>
+    <div class="v3-grupo" id="v3-camara"><span>Cámara</span>
+      <button class="chip-btn" data-c="frente">Frente</button><button class="chip-btn" data-c="tres_cuartos">3/4</button><button class="chip-btn" data-c="lado">Lado</button><button class="chip-btn" data-c="atras">Atrás</button><button class="chip-btn" data-c="cara">Cara</button>
+    </div>
+    <label class="check"><input type="checkbox" id="v3-repetir"> Repetir</label>
+    <label class="check"><input type="checkbox" id="v3-ejes"> Mostrar ejes</label>
+    <button class="btn v3-rehacer" id="v3-rehacer">Convertir de nuevo</button>
+  </div>
+  <p class="ayuda" id="v3-aviso"></p>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

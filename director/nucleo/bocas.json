@@ -1,0 +1,11 @@
+{
+  "_ayuda": "Que hueso de la boca se muestra para cada forma de Rhubarb (se puede cambiar a mano). null = boca cerrada (se esconden todos). Formas de Rhubarb: A = M/B/P (cerrada), B = consonantes con dientes (K, S, T, EE), C = E/A abierta, D = A bien abierta, E = O, F = U / W, G = F/V, H = L, X = silencio. Basado en las poses del usuario en boca_Man (b/f/l/idle = cerrada, d = s2, ee = i, a = a, o = o, u = u); C va a 'a' porque en castellano la A es la vocal mas comun y es la forma que el usuario mas usa a mano.",
+  "player/boca_Man": {
+    "huesos": ["a", "e", "i", "o", "u", "s", "s2", "s3"],
+    "formas": {"A": null, "B": "s2", "C": "a", "D": "a", "E": "o", "F": "u", "G": null, "H": "i", "X": null}
+  },
+  "player/boca_Woman": {
+    "huesos": ["a", "e", "i", "o", "u", "s", "s2", "s3"],
+    "formas": {"A": null, "B": "s2", "C": "a", "D": "a", "E": "o", "F": "u", "G": null, "H": "i", "X": null}
+  }
+}

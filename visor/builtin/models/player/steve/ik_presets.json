@@ -1,0 +1,73 @@
+{
+    "ik": {
+        "left_leg_end": {
+            "pole_target": "pole_left_leg",
+            "chain_length": 3,
+            "enabled": true,
+            "target": "controller_left_leg"
+        },
+        "left_arm_end": {
+            "pole_target": "pole_left_arm",
+            "chain_length": 3,
+            "enabled": true,
+            "target": "controller_left_arm"
+        },
+        "right_leg_end": {
+            "pole_target": "pole_right_leg",
+            "chain_length": 3,
+            "enabled": true,
+            "target": "controller_right_leg"
+        },
+        "right_arm_end": {
+            "pole_target": "pole_right_arm",
+            "chain_length": 3,
+            "enabled": true,
+            "target": "controller_right_arm"
+        },
+        "body_end": {
+            "pole_target": "pole_body",
+            "chain_length": 2,
+            "enabled": true,
+            "target": "controller_body"
+        }
+    },
+    "ik_no_bends": {
+        "left_leg_end": {
+            "pole_target": "ik_left_leg_pole",
+            "depenetrate": true,
+            "chain_length": 2,
+            "enabled": true,
+            "target": "ik_left_leg"
+        },
+        "left_arm_end": {
+            "pole_target": "ik_left_arm_pole",
+            "chain_length": 2,
+            "enabled": true,
+            "target": "ik_left_arm"
+        },
+        "right_leg_end": {
+            "pole_target": "ik_right_leg_pole",
+            "depenetrate": true,
+            "chain_length": 2,
+            "enabled": true,
+            "target": "ik_right_leg"
+        },
+        "right_arm_end": {
+            "pole_target": "ik_right_arm_pole",
+            "chain_length": 2,
+            "enabled": true,
+            "target": "ik_right_arm"
+        },
+        "low_body_end": {
+            "pole_target": "ik_body_pole",
+            "chain_length": 2,
+            "enabled": true,
+            "target": "ik_body"
+        },
+        "ik_right_leg_pole": {
+            "chain_length": 2,
+            "enabled": false,
+            "target": "ik_right_leg"
+        }
+    }
+}

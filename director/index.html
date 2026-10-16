@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#171a21">
+<title>Director</title>
+<link rel="icon" href="../icono.svg">
+<link rel="stylesheet" href="director.css">
+</head>
+<body>
+<header>
+  <div class="marca">🎬 Director</div>
+  <nav id="pestanas" role="tablist" aria-label="Páginas del Director">
+    <button role="tab" data-tab="capas" aria-selected="true">Capas automáticas</button>
+    <button role="tab" data-tab="escena" aria-selected="false">Guion de escena</button>
+  </nav>
+  <span id="modoBoca" class="etiqueta"></span>
+</header>
+
+<main>
+  <!-- 1. FILM (compartido por las dos páginas) -->
+  <section id="secFilm">
+    <h2>1. Film <small>el original no se toca: el resultado sale aparte</small></h2>
+    <div class="fila" id="filaCarpeta">
+      <button id="btnCarpeta" hidden title="Elegí la carpeta 1.20.1 de tu Minecraft. Solo se lee, nunca se cambia nada.">📂 Elegir carpeta de Minecraft</button>
+      <button id="btnPermiso" hidden></button>
+      <span id="txtCarpeta" class="suave"></span>
+    </div>
+    <div class="fila">
+      <select id="films" aria-label="Film"></select>
+      <button id="btnAbrir" class="primario">Abrir</button>
+    </div>
+    <details id="importar">
+      <summary>Traer archivos a la app <span class="suave">(film .dat, audios, .zip de bbs)</span></summary>
+      <div class="fila">
+        <label class="boton">📄 Importar film (.dat)<input type="file" id="inFilm" accept=".dat" multiple hidden></label>
+        <label class="boton">🔊 Importar audios<input type="file" id="inAudios" accept=".wav,.ogg,.mp3,audio/*" multiple hidden></label>
+        <label class="boton" title="Un .zip con tu carpeta bbs (o el paquete del Visor): se usan las poses y los audios">🗜️ Importar .zip de bbs<input type="file" id="inZip" accept=".zip,application/zip" hidden></label>
+      </div>
+      <p class="suave nota">En el celu: pasá el film (<code>saves/&lt;mundo&gt;/bbs/films/…dat</code>) y sus audios (<code>config/bbs/assets/audio</code>). El .zip es opcional: trae tus poses para el guion.</p>
+    </details>
+    <div id="estadoFilm" class="estado"></div>
+  </section>
+
+  <!-- CAPAS -->
+  <div id="tabCapas" class="pagina">
+    <div id="capasTrabajo" hidden>
+      <section>
+        <h2>2. Actores <small>qué se le agrega a cada uno</small></h2>
+        <div id="actores" class="actores"></div>
+        <p class="suave nota">"Mirada": las pupilas miran al que está hablando. "Cabeza": además gira la cabeza hacia el que habla (con el giro natural de BBS, hasta 45°; no toca tu animación de pose).</p>
+      </section>
+      <section>
+        <h2>3. Voces <small>quién dice cada parte (▶ para escuchar)</small></h2>
+        <div id="clips"></div>
+        <div class="fila extra">
+          <label class="boton">+ Agregar un audio que no está en el film…<input type="file" id="inExtra" accept=".wav,.ogg,.mp3,audio/*" hidden></label>
+          <span class="suave">empieza en el tick</span><input type="number" id="extraTick" value="0" min="0" inputmode="numeric">
+        </div>
+      </section>
+      <section>
+        <h2>4. Generar</h2>
+        <div class="fila">
+          <span>Parpadeo cada</span><input type="number" id="pmin" value="1.2" step="0.1" min="0.3" inputmode="decimal"><span>a</span>
+          <input type="number" id="pmax" value="3.5" step="0.1" min="0.5" inputmode="decimal"><span>segundos</span>
+        </div>
+        <div class="fila">
+          <span>Semilla</span><input type="number" id="semilla" value="1" min="0" inputmode="numeric">
+          <span class="suave">(otro número = otros parpadeos)</span>
+        </div>
+        <div class="fila">
+          <button class="primario grande" id="btnGenerarCapas">Generar</button>
+          <button id="btnSalidaCapas" hidden>Abrir carpeta Salida</button>
+        </div>
+        <div id="estadoCapas" class="estado"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- GUION DE ESCENA -->
+  <div id="tabEscena" class="pagina" hidden>
+    <div id="escenaTrabajo" hidden>
+      <div class="cols">
+        <section>
+          <h2>2. Guion <small>una orden por línea · se guarda solo</small></h2>
+          <textarea id="guion" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Vegetta camina hasta #7&#10;+ FranSauce mira a Vegetta&#10;espera 1s&#10;Vegetta señala a FranSauce 2s"></textarea>
+          <div class="fila">
+            <button id="btnProbar">Probar (ver abajo)</button>
+            <button class="primario grande" id="btnGenerarEscena">Generar</button>
+            <button id="btnSalidaEscena" hidden>Abrir carpeta Salida</button>
+          </div>
+          <div id="estadoEscena" class="estado"></div>
+        </section>
+        <section>
+          <h2>Actores <small>tocá un nombre para escribirlo</small></h2>
+          <div class="lista"><table id="tablaActores"></table></div>
+          <h2 class="sub">Poses de <select id="posesDe" aria-label="Actor"></select> <small>tocá para agregar</small></h2>
+          <div class="lista poses" id="poses"></div>
+          <details class="ayuda" open>
+            <summary><h2>Órdenes</h2></summary>
+            <table>
+              <tr><td><code>X camina hasta Y</code></td><td>hasta otro actor (se frena a 1 bloque) o una marca (llega justo)</td></tr>
+              <tr><td><code>X corre hasta Y</code></td><td>igual pero corriendo</td></tr>
+              <tr><td><code>X camina 3 bloques adelante</code></td><td>también "atrás" (sin darse vuelta)</td></tr>
+              <tr><td><code>X camina hasta 985 90 1400</code></td><td>coordenadas del F3 (sin probar en el juego)</td></tr>
+              <tr><td><code>X mira a Y</code></td><td>gira la cabeza (y el cuerpo si hace falta)</td></tr>
+              <tr><td><code>X gira hacia Y</code></td><td>gira todo el cuerpo</td></tr>
+              <tr><td><code>X señala a Y 2s</code></td><td>se gira y apunta con el brazo derecho</td></tr>
+              <tr><td><code>X pose Standing_Cheer 2s</code></td><td>va a la pose, la sostiene y vuelve (tu estilo)</td></tr>
+              <tr><td><code>X aparece</code> / <code>X desaparece</code></td><td>de golpe</td></tr>
+              <tr><td><code>X desaparece titilando 2s</code></td><td>prende y apaga hasta irse (también "aparece titilando")</td></tr>
+              <tr><td><code>X salta</code></td><td>en el lugar (se agacha al despegar y al caer); o <code>X salta 2 bloques adelante</code></td></tr>
+              <tr><td><code>X queda quieto 3s</code></td><td>respira y mueve un poco la cabeza (también <code>X respira 3s</code>)</td></tr>
+              <tr><td><code>X entra</code></td><td>entrada dramática: llega frenando desde 8 bloques atrás hasta donde está (o <code>X entra desde 12 bloques 3s</code>)</td></tr>
+              <tr><td><code>cámara general</code></td><td>toma abierta de todos, se acerca despacio. Dura hasta la próxima cámara (o poné el tiempo: <code>cámara general 3s</code>)</td></tr>
+              <tr><td><code>cámara primer plano de X</code></td><td>de frente a la cara (también <code>cámara cerca de X</code>)</td></tr>
+              <tr><td><code>cámara desde abajo a X</code></td><td>contrapicado: cámara baja mirando para arriba</td></tr>
+              <tr><td><code>cámara giro alrededor de X</code></td><td>da una vuelta entera alrededor</td></tr>
+              <tr><td><code>cámara sigue a X</code></td><td>lo acompaña de costado mientras camina o corre</td></tr>
+              <tr><td><code>espera 1.5s</code></td><td>pausa (también en ticks: <code>30t</code>)</td></tr>
+              <tr><td><code>+ ...</code></td><td>al principio: al mismo tiempo que la línea anterior</td></tr>
+              <tr><td><code>@ 12s</code></td><td>salta el reloj a ese momento del film</td></tr>
+              <tr><td><code>4</code> o <code>#4</code></td><td>el actor número 4 (ej.: <code>2 va hacia 1</code>)</td></tr>
+              <tr><td><code>// texto</code></td><td>comentario (se ignora)</td></tr>
+            </table>
+          </details>
+        </section>
+      </div>
+      <section>
+        <h2>3. Vista de arriba <small>recorridos y tiempos antes de ir al juego (la flechita es hacia dónde mira)</small></h2>
+        <canvas id="mapa"></canvas>
+        <div class="fila tiempo">
+          <button id="btnPlay" aria-label="Reproducir">▶</button>
+          <input type="range" id="tiempo" min="0" max="100" value="0" step="1" aria-label="Tiempo">
+          <span id="tiempoTxt" class="suave"></span>
+        </div>
+        <div class="lista"><table id="acciones"></table></div>
+      </section>
+    </div>
+  </div>
+</main>
+<audio id="audio" hidden></audio>
+<script type="module" src="app.js"></script>
+</body>
+</html>

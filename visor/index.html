@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Visor BBS</title>
+<link rel="icon" href="icono.svg">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header>
+  <div class="marca"><img src="icono.svg" alt=""> Visor BBS</div>
+  <nav id="pestanas">
+    <button data-tab="forms" class="activa">Forms</button>
+    <button data-tab="modelos">Modelos</button>
+    <button data-tab="texturas">Texturas</button>
+  </nav>
+  <div class="acciones">
+    <button id="btnCarpeta" title="Elegí la carpeta bbs (adentro de .minecraft/config). Solo se lee, no se cambia nada.">📂 Abrir carpeta bbs</button>
+    <label class="boton" title="Un .zip con la carpeta bbs (o el paquete que arma este visor)">🗜️ Abrir .zip<input type="file" id="inZip" accept=".zip,application/zip" hidden></label>
+    <button id="btnPaquete" hidden title="Arma un .zip liviano para mirar todo desde el celu">📦 Paquete para el celu</button>
+  </div>
+</header>
+<div id="estado">Elegí tu carpeta <b>bbs</b> (PC) o abrí un <b>.zip</b> (celu). Mientras tanto se ven los modelos que trae el mod.</div>
+<main>
+  <aside id="lateral"><input id="filtroLateral" type="search" placeholder="Buscar carpeta…"><div id="arbol"></div></aside>
+  <section id="centro">
+    <div class="barra">
+      <select id="selLateral" aria-label="Carpeta"></select>
+      <input id="buscar" type="search" placeholder="Buscar…">
+      <span id="cuenta"></span>
+      <label id="opModelo" hidden>Ver en <select id="selBase"></select></label>
+    </div>
+    <div id="grilla"></div>
+  </section>
+  <section id="detalle" class="vacio">
+    <div class="cab"><b id="detTitulo">Elegí algo de la lista</b><span class="esp"></span><button id="btnCentrar" title="Volver a encuadrar">🎯</button><button id="btnCerrar" title="Cerrar">✕</button></div>
+    <div id="vista3d"></div>
+    <div id="controles"></div>
+    <div id="info"></div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

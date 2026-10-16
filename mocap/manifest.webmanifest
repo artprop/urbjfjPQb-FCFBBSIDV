@@ -1,0 +1,14 @@
+{
+  "name": "Mocap BBS",
+  "short_name": "Mocap BBS",
+  "description": "Mocap de cuerpo y ojos para films de BBS (Minecraft)",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#25282d",
+  "theme_color": "#25282d",
+  "icons": [
+    { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

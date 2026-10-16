@@ -1,0 +1,14 @@
+{
+  "name": "Estudio BBS",
+  "short_name": "Estudio BBS",
+  "description": "Visor, Mocap, Randomizer y Director para BBS (Minecraft) en un solo programa",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#171a21",
+  "theme_color": "#171a21",
+  "icons": [
+    { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#171a21">
+<title>Estudio BBS</title>
+<link rel="icon" href="icono.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--fondo); color: var(--texto); font: 15px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; }
+  #barra { display: none; align-items: center; gap: 8px; padding: 4px 8px; padding-top: max(4px, env(safe-area-inset-top)); background: var(--panel); border-bottom: 1px solid var(--borde); }
+  body.en-modo #barra { display: flex; }
+  #barra button { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
+  #barra button.activo { background: var(--acento); color: #102010; border-color: var(--acento); font-weight: 600; }
+  #barra .nombre { font-weight: 600; margin-right: 4px; }
+  #atajos { display: flex; gap: 6px; overflow-x: auto; }
+  #marcos { flex: 1; position: relative; }
+  #marcos iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: var(--fondo); }
+  #marcos iframe.visible { display: block; }
+  #menu { flex: 1; overflow: auto; padding: 24px 16px; padding-top: max(24px, env(safe-area-inset-top)); }
+  body.en-modo #menu { display: none; }
+  body:not(.en-modo) #marcos { display: none; }
+  #menu h1 { margin: 0 0 4px; font-size: 26px; display: flex; align-items: center; gap: 10px; }
+  #menu h1 img { width: 36px; height: 36px; image-rendering: pixelated; }
+  #menu .sub { color: var(--suave); margin: 0 0 20px; }
+  #tarjetas { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; max-width: 1100px; }
+  .tarjeta { text-align: left; font: inherit; color: var(--texto); background: var(--panel); border: 1px solid var(--borde); border-radius: 14px; padding: 18px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-height: 140px; }
+  .tarjeta:hover, .tarjeta:focus-visible { border-color: var(--acento); background: var(--panel2); outline: none; }
+  .tarjeta .ico { font-size: 34px; }
+  .tarjeta b { font-size: 18px; }
+  .tarjeta span { color: var(--suave); font-size: 14px; }
+  .tarjeta .nota { color: #e8c15a; font-size: 13px; }
+  #pie { color: var(--suave); font-size: 13px; margin-top: 22px; }
+  @media (max-width: 600px) {
+    #barra .nombre { display: none; }
+    #atajos button { padding: 4px 10px; font-size: 18px; }
+    #atajos .txt { display: none; }
+    #atajos button.activo .txt { display: inline; font-size: 15px; }
+    #tarjetas { grid-template-columns: 1fr; }
+    .tarjeta { min-height: 0; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+    .tarjeta span { flex-basis: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="barra">
+  <button id="volver" title="Volver al menú">☰ Menú</button>
+  <span class="nombre">Estudio BBS</span>
+  <div id="atajos"></div>
+</div>
+<main id="menu">
+  <h1><img src="icono.svg" alt="">Estudio BBS</h1>
+  <p class="sub">Elegí qué querés hacer. Podés pasar de un modo a otro sin perder lo que estabas haciendo.</p>
+  <div id="tarjetas"></div>
+  <p id="pie"></p>
+</main>
+<div id="marcos"></div>
+<script type="module">
+const MODOS = [
+  { id: 'visor', ico: '👀', nombre: 'Visor', texto: 'Mirá tus forms, modelos y texturas de BBS en 3D.' },
+  { id: 'randomizer', ico: '🎲', nombre: 'Randomizer', texto: 'Armá grupos de personajes de fondo al azar para BBS.' },
+  { id: 'mocap', ico: '🎥', nombre: 'Mocap', texto: 'Pasá un video tuyo (cuerpo, ojos y boca) a un film de BBS.' },
+  { id: 'director', ico: '🎬', nombre: 'Director', texto: 'Bocas, parpadeos y miradas solos, y el guion de escena.', notaCelu: 'En el celu la boca sale simple; exacta solo en la PC.' },
+];
+const $ = (s) => document.querySelector(s);
+const marcos = new Map();
+const esCelu = matchMedia('(pointer: coarse)').matches && !navigator.userAgent.includes('Windows');
+
+for (const m of MODOS) {
+  const b = document.createElement('button');
+  b.className = 'tarjeta'; b.dataset.modo = m.id;
+  b.innerHTML = `<div class="ico">${m.ico}</div><b>${m.nombre}</b><span>${m.texto}</span>` + (m.notaCelu && esCelu ? `<span class="nota">${m.notaCelu}</span>` : '');
+  b.onclick = () => abrir(m.id);
+  $('#tarjetas').append(b);
+  const a = document.createElement('button');
+  a.innerHTML = `${m.ico}<span class="txt"> ${m.nombre}</span>`; a.title = m.nombre; a.dataset.modo = m.id;
+  a.onclick = () => abrir(m.id);
+  $('#atajos').append(a);
+}
+
+function abrir(id, guardar = true) {
+  const m = MODOS.find((x) => x.id === id);
+  if (!m) return menu();
+  let f = marcos.get(id);
+  if (!f) {   // cada modo se carga la primera vez que se abre y después queda vivo
+    f = document.createElement('iframe');
+    f.src = `${id}/index.html`; f.title = m.nombre;
+    f.allow = 'camera; microphone; fullscreen; clipboard-read; clipboard-write; web-share';
+    $('#marcos').append(f); marcos.set(id, f);
+  }
+  for (const [k, x] of marcos) x.classList.toggle('visible', k === id);
+  for (const b of $('#atajos').children) b.classList.toggle('activo', b.dataset.modo === id);
+  document.body.classList.add('en-modo');
+  document.title = m.nombre + ' · Estudio BBS';
+  if (guardar && location.hash !== '#' + id) history.pushState(null, '', '#' + id);
+  try { localStorage.setItem('estudio_modo', id); } catch { /* sin almacenamiento */ }
+  f.focus();
+}
+function menu(guardar = true) {
+  document.body.classList.remove('en-modo');
+  for (const x of marcos.values()) x.classList.remove('visible');
+  document.title = 'Estudio BBS';
+  if (guardar && location.hash) history.pushState(null, '', location.pathname);
+}
+$('#volver').onclick = () => menu();
+addEventListener('popstate', () => (location.hash ? abrir(location.hash.slice(1), false) : menu(false)));
+addEventListener('message', (e) => {   // un modo puede pedir pasar a otro: postMessage({estudio:true, abrir:'visor'})
+  if (e.origin === location.origin && e.data && e.data.estudio && e.data.abrir) abrir(e.data.abrir);
+});
+
+fetch('/pc/hola').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((d) => {
+  $('#pie').textContent = d && d.pc
+    ? 'Abierto en la PC. Lo que generes se guarda en la carpeta Salida del programa.' + (d.rhubarb ? '' : ' (No encontré Rhubarb: las bocas saldrán simples.)')
+    : 'Lo que generes se descarga o se comparte desde acá.';
+});
+if (location.hash) abrir(location.hash.slice(1), false);
+</script>
+</body>
+</html>
