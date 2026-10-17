@@ -33,6 +33,7 @@ export const TOMAS = {
   abajo: { fov: 60, nombre: 'desde abajo' },
   giro: { fov: 55, nombre: 'giro alrededor' },
   sigue: { fov: 55, nombre: 'seguimiento' },
+  fija: { fov: 70, nombre: 'fija' },          // puesta a mano: "cámara en X Y Z ..."
 };
 const CAMARA_MIN = 20, CAMARA_PASO = 5, OJOS = 1.55;
 
@@ -158,7 +159,21 @@ function leerCamara(orig, sl, n, film, paralelo) {
   const dur = (' ' + txt).match(new RegExp(`\\s(${NUM}\\s*(?:${UNIDAD}))$`));
   if (dur) { o.dur = duracion(dur[1], n); txt = strip(txt.slice(0, Math.max(0, dur.index - 1))); }
   const tl = sinTildes(txt);
-  const ayuda = 'tomas: "cámara general", "cámara primer plano de X", "cámara desde abajo a X", "cámara giro alrededor de X", "cámara sigue a X".';
+  const ayuda = 'tomas: "cámara general", "cámara primer plano de X", "cámara desde abajo a X", "cámara giro alrededor de X", "cámara sigue a X", "cámara en X Y Z mirando a X".';
+  // cámara puesta a mano (la escribe la vista 3D): "cámara en X Y Z yaw A pitch B [fov F]" o "cámara en X Y Z mirando a X [fov F]"
+  const fija = txt.match(/^en\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*(.*)$/i);
+  if (fija) {
+    o.toma = 'fija'; o.pos = [parseFloat(fija[1]), parseFloat(fija[2]), parseFloat(fija[3])];
+    let r = strip(fija[4]);
+    const fov = r.match(/(?:^|\s)fov\s+(\d+(?:\.\d+)?)\s*$/i);
+    if (fov) { o.fov = parseFloat(fov[1]); r = strip(r.slice(0, fov.index)); }
+    const ang = r.match(/^yaw\s+(-?\d+(?:\.\d+)?)\s+pitch\s+(-?\d+(?:\.\d+)?)$/i);
+    if (ang) { o.yaw = parseFloat(ang[1]); o.pitch = parseFloat(ang[2]); }
+    else if (/^mirando\b/i.test(r)) o.foco = buscarActor(film, strip(r.replace(/^mirando\s+(a\s+la|al|a|hacia)?\s*/i, '')), n);
+    else if (r) throw new ErrorGuion(n, `no entiendo "${r}". Se puede: "cámara en X Y Z yaw 90 pitch 10" o "cámara en X Y Z mirando a FranSauce" (y "fov 50").`);
+    else { o.yaw = 0; o.pitch = 0; }
+    return o;
+  }
   const p = PALABRAS_TOMA.find(([re]) => re.test(tl));
   if (!p) throw new ErrorGuion(n, `no entiendo la toma "${txt}". ${ayuda}`);
   o.toma = p[1];
@@ -192,15 +207,20 @@ export function leer(texto, film) {
     const palabras = s.split(/\s+/).filter(Boolean);
     let kv = null;
     for (let j = 1; j < palabras.length; j++) if (VERBOS.has(sinTildes(palabras[j]))) { kv = j; break; }
-    if (kv === null) throw new ErrorGuion(n, 'no encuentro qué hace el actor. Verbos: camina, corre, salta, mira, gira, aparece, desaparece, pose, señala, queda quieto, entra, espera, cámara.');
+    if (kv === null) throw new ErrorGuion(n, 'no encuentro qué hace el actor. Verbos: camina, corre, salta, mira, gira, aparece, desaparece, pose, señala, queda quieto, entra, se ubica, espera, cámara.');
     const actor = buscarActor(film, palabras.slice(0, kv).join(' '), n);
     let verbo = sinTildes(palabras[kv]);
     let resto = palabras.slice(kv + 1);
-    if (verbo === 'se') {                                 // "se da vuelta hacia X" / "se gira hacia X"
-      verbo = 'gira';
-      while (resto.length && ['da', 'vuelta', 'gira'].includes(sinTildes(resto[0]))) resto = resto.slice(1);
+    let tipo;
+    if (verbo === 'se' && resto.length && ['ubica', 'pone', 'para', 'teletransporta', 'mueve'].includes(sinTildes(resto[0]))) {
+      tipo = 'ubica'; resto = resto.slice(1);          // "X se ubica en 985 90 1400 [mirando a Y]": lo pone ahí de golpe
+    } else {
+      if (verbo === 'se') {                               // "se da vuelta hacia X" / "se gira hacia X"
+        verbo = 'gira';
+        while (resto.length && ['da', 'vuelta', 'gira'].includes(sinTildes(resto[0]))) resto = resto.slice(1);
+      }
+      tipo = VERBOS.get(verbo);
     }
-    const tipo = VERBOS.get(verbo);
     const o = { linea: n, actor, tipo, paralelo };
     if (verbo === 'queda' && resto.length && sinTildes(resto[0]) === 'quieto') resto = resto.slice(1);
     let restoTxt = resto.join(' ');
@@ -238,6 +258,15 @@ export function leer(texto, film) {
       m = rl.match(new RegExp(`^(?:desde\\s+)?(${NUM})\\s*(?:bloques?)?$`));
       if (m) o.distancia = parseFloat(m[1].replace(',', '.'));
       else if (rl) throw new ErrorGuion(n, 'se puede "X entra" o "X entra desde 10 bloques": llega frenando hasta donde está parado.');
+    } else if (tipo === 'ubica') {
+      m = restoTxt.match(/^(?:en\s+)?(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*(.*)$/i);
+      if (!m) throw new ErrorGuion(n, 'se puede "X se ubica en 985 90 1400" (coordenadas del F3), y opcional "mirando a Y".');
+      o.coords = [parseFloat(m[1]), parseFloat(m[2]), parseFloat(m[3])];
+      const mir = strip(m[4]).replace(/^mirando\s+(a\s+la|al|a|hacia)?\s*/i, '');
+      if (strip(m[4])) {
+        if (!/^mirando\b/i.test(strip(m[4]))) throw new ErrorGuion(n, `no entiendo "${strip(m[4])}". Después de las coordenadas se puede poner "mirando a Y".`);
+        o.hacia = buscarActor(film, mir, n);
+      }
     } else if (tipo === 'pose') {
       const nombre = strip(restoTxt);
       if (!nombre) throw new ErrorGuion(n, 'falta el nombre de la pose.');
@@ -467,6 +496,16 @@ export function armar(film, texto, poses = () => ({}), mapa = null) {
         est.agregar(i, ini + largo * f, { ...e, x: e.x + ax * d * dist, z: e.z + az * d * dist, yaw: e.yaw + giro, head: e.yaw + giro }, f === 1 ? 'linear' : 'cubic_out');
       }
       fin = ini + largo;
+    } else if (t === 'ubica') {
+      // lo pone ahí de golpe (para armar la posición de arranque, o un corte)
+      const [cx, cy, cz] = o.coords;
+      const nx = cx - num(rel.x ?? 0), ny = cy - num(rel.y ?? 0), nz = cz - num(rel.z ?? 0);
+      let yaw = e.yaw;
+      if (tiene(o, 'hacia')) { const ob = est.en(o.hacia, ini); yaw = cercano(e.yaw, yawHacia(ob.x - nx, ob.z - nz)); }
+      const ne = { ...e, x: nx, y: ny, z: nz, yaw, head: yaw };
+      if (!est.pts.has(i) && ini <= 0) est.agregar(i, 0, ne, 'linear');
+      else { est.agregar(i, ini, e, 'constant'); est.agregar(i, ini + 0.05, ne, 'linear'); }
+      fin = ini;
     } else if (t === 'pose') {
       const todas = poses(rep) || {};
       const clave = Object.keys(todas).find((k) => sinTildes(k) === sinTildes(o.pose));
@@ -553,9 +592,21 @@ function centro(est, ids, t) {
 }
 
 // [ [tick relativo, x, y, z, yaw, pitch] ] de una toma
-function puntosToma(c, est, ids) {
+function puntosToma(c, est, ids, rel = {}) {
   const out = [];
   const largo = c.hasta - c.desde;
+  if (c.toma === 'fija') {
+    // puesta a mano: quieta en su lugar; si mira a un actor, lo sigue con la vista
+    const cx = c.pos[0] - num(rel.x ?? 0), cy = c.pos[1] - num(rel.y ?? 0), cz = c.pos[2] - num(rel.z ?? 0);
+    if (c.foco === null) return [[0, cx, cy, cz, c.yaw, c.pitch], [largo, cx, cy, cz, c.yaw, c.pitch]];
+    for (let tr = 0; ; tr = Math.min(largo, tr + CAMARA_PASO)) {
+      const p = est.en(c.foco, c.desde + tr);
+      const yaw = yawHacia(p.x - cx, p.z - cz), pitch = pitchHacia(p.y + 1.2 - cy, hypot(p.x - cx, p.z - cz));
+      out.push([tr, cx, cy, cz, out.length ? cercano(out[out.length - 1][4], yaw) : yaw, pitch]);
+      if (tr >= largo) break;
+    }
+    return out;
+  }
   const ini = centro(est, ids, c.desde);
   const frente = radians(ini.yaw);                         // hacia dónde mira el actor al empezar la toma
   const dir = (ang) => [-Math.sin(frente + radians(ang)), Math.cos(frente + radians(ang))];
@@ -612,8 +663,8 @@ function armarCamaras(film, camaras, est, acciones, avisos, reloj) {
     }
     c.hasta = hasta;
     const ids = c.foco !== null ? [c.foco] : (usados.length ? usados : actores);
-    if (!ids.length) throw new ErrorGuion(c.linea, 'no hay actores para encuadrar.');
-    const pts = puntosToma(c, est, ids);
+    if (!ids.length && c.toma !== 'fija') throw new ErrorGuion(c.linea, 'no hay actores para encuadrar.');
+    const pts = puntosToma(c, est, ids, film.relative_coordinates || {});
     const it = 'linear';
     const clip = {
       type: 'bbs:movement', title: 'Director: ' + TOMAS[c.toma].nombre, enabled: B(1), layer: I(capa),
@@ -621,13 +672,15 @@ function armarCamaras(film, camaras, est, acciones, avisos, reloj) {
       envelope: { mode: I(0), pre: 'linear', fadeOut: F(10.0), post: 'linear', fadeIn: F(10.0), factor: D(1.0), enabled: B(0) },
       active: I(127), distance: F(0.0), dolly: F(0.0),
       x: canal(pts, 1, it), y: canal(pts, 2, it), z: canal(pts, 3, it),
-      yaw: canal(pts, 4, it), pitch: canal(pts, 5, it), roll: D(0.0), fov: D(TOMAS[c.toma].fov),
+      yaw: canal(pts, 4, it), pitch: canal(pts, 5, it), roll: D(0.0), fov: D(tiene(c, 'fov') ? c.fov : TOMAS[c.toma].fov),
     };
     film.camera.push(clip);
     tocadas.push(clip);
-    const nombre = c.foco !== null ? nombreCorto(film.replays[c.foco], c.foco) : 'todos';
+    const nombre = c.foco !== null ? nombreCorto(film.replays[c.foco], c.foco) : (c.toma === 'fija' ? 'fija' : 'todos');
+    // camara: [[tick, x, z, yaw, y, pitch]] en coordenadas del film (la vista de arriba usa x, z, yaw; la 3D todo)
     acciones.push({ linea: c.linea, actor: c.foco ?? -1, nombre: '🎥 ' + nombre, tipo: 'cámara ' + TOMAS[c.toma].nombre,
-      desde: pyRound(c.desde, 2), hasta: pyRound(hasta, 2), camara: pts.map((q) => [pyRound(c.desde + q[0], 1), q[1], q[3], q[4]]) });
+      desde: pyRound(c.desde, 2), hasta: pyRound(hasta, 2), fov: num(clip.fov),
+      camara: pts.map((q) => [pyRound(c.desde + q[0], 1), ...[1, 3, 4, 2, 5].map((k) => pyRound(q[k], 4))]) });
   });
   acciones.sort((a, b) => a.linea - b.linea);
   return tocadas;
@@ -666,7 +719,7 @@ function ponerPose(rep, pose, ini, sostener) {
   return fin;
 }
 
-// Para la vista de arriba: {actor: [[tick, x, z, yaw, visible], ...]}
+// Para la vista de arriba y la 3D: {actor: [[tick, x, z, yaw, visible, y], ...]}
 export function recorridos(film, hasta = null, paso = 2) {
   const reps = film.replays || [];
   const fin = hasta || capas.ultimoTick(film);
@@ -684,10 +737,11 @@ export function recorridos(film, hasta = null, paso = 2) {
   reps.forEach((r, i) => {
     const by = ((((r.props || {}).bodyYaw) || {}).$anim || {}).track || {};
     const x = serie(r, 'x') || cero, z = serie(r, 'z') || cero, yaw = serie(r, (by.keyframes || []).length ? 'bodyYaw' : 'yaw') || cero;
+    const y = serie(r, 'y') || cero;
     const vis = Array.from(ts, () => true);
     const kv = [...((((r.animation || {}).visible) || {}).keyframes || [])].sort((a, b) => num(a.tick) - num(b.tick));
     for (const k of kv) { const v = Boolean(num(k.value)); ts.forEach((t, j) => { if (t >= num(k.tick)) vis[j] = v; }); }
-    out[i] = Array.from(ts, (t, j) => [pyRound(t, 1), pyRound(x[j], 3), pyRound(z[j], 3), pyRound(yaw[j], 1), vis[j]]);
+    out[i] = Array.from(ts, (t, j) => [pyRound(t, 1), pyRound(x[j], 3), pyRound(z[j], 3), pyRound(yaw[j], 1), vis[j], pyRound(y[j], 3)]);
   });
   return out;
 }

@@ -42,9 +42,10 @@ export const leerKV = (k) => tx('kv', 'readonly', (s) => s.get(k));
 export const guardarKV = (k, v) => tx('kv', 'readwrite', (s) => s.put(v, k));
 export const borrarKV = (k) => tx('kv', 'readwrite', (s) => s.delete(k));
 
-// lo generado: se guardan los últimos 20 (los más viejos se borran solos)
-export async function guardarSalidaLocal(nombre, bytes) {
-  await poner('salidas', { nombre, bytes, fecha: Date.now() });
+// lo generado: se guardan los últimos 20 (los más viejos se borran solos). mundo = de qué mundo viene el film
+// (para seguir el piso si se vuelve a abrir), o null
+export async function guardarSalidaLocal(nombre, bytes, mundo = null) {
+  await poner('salidas', { nombre, bytes, fecha: Date.now(), mundo });
   const lista = (await todos('salidas')).sort((a, b) => b.fecha - a.fecha);
   for (const v of lista.slice(20)) await borrar('salidas', v.nombre);
 }

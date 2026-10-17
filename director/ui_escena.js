@@ -5,6 +5,9 @@ import * as escena from './nucleo/escena.js';
 import * as mundo from './nucleo/mundo.js';
 import * as capas from './nucleo/capas.js';
 import { num } from '../mocap/nucleo/bbsdat.js';
+import { VistaMundo } from './vista_mundo.js';
+
+let V = null;                        // mapa desde arriba + 3D (vista_mundo.js)
 
 let E = null, R = null, jugando = null, tGuardar = null;
 const poses = new Map();             // grupo de modelo -> [poses de BBS, poses del usuario]
@@ -28,6 +31,11 @@ export function iniciar() {
   addEventListener('resize', dibujar);
   $('guion').addEventListener('keydown', (ev) => { if (ev.key === 'F5' || (ev.ctrlKey && ev.key === 'Enter')) { ev.preventDefault(); probar(); } });
   $('guion').addEventListener('input', () => { clearTimeout(tGuardar); tGuardar = setTimeout(guardarGuion, 600); });
+  // lo que se toca en el 3D (un bloque, "agregar cámara") se escribe en el guion y se vuelve a probar
+  V = new VistaMundo($('vistaMundo'), {
+    insertar: (txt) => { insertar(txt); probar(); }, color,
+    alTiempo: (t) => { $('tiempo').value = t; dibujar(); }, reproducir: () => reproducir(),
+  });
   document.addEventListener('click', (ev) => {
     const el = ev.target.closest('[data-ins],[data-pose],[data-linea]');
     if (!el || !el.closest('#tabEscena')) return;
@@ -66,7 +74,19 @@ export async function abrir() {
   $('escenaTrabajo').hidden = false;
   estado('estadoEscena', ''); R = null; $('acciones').innerHTML = '';
   dibujar();
+  cargarVista();                     // el mapa del mundo se lee mientras tanto (no frena el resto)
   if (guion) probar();
+}
+
+// mapa desde arriba + 3D del mundo del film (si la carpeta de Minecraft está elegida y el film es de un mundo)
+async function cargarVista() {
+  const film = app.film, rel = film.relative_coordinates || {};
+  const nombre = await app.fuentes.mundoDeFilm(app.filmId).catch(() => null);
+  const lector = nombre ? app.fuentes.lectorRegiones(nombre) : null;
+  const posiciones = (film.replays || []).map((r) => ['x', 'y', 'z'].map((k) => capas.valorProp(r, k, 0)));
+  await V.cargar({ leerRegion: lector, rel: { x: num(rel.x ?? 0), y: num(rel.y ?? 0), z: num(rel.z ?? 0) }, nombreMundo: nombre,
+    actores: E.actores, posiciones }).catch((e) => { console.warn(e); });
+  if (R) V.escena(R);
 }
 
 function pintarPoses() {
@@ -76,7 +96,13 @@ function pintarPoses() {
 }
 
 function insertar(txt) {
-  const t = $('guion'); const a = t.selectionStart, b = t.selectionEnd;
+  const t = $('guion'); let a = t.selectionStart, b = t.selectionEnd;
+  // una orden entera (termina en salto de línea) va en su propia línea: después de la línea donde está el cursor
+  if (txt.endsWith('\n') && a > 0 && t.value[a - 1] !== '\n') {
+    const finLinea = t.value.indexOf('\n', a);
+    a = b = finLinea < 0 ? t.value.length : finLinea + 1;
+    if (finLinea < 0) txt = '\n' + txt;
+  }
   t.value = t.value.slice(0, a) + txt + t.value.slice(b); t.focus(); t.selectionStart = t.selectionEnd = a + txt.length;
   guardarGuion();
 }
@@ -123,6 +149,7 @@ async function probar() {
   estado('estadoEscena', `✔ ${acciones.length} órdenes, dura ${seg(Math.max(0, ...acciones.map((a) => a.hasta)))}`
     + (nombreMundo ? ` · caminan siguiendo el piso del mundo "${nombreMundo}"` : ' · sin mapa del mundo: caminan en línea recta')
     + (avisos.length ? '\n' + avisos.join('\n') : ''), avisos.length ? 'aviso' : 'ok');
+  if (V) { V.rango(fin); V.escena(R); }
   dibujar();
   return r;
 }
@@ -152,6 +179,7 @@ export function dibujar() {
   const W = cv.clientWidth, H = cv.clientHeight; g.clearRect(0, 0, W, H);
   const t = +$('tiempo').value;
   $('tiempoTxt').textContent = `${seg(t)} (tick ${t})`;
+  if (V) V.tiempo(t);
   if (!R) { g.fillStyle = '#9aa3b2'; g.font = '14px system-ui, sans-serif'; g.fillText('Tocá "Probar" para ver los recorridos.', 16, 28); return; }
   // encuadre: los actores que usa el guion (si no usa ninguno, todos)
   const usados = new Set(R.acciones.map((a) => String(a.actor)));
@@ -200,12 +228,13 @@ export function dibujar() {
 }
 
 function reproducir() {
-  if (jugando) { clearInterval(jugando); jugando = null; $('btnPlay').textContent = '▶'; return; }
+  const boton = (txt) => { $('btnPlay').textContent = txt; if (V) V.reproduciendo(txt === '⏸'); };
+  if (jugando) { clearInterval(jugando); jugando = null; boton('▶'); return; }
   if (!R) return;
   if (+$('tiempo').value >= +$('tiempo').max) $('tiempo').value = 0;
-  $('btnPlay').textContent = '⏸';
+  boton('⏸');
   jugando = setInterval(() => {
     const v = +$('tiempo').value + 1; $('tiempo').value = v; dibujar();
-    if (v >= +$('tiempo').max) { clearInterval(jugando); jugando = null; $('btnPlay').textContent = '▶'; }
+    if (v >= +$('tiempo').max) { clearInterval(jugando); jugando = null; boton('▶'); }
   }, 50);
 }

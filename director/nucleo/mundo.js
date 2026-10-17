@@ -109,25 +109,58 @@ export class Mundo {
     return secciones;
   }
 
+  // índices de la paleta de una sección ya sacados de los longs (se hace una vez: el mapa y el 3D leen miles de bloques)
+  static _indices(paleta, datos) {
+    const idx = new Uint16Array(4096);
+    if (paleta.length === 1 || !datos) return idx;
+    const bits = Math.max(4, (paleta.length - 1).toString(2).length);
+    const porLong = Math.floor(64 / bits), mascara = (1 << bits) - 1;
+    for (let l = 0, i = 0; l < datos.length && i < 4096; l++) {
+      const v = datos[l];
+      let lo = Number(v & 0xFFFFFFFFn), hi = Number(v >> 32n);   // dos mitades de 32 bits (sin BigInt por cada bloque)
+      for (let k = 0; k < porLong && i < 4096; k++, i++) {
+        const desde = k * bits;
+        let x;
+        if (desde + bits <= 32) x = (lo >>> desde) & mascara;
+        else if (desde >= 32) x = (hi >>> (desde - 32)) & mascara;
+        else x = ((lo >>> desde) | (hi << (32 - desde))) & mascara;
+        idx[i] = x < paleta.length ? x : 0;
+      }
+    }
+    return idx;
+  }
+
   // {Name, Properties} del bloque en coordenadas enteras del mundo; null si el chunk no existe
   bloque(x, y, z) {
     const secs = this._chunk(x >> 4, z >> 4);
     if (!secs) return null;
     const sec = secs.get(y >> 4);
     if (!sec) return AIRE;
-    const [paleta, datos] = sec;
-    if (paleta.length === 1 || !datos) return paleta[0];
-    const bits = Math.max(4, (paleta.length - 1).toString(2).length);
-    const porLong = Math.floor(64 / bits);
-    const idx = ((y & 15) * 256) + ((z & 15) * 16) + (x & 15);
-    const v = datos[Math.floor(idx / porLong)];
-    const k = Number((v >> BigInt((idx % porLong) * bits)) & ((1n << BigInt(bits)) - 1n));
-    return k < paleta.length ? paleta[k] : paleta[0];
+    if (sec.length === 2) sec.push(Mundo._indices(sec[0], sec[1]), sec[0].map((b) => altoBloque(b.Name || 'minecraft:air', b.Properties || {})));
+    return sec[0][sec[2][((y & 15) * 256) + ((z & 15) * 16) + (x & 15)]];
   }
 
   alto(x, y, z) {
-    const b = this.bloque(x, y, z);
-    return b === null ? null : altoBloque(b.Name || 'minecraft:air', b.Properties || {});
+    const secs = this._chunk(x >> 4, z >> 4);
+    if (!secs) return null;
+    const sec = secs.get(y >> 4);
+    if (!sec) return 0.0;
+    if (sec.length === 2) sec.push(Mundo._indices(sec[0], sec[1]), sec[0].map((b) => altoBloque(b.Name || 'minecraft:air', b.Properties || {})));
+    return sec[3][sec[2][((y & 15) * 256) + ((z & 15) * 16) + (x & 15)]];
+  }
+
+  // Bloque visible desde arriba en la columna (x, z), mirando desde 'tope' hacia abajo (hasta 'hondo' bloques).
+  // {nombre, y (arriba del bloque), alto} o null si no hay nada (o no hay mapa).
+  superficie(x, z, tope, hondo = 64) {
+    for (let y = tope; y > tope - hondo; y--) {
+      const a = this.alto(x, y, z);
+      if (a === null) return null;
+      if (a > 0) return { nombre: this.bloque(x, y, z).Name, y: y + a, alto: a, by: y };
+      const n = this.bloque(x, y, z).Name || '';
+      if (n.endsWith('water') || n.endsWith('lava')) return { nombre: n, y: y + 1, alto: 0, by: y, liquido: true };
+      // plantas, antorchas, carteles: se ve lo que hay abajo
+    }
+    return null;
   }
 
   // true si una persona parada a la altura g en la columna (bx, bz) no choca con nada (cabeza incluida)

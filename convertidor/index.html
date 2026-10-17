@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Armourer's → BBS</title>
+<link rel="icon" href="../icono.svg">
+<style>
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e06b6b; --azul: #3b82f6; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--fondo); color: var(--texto); font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+  button, .boton, input { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 7px; padding: 6px 12px; }
+  button, .boton { cursor: pointer; white-space: nowrap; }
+  button:hover, .boton:hover { border-color: var(--acento); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.principal { background: var(--azul); border-color: var(--azul); font-weight: 600; }
+  header { padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+  header b { font-size: 16px; }
+  header p { margin: 4px 0 0; color: var(--suave); font-size: 13px; max-width: 900px; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(280px, 400px) 1fr; min-height: 0; }
+  #lado { padding: 12px; overflow: auto; border-right: 1px solid var(--borde); display: flex; flex-direction: column; gap: 10px; }
+  #zona { border: 2px dashed var(--borde); border-radius: 12px; padding: 18px 12px; text-align: center; color: var(--suave); }
+  #zona.encima { border-color: var(--acento); color: var(--texto); }
+  #zona .botones { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  .modelo { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+  .modelo.activo { border-color: var(--acento); }
+  .modelo .fila { display: flex; gap: 8px; align-items: center; }
+  .modelo input { flex: 1; min-width: 0; padding: 4px 8px; }
+  .modelo .det { color: var(--suave); font-size: 12px; }
+  .ok { color: var(--acento); } .av { color: var(--aviso); } .mal { color: var(--error); }
+  #opciones { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--suave); }
+  #opciones select { padding: 3px 6px; margin-left: 4px; max-width: 100%; }
+  #acciones { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  #estado { font-size: 13px; white-space: pre-wrap; }
+  #vista { position: relative; min-height: 260px; }
+  #vista canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #vista .ayuda { position: absolute; left: 10px; bottom: 8px; color: var(--suave); font-size: 12px; pointer-events: none; }
+  details { color: var(--suave); font-size: 13px; }
+  details ol { padding-left: 18px; margin: 6px 0; }
+  @media (max-width: 700px) { main { grid-template-columns: 1fr; grid-template-rows: auto 320px; } #lado { border-right: 0; border-bottom: 1px solid var(--borde); } }
+</style>
+</head>
+<body>
+<header>
+  <b>🧱 Armourer's → BBS</b>
+  <p>Arregla los .obj que exporta Armourer's Workshop en 1.20.1 para que BBS los cargue: los pasa de píxeles a bloques (si no, salen 16 veces más grandes y parecen invisibles), cambia comas por puntos y los deja en una carpeta lista.</p>
+</header>
+<main>
+  <section id="lado">
+    <div id="zona">
+      Soltá acá el <b>.obj</b> y el <b>.png</b> que exportó Armourer's<br><span style="font-size:12px">(el .mtl no hace falta; podés traer varios modelos juntos)</span>
+      <div class="botones">
+        <label class="boton">📄 Elegir archivos<input type="file" id="inArchivos" accept=".obj,.png,.mtl" multiple hidden></label>
+      </div>
+    </div>
+    <div id="opciones">
+      <label>Tamaño <select id="selEscala"><option value="auto">Automático</option><option value="0.0625">Venía en píxeles (achicar 16 veces)</option><option value="1">Dejarlo como viene</option></select></label>
+      <label><input type="checkbox" id="chkApoyar" checked> Centrarlo y apoyarlo en el piso</label>
+    </div>
+    <div id="lista"></div>
+    <div id="acciones" hidden>
+      <button id="btnGuardar" class="principal">💾 Guardar para BBS</button>
+      <button id="btnOtra" hidden title="Elegís una carpeta (por ejemplo config\bbs\assets\models\Comida) y se crea una carpeta por modelo adentro">📁 Guardar en otra carpeta…</button>
+      <button id="btnCarpeta" hidden>📂 Abrir carpeta Salida</button>
+      <button id="btnLimpiar">🗑️ Vaciar</button>
+    </div>
+    <div id="estado"></div>
+    <details>
+      <summary>Cómo ponerlo en BBS</summary>
+      <ol>
+        <li>Tocá <b>Guardar para BBS</b>: queda una carpeta por modelo en <code>Salida\convertidor</code> (adentro, el .obj y el .png con el mismo nombre). O usá <b>Guardar en otra carpeta</b> y elegí directo la de BBS.</li>
+        <li>Copiá cada carpeta a <code>config\bbs\assets\models</code> (por ejemplo, dentro de <code>Comida</code>).</li>
+        <li>En el juego, el modelo aparece con el nombre de la carpeta. Si BBS ya estaba abierto, recargá los modelos.</li>
+      </ol>
+    </details>
+  </section>
+  <section id="vista"><span class="ayuda">Así lo va a ver BBS · arrastrá para girar, rueda para acercar</span></section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>

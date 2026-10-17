@@ -13,10 +13,12 @@ export const hayRhubarb = async () => (await infoPC()).rhubarb;
 
 // Guardar un resultado. PC: va a EstudioBBS\Salida\<modo>\<nombre>. Celu: se descarga o se comparte.
 // Devuelve un texto para mostrarle al usuario dónde quedó.
-export async function guardarSalida(modo, nombre, datos, tipo = 'application/octet-stream') {
+// carpeta (opcional): subcarpeta dentro de Salida\<modo> (solo PC)
+export async function guardarSalida(modo, nombre, datos, tipo = 'application/octet-stream', carpeta = '') {
   const blob = datos instanceof Blob ? datos : new Blob([datos], { type: tipo });
   if (await esPC()) {
-    const r = await fetch(new URL(`/pc/guardar?modo=${encodeURIComponent(modo)}&nombre=${encodeURIComponent(nombre)}`, location.href), { method: 'POST', body: blob });
+    const sub = carpeta ? `&carpeta=${encodeURIComponent(carpeta)}` : '';
+    const r = await fetch(new URL(`/pc/guardar?modo=${encodeURIComponent(modo)}&nombre=${encodeURIComponent(nombre)}${sub}`, location.href), { method: 'POST', body: blob });
     const d = await r.json();
     if (!r.ok || d.error) throw new Error(d.error || 'No se pudo guardar.');
     return 'Guardado en ' + d.ruta;
