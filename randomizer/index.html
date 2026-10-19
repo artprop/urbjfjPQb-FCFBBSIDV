@@ -178,7 +178,14 @@
   <div class="dlg-cab"><b>Elegí capas candidatas</b><span class="esp"></span><button id="btnElegirCerrar">✕</button></div>
   <div id="elegirRuta" class="ruta"></div>
   <input id="elegirBuscar" type="search" placeholder="Buscar en esta carpeta…">
-  <div id="elegirLista" class="lista elegir"></div>
+  <div class="elegir-cuerpo">
+    <div id="elegirLista" class="lista elegir"></div>
+    <div class="elegir-visor">
+      <div id="elegirNombre" class="sub">Tocá un PNG para verlo en el modelo.</div>
+      <div id="elegirVista3d"></div>
+      <canvas id="elegirPlano" width="64" height="64" hidden></canvas>
+    </div>
+  </div>
   <div class="dlg-pie">
     <span id="elegirCuenta" class="sub"></span>
     <span class="esp"></span>

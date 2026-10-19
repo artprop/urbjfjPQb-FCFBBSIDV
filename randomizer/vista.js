@@ -6,15 +6,29 @@ import { formaSimple } from './motor.js';
 
 // La misma Fuente del visor, pero los modelos del mod (steve, alex...) se buscan en ../visor/builtin
 export class FuenteRandomizer extends Fuente {
-  async cargarInterno() {
+  // se carga una sola vez; mostrar() espera a que termine (si no, el primer dibujo se hacía sin modelos)
+  cargarInterno() {
+    if (!this.listo) this.listo = this._cargarInterno();
+    return this.listo;
+  }
+  async _cargarInterno() {
+    this.errorInterno = '';
     const base = new URL('../visor/builtin/', import.meta.url);
     try {
-      const lista = await (await fetch(new URL('index.json', base))).json();
+      let lista = null, fallo = null;
+      for (let i = 0; i < 3 && !lista; i++) {   // reintenta: en el celu o con mala conexión el primer intento puede fallar
+        try {
+          const r = await fetch(new URL('index.json', base), { cache: i ? 'reload' : 'default' });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          lista = await r.json();
+        } catch (e) { fallo = e; await new Promise((ok) => setTimeout(ok, 400 * (i + 1))); }
+      }
+      if (!lista) throw fallo;
       for (const p of lista) {
         const url = new URL(p.split('/').map(encodeURIComponent).join('/'), base);
         this.interno.set('assets/' + p, () => fetch(url).then((r) => (r.ok ? r.blob() : null)));
       }
-    } catch { /* sin modelos internos */ }
+    } catch (e) { this.errorInterno = String((e && e.message) || e); }
     this._rutas = null;
   }
 }
@@ -37,6 +51,7 @@ export class Vista {
   // Dibuja el personaje {nombre, modelo, capas}. Devuelve la lista de avisos.
   async mostrar(pj) {
     const t = ++this.token;
+    if (this.fuente && this.fuente.listo) await this.fuente.listo;
     if (!this.visor) this.visor = new Visor(this.cont);
     const forma = formaSimple(pj);
     const avisos = [];
@@ -45,7 +60,11 @@ export class Vista {
       if (!r || !(await this.fuente.blob(r))) avisos.push('No encontré ' + c.ruta.replace('assets:', ''));
     }
     const claves = this.claves();
-    if (!claves.some((k) => k.toLowerCase() === String(pj.modelo).toLowerCase())) avisos.push(`No encontré el modelo «${pj.modelo}» para dibujarlo.`);
+    if (!claves.some((k) => k.toLowerCase() === String(pj.modelo).toLowerCase())) {
+      const f = this.fuente, n = claves.length;
+      avisos.push(`No encontré el modelo «${pj.modelo}» para dibujarlo (modelos disponibles: ${n}` +
+        `${f && f.errorInterno ? '; los del mod no se pudieron cargar: ' + f.errorInterno : ''}). Probá recargar la página.`);
+    }
     const [obj, cv] = await Promise.all([this.forms.construir(forma), forma.texture.length ? this.tex.canvas(forma.texture) : null]);
     if (t !== this.token) return null;
     this.visor.mostrar(obj, !this._yaEncuadrado);
