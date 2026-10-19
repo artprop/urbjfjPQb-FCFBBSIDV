@@ -55,7 +55,7 @@ main { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minma
 .campos label.ancho input { flex: 1; }
 
 .tabla { border: 1px solid var(--borde); border-radius: 7px; overflow: auto; margin-top: 6px; max-height: 260px; min-height: 80px; background: #1b1f27; }
-.fila-g { display: grid; grid-template-columns: minmax(110px, 1.1fr) 76px minmax(120px, 2fr) 96px 50px; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid #ffffff08; cursor: pointer; }
+.fila-g { display: grid; grid-template-columns: minmax(170px, 1.6fr) 76px minmax(90px, 1.2fr) 96px 50px; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid #ffffff08; cursor: pointer; }
 .fila-g.cab { position: sticky; top: 0; background: var(--panel2); color: var(--suave); font-size: 12px; cursor: default; z-index: 1; }
 .fila-g.activa { background: var(--sel); }
 .fila-g input, .fila-g select { padding: 3px 6px; width: 100%; }
@@ -82,6 +82,8 @@ main { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minma
 .canal { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 .canal label { width: 130px; flex: none; }
 .canal input[type=number] { width: 80px; }
+#panelShift { margin-top: 14px; }
+#panelShift .canal label { width: auto; }
 .color-fila { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
 .color-fila .hex { width: 100px; }
 .color-fila .peso { width: 70px; }
@@ -136,7 +138,7 @@ dialog::backdrop { background: #0009; }
   .panel.activa { display: flex; }
   #pEditor.activa { display: block; }
   .titulo-barra h3 { flex-basis: 100%; }
-  .fila-g { grid-template-columns: minmax(90px, 1fr) 62px 88px 40px; }
+  .fila-g { grid-template-columns: minmax(120px, 1fr) 62px 88px 40px; }
   .fila-g .res { display: none; }
   .tabla { max-height: 220px; }
   #panelGrupo { min-height: 0; }
