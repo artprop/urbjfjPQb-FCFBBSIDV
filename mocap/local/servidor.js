@@ -10,6 +10,7 @@ import * as emoticons from '../nucleo/emoticons.js';
 import * as ojos from '../nucleo/ojos.js';
 import * as boca from '../nucleo/boca.js';
 import * as bocaPx from '../nucleo/boca_pixel.js';
+import * as muecasMod from '../nucleo/muecas.js';
 import { analizarPose, analizarCara } from './deteccion.js';
 import * as psmove from '../nucleo/psmove.js';
 import { leerAnimacion, aPose } from './importar.js';
@@ -303,7 +304,8 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
         if (rB.cambios === 0) avisos.push('La boca quedó siempre igual: no se vio que la abrieras. Revisá que la cara se vea de frente, cerca y con luz.');
       }
       if (parteP) {
-        const b = bocaPx.construir(cara, parteP, 0, op.desde, op);
+        const gen = op.boca_muecas ? muecasMod.generador(cara, muecasMod.cargarPresets().presets[muecasMod.cargarPresets().activo], parteP.k, parteP.filas, parteP.labios && op.boca_labios !== false) : null;
+        const b = bocaPx.construir(cara, parteP, 0, op.desde, { ...op, boca_gen: gen });
         Object.assign(rep.animation, b.pistas); rB = b.resumen;
         if (rB.cambios === 0) avisos.push('La boca quedó siempre igual: no se vio que la abrieras. Revisá que la cara se vea de frente, cerca y con luz.');
       }

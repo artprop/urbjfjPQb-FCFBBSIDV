@@ -216,7 +216,7 @@ export function tramos(cara, cal, op, { offset = 0, minTicks = 2 } = {}) {
   const N = cal.ok.length, base = reposo(op);
   let ult = base;
   const crudo = [];
-  for (let i = 0; i < N; i++) { const g = grilla(cal, i, op); if (g) ult = g; crudo.push(ult); }
+  for (let i = 0; i < N; i++) { const g = op.gen ? op.gen(i) : grilla(cal, i, op); if (g) ult = g; crudo.push(ult); }
   // cada pedacito: mayoria de 3 cuadros (saca temblequeos de un cuadro)
   const suave = crudo.map((g, i) => {
     const a = crudo[Math.max(0, i - 1)], c = crudo[Math.min(N - 1, i + 1)];
@@ -292,7 +292,7 @@ const valor = (t, k) => (t ? { t: [t[0] / k, 0, 0], s: [t[1], 1, 1] } : { t: [0,
  */
 export function construir(cara, parte, offset = 0, desde = 0, op = {}) {
   // boca_labios = false: no se dibujan labios (los de arriba y abajo quedan escondidos); parte.labios = si el modelo tiene piezas de labio
-  const forma = { k: parte.k, filas: parte.filas, labios: parte.labios && op.boca_labios !== false, sens: op.boca_sens ?? 1 };
+  const forma = { k: parte.k, filas: parte.filas, labios: parte.labios && op.boca_labios !== false, sens: op.boca_sens ?? 1, gen: op.boca_gen || null };   // boca_gen: grilla de una mueca de referencia por cuadro (ver muecas.generador)
   const cal = calibrar(cara);
   const pasos = tramos(cara, cal, forma, { offset, minTicks: op.boca_min_ticks ?? 2 });
   const pistas = {}, ultimo = {};
@@ -364,6 +364,11 @@ export function calibrarVivo(cuadros, nombres, aspecto) {
   const cal = calibrar({ labios: cuadros.map((c) => c.labios), bs: cuadros.map((c) => c.bs), nombres, aspecto, ok: cuadros.map(() => true) });
   const { centro, ancho0, linea, puck0, fun0 } = cal;
   return { centro, ancho0, linea, puck0, fun0, nombres, aspecto };
+}
+/** Cuanto se corrio la boca respecto de su lugar en reposo: [dx, dy] en distancias entre los ojos (dx hacia la derecha de la imagen, dy hacia abajo). */
+export function corrimientoVivo(base, labios) {
+  const loc = marco(labios, base.aspecto), a = loc(61), b = loc(291);
+  return [(a[0] + b[0]) / 2 - base.centro[0], (a[1] + b[1]) / 2 - base.centro[1]];
 }
 /** Grilla de un cuadro de la camara, con la calibracion de calibrarVivo(). */
 export function grillaVivo(base, labios, bs, op) {

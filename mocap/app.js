@@ -3,7 +3,8 @@ import { crearVista } from './vista.js';
 // Toda la logica corre en el navegador (PC y celular): las rutas /api/... las responde local/servidor.js
 import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, importarAnimacion } from './local/servidor.js';
 import { landmarkerPose } from './local/deteccion.js';
-import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido } from './envivo.js';
+import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido, gestoActual } from './envivo.js';
+import { iniciarMuecas } from './muecas_ui.js';
 import { iniciarCel } from './cel.js';
 import { iniciarMoveUI } from './psmove_ui.js';
 import { moveHub } from './local/psmove_hub.js';
@@ -36,7 +37,7 @@ const SLIDERS = {
   boca_sens: ['#out-boca-sens', () => `${Math.round(cfg.boca_sens * 100)} %`],
   boca_min_ticks: ['#out-boca-min', () => `${cfg.boca_min_ticks} ticks`],
 };
-const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'boca_labios', 'usar_move'];
+const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'boca_labios', 'boca_muecas', 'usar_move'];
 let guardarTimer = null, pendiente = {};
 // junta los cambios y los guarda un instante despues (no se pierde ninguno si se tocan varios ajustes seguidos)
 function guardar(campos) {
@@ -521,6 +522,7 @@ $('#imp-convertir').addEventListener('click', async () => {
 });
 
 iniciarVivo();
+iniciarMuecas({ gesto: gestoActual });
 iniciarCel();
 iniciarMoveUI({ grabar: () => alternarGrabacion() });
 inicio();

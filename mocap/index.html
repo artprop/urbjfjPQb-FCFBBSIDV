@@ -118,6 +118,7 @@
       <div class="vivo-cab">
         <label class="check"><input type="checkbox" id="vivo-ojos" checked> Ver los ojos</label>
         <label class="check"><input type="checkbox" id="vivo-boca" checked> Ver la boca</label>
+        <label class="check" title="Pequeñas arrugas al lado y debajo de la boca cuando el gesto las provoca"><input type="checkbox" id="vivo-arrugas" checked> Arrugas</label>
         <label class="check" title="Como un espejo: lo que mirás a tu izquierda se ve a la izquierda"><input type="checkbox" id="vivo-espejo" checked> Como espejo</label>
       </div>
       <div class="vivo-cab">
@@ -130,7 +131,7 @@
       </div>
       <div class="vivo-cab">
         <label class="campo-inline">Boca
-          <select id="vivo-boca-modo"><option value="vivo" selected>En vivo (píxeles)</option><option value="pre">Prediseñada</option></select>
+          <select id="vivo-boca-modo"><option value="vivo" selected>En vivo (píxeles)</option><option value="muecas">Muecas (referencias)</option><option value="pre">Prediseñada</option></select>
         </label>
         <label class="check"><input type="checkbox" id="vivo-labios" checked> Labios</label>
         <label class="campo-inline">Modelo
@@ -338,6 +339,8 @@
         <p class="ayuda">La boca que se usa la decide el modelo del actor: con boca_Man o boca_Woman salen las formas prediseñadas; con boca_pixel, la forma exacta en vivo.</p>
         <label class="check"><input type="checkbox" id="boca_labios"> Dibujar los labios (boca_pixel de hombre)</label>
         <p class="ayuda">Sin labios queda solo el hueco y los dientes, sin el borde de color.</p>
+        <label class="check"><input type="checkbox" id="boca_muecas"> Usar las muecas de referencia (boca_pixel)</label>
+        <p class="ayuda">En vez de copiar la forma exacta de tu boca, en cada momento se usa la boca de la mueca que más se parece a tu gesto (las de «Muecas y bocas de referencia», con el preset elegido y tus ediciones). Sale más limpio y parejo.</p>
         <p class="ayuda">Copia la forma de tu boca cuadro por cuadro (hables o hagas muecas). Con boca_Man o boca_Woman elige entre cerrada, A, E, I, O, U, dientes, dientes apretados o sonrisa con dientes. Con una boca boca_pixel (por ejemplo boca_pixel_Man_x2) copia la forma exacta en pedacitos de píxel.</p>
         <div class="campo">
           <div class="campo-cab"><label for="boca_sens">Sensibilidad de la boca</label><output id="out-boca-sens"></output></div>
@@ -350,6 +353,35 @@
           <p class="ayuda">Más alto = menos cambios y más tranquilo. Más bajo = sigue cada movimiento.</p>
         </div>
       </div>
+    </div>
+
+    <div class="paso solo-cara" id="paso-muecas" data-panel="ajustes">
+      <div class="paso-cab"><h2>Muecas y bocas de referencia</h2></div>
+      <p class="ayuda">Cada gesto de la boca tiene su dibujo de referencia y la boca de píxeles que se usa para esa mueca. Elegí «Muecas (referencias)» en la boca de la vista en vivo (🙂) y la cara usa la mueca que más se parece a tu gesto; la que se reconoce se marca en verde. Podés editar cada boca, agregar muecas y guardar tus propios presets.</p>
+      <div class="vivo-cab">
+        <label class="campo-inline">Preset
+          <select id="mu-preset"></select>
+        </label>
+        <button type="button" class="btn btn-chico" id="mu-nuevo" title="Copia el preset actual con otro nombre">Preset nuevo</button>
+        <button type="button" class="btn btn-chico" id="mu-borrar">Borrar preset</button>
+        <button type="button" class="btn btn-chico" id="mu-agregar">+ Mueca</button>
+      </div>
+      <p class="ayuda" id="mu-escala"></p>
+      <p class="ayuda" id="mu-aviso" role="status"></p>
+      <div class="mu-lista" id="mu-lista"></div>
+      <dialog id="mu-editor" class="mu-editor">
+        <div class="mu-ed-cab"><b id="mu-ed-titulo"></b></div>
+        <p class="ayuda">Tocá o arrastrá para pintar. Las líneas más gruesas marcan los píxeles de la cara; el recuadro claro es el espacio de la boca.</p>
+        <div class="mu-ed-pinceles" id="mu-ed-pinceles">
+          <button type="button" class="btn btn-chico" data-v="0" aria-pressed="false">Piel</button>
+          <button type="button" class="btn btn-chico" data-v="1" aria-pressed="true">Hueco</button>
+          <button type="button" class="btn btn-chico" data-v="2" aria-pressed="false">Dientes</button>
+          <button type="button" class="btn btn-chico" data-v="4" aria-pressed="false">Labio</button>
+          <button type="button" class="btn btn-chico" id="mu-ed-limpiar">Borrar todo</button>
+        </div>
+        <canvas id="mu-ed-lienzo" class="mu-ed-lienzo"></canvas>
+        <div class="mu-ed-pie"><button type="button" class="btn" id="mu-ed-cancelar">Cancelar</button><button type="button" class="btn btn-convertir" id="mu-ed-guardar">Guardar boca</button></div>
+      </dialog>
     </div>
 
     <div class="paso" data-panel="guardar">
