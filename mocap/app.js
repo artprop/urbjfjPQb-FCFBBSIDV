@@ -3,7 +3,8 @@ import { crearVista } from './vista.js';
 // Toda la logica corre en el navegador (PC y celular): las rutas /api/... las responde local/servidor.js
 import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, importarAnimacion } from './local/servidor.js';
 import { landmarkerPose } from './local/deteccion.js';
-import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo } from './envivo.js';
+import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido } from './envivo.js';
+import { iniciarCel } from './cel.js';
 import { persistir } from './local/almacen.js';
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
@@ -240,6 +241,7 @@ function enlazarTomas() {
 async function verToma(nombre) {
   const v = $('#reproductor');
   v.src = await urlToma(nombre); v.hidden = false; v.play().catch(() => {});
+  if (cfg.modo === 'cara' && !vivoPrendido()) prenderVivo(true);   // la grabacion y la cara de BBS, a la vez
   const cerrar = () => { v.pause(); v.hidden = true; $('#btn-cerrar-video').hidden = true; };
   $('#btn-cerrar-video').hidden = false; $('#btn-cerrar-video').onclick = cerrar;
   v.onended = cerrar;
@@ -498,4 +500,5 @@ $('#imp-convertir').addEventListener('click', async () => {
 });
 
 iniciarVivo();
+iniciarCel();
 inicio();

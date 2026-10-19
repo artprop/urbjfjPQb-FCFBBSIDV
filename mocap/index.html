@@ -12,6 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./app.css">
 <link rel="stylesheet" href="./vista.css">
+<link rel="stylesheet" href="./cel.css">
 </head>
 <body>
 <header class="top">
@@ -44,7 +45,7 @@
 
 <main class="layout">
   <!-- CAMARA -->
-  <section class="escenario" aria-label="Cámara">
+  <section class="escenario" aria-label="Cámara" data-panel="cam">
     <div class="camara-fila">
     <div class="pantalla" id="pantalla">
       <video id="cam" autoplay playsinline muted></video>
@@ -84,7 +85,8 @@
         <label class="check"><input type="checkbox" id="chk-auto"> Convertir al terminar</label>
       </div>
     </div>
-    <div class="vivo solo-cara" id="vivo-panel" hidden>
+    <details class="vivo solo-cara" id="vivo-panel" hidden open>
+      <summary>Opciones de la vista en vivo</summary>
       <div class="vivo-cab">
         <label class="check"><input type="checkbox" id="vivo-ojos" checked> Ver los ojos</label>
         <label class="check"><input type="checkbox" id="vivo-boca" checked> Ver la boca</label>
@@ -111,9 +113,16 @@
         </label>
         <button class="btn btn-chico" id="vivo-recalibrar">Recalibrar</button>
       </div>
+      <div class="vivo-cab">
+        <span class="campo-inline">Skin
+          <button type="button" class="btn btn-chico" id="vivo-skin-elegir">Elegir…</button>
+          <button type="button" class="btn btn-chico" id="vivo-skin-defecto">Por defecto</button>
+          <input type="file" id="vivo-skin-archivo" accept="image/png" hidden>
+        </span>
+      </div>
       <p class="ayuda" id="vivo-estado"></p>
-      <p class="ayuda">Es la cara de BBS con tus ojos y tu boca, calculada igual que al convertir. No graba nada: es para probar gestos.</p>
-    </div>
+      <p class="ayuda">Es la cara de BBS con tus ojos y tu boca, calculada igual que al convertir. No graba nada: es para probar gestos. Al tocar "Tomas" y ver una toma, se ve la grabación y la cara a la vez.</p>
+    </details>
     <p class="consejo">Espacio para grabar o parar. Quedate quieto en pose neutral el primer segundo: define el cero de la cabeza y el torso.</p>
     <div class="salida">
       <div class="resultado" id="resultado" hidden></div>
@@ -126,7 +135,7 @@
 
   <!-- PASOS -->
   <section class="pasos">
-    <div class="paso">
+    <div class="paso" data-panel="tomas">
       <div class="paso-cab">
         <h2><span class="num">1</span>Toma</h2>
         <div class="paso-acciones">
@@ -151,7 +160,8 @@
       </div>
     </div>
 
-    <div class="paso solo-cuerpo">
+    <div class="paso solo-cuerpo" data-panel="ajustes">
+      <div id="estilo-lugar"></div>
       <div class="paso-cab"><h2><span class="num">2</span>Ajustes del estilo</h2></div>
       <div class="campo">
         <div class="campo-cab"><label for="modelo">Modelo del personaje</label></div>
@@ -270,7 +280,7 @@
       </details>
     </div>
 
-    <div class="paso solo-cara" id="paso-ojos">
+    <div class="paso solo-cara" id="paso-ojos" data-panel="ajustes">
       <div class="paso-cab"><h2><span class="num">2</span>Ojos y boca con tu cara</h2></div>
       <p class="ayuda">Se animan los ojos y la boca con tu cara. Se agregan al film y al actor del paso 3, que tienen que tener ya puestos los ojos (eyes o eyes_1px) y/o la boca (boca_Man o boca_Woman); el cuerpo del film no se toca. Grabá la cara de frente, cerca de la cámara y con buena luz.</p>
       <label class="check"><input type="checkbox" id="cara_ojos"> Animar los ojos</label>
@@ -314,7 +324,7 @@
       </div>
     </div>
 
-    <div class="paso">
+    <div class="paso" data-panel="guardar">
       <div class="paso-cab"><h2><span class="num">3</span>Dónde guardarla</h2></div>
       <div class="carpeta" id="carpeta-box">
         <div class="fila solo-pc" hidden>
@@ -341,10 +351,11 @@
       <p class="ayuda" id="destino-ayuda">Se crea un film nuevo con tu actor en steve_bends.</p>
     </div>
 
-    <div class="convertir">
+    <div class="convertir" data-panel="guardar">
       <button class="btn-convertir" id="btn-convertir" disabled>Convertir a animación</button>
       <div class="progreso" id="progreso" hidden><div class="barra" id="barra"></div></div>
     </div>
+    <div id="salida-lugar" data-panel="guardar"></div>
   </section>
 </main>
 
@@ -430,6 +441,13 @@
   </div>
   <p class="ayuda" id="v3-aviso"></p>
 </main>
+<nav class="barra-cel" id="barra-cel" aria-label="Secciones">
+  <button type="button" data-tab="cam" aria-selected="true"><span class="ico">🎥</span>Cámara</button>
+  <button type="button" data-tab="tomas" aria-selected="false"><span class="ico">🎞</span>Tomas</button>
+  <button type="button" data-tab="ajustes" aria-selected="false"><span class="ico">⚙️</span>Ajustes</button>
+  <button type="button" data-tab="guardar" aria-selected="false"><span class="ico">💾</span>Guardar</button>
+  <button type="button" data-tab="3d" aria-selected="false"><span class="ico">🧊</span>Vista 3D</button>
+</nav>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

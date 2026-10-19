@@ -7,7 +7,7 @@ import { landmarkerVivo } from './local/deteccion.js';
 
 const $ = (s) => document.querySelector(s);
 const CALIBRAR = 40;            // cuadros con la cara quieta para medir tu boca y tus ojos en reposo
-let lm = null, activo = false, reloj = 0, ultima = 0, base = null, baseOjos = null, baseForma = null, juntar = [], historia = [], formas = [], forma0 = 'cerrada', skin = null, skin0 = null, imBoca = null, piel = '#ffa854', raf = 0;
+let lm = null, activo = false, reloj = 0, ultima = 0, base = null, baseOjos = null, baseForma = null, juntar = [], historia = [], formas = [], forma0 = 'cerrada', skin = null, skin0 = null, capa2 = null, offOjos = [0, 0], imBoca = null, piel = '#ffa854', raf = 0;
 let ultBoca = null, estOjos = OJ.nuevoEstado();
 
 const ver = () => ({ ojos: $('#vivo-ojos').checked, boca: $('#vivo-boca').checked });
@@ -36,10 +36,20 @@ async function cargarBoca() {
   await im.decode(); imBoca = im;
 }
 
-async function cargarSkin() {
-  if (skin) return skin;
-  const im = new Image(); im.src = new URL('./skin_default.png', import.meta.url).href;
+// Skin de la cara: la que se eligio en esta pantalla o en la Vista 3D (se guarda en el navegador como "skin3d"); si no, la de por defecto.
+const guardada = () => { try { return localStorage.getItem('skin3d'); } catch { return null; } };
+async function imagenSkin(url) {
+  const im = new Image(); im.src = url;
   await im.decode();
+  if (im.width !== 64 || im.height !== 64) throw new Error(`La skin tiene que ser de 64×64 píxeles (esta es de ${im.width}×${im.height}).`);
+  return im;
+}
+async function cargarSkin(recargar = false) {
+  if (skin && !recargar) return skin;
+  const propia = guardada();
+  let im, usada = propia ? 'propia' : 'defecto';
+  try { im = await imagenSkin(propia || new URL('./skin_default.png', import.meta.url).href); }
+  catch (e) { if (!propia) throw e; im = await imagenSkin(new URL('./skin_default.png', import.meta.url).href); usada = 'defecto'; }
   const c = document.createElement('canvas'); c.width = 8; c.height = 8;
   const g = c.getContext('2d'); g.drawImage(im, 8, 8, 8, 8, 0, 0, 8, 8);
   const d = g.getImageData(0, 0, 8, 8);
@@ -49,12 +59,19 @@ async function cargarSkin() {
   const p = d.data.subarray((5 * 8 + 1) * 4);   // piel de la mejilla: con este color se tapan los ojos pintados y se cierran los parpados
   piel = `rgb(${p[0]},${p[1]},${p[2]})`;
   skin = d;
+  capa2 = document.createElement('canvas'); capa2.width = 8; capa2.height = 8;   // segunda capa de la cara (pelo, gorro): va por encima de todo
+  capa2.getContext('2d').drawImage(im, 40, 8, 8, 8, 0, 0, 8, 8);
+  try { offOjos = JSON.parse(localStorage.getItem('ojospos_' + usada)) || [0, 0]; } catch { offOjos = [0, 0]; }   // los mismos ajustes de ojos de la Vista 3D
   return skin;
 }
 
 // Dibuja la cara completa: skin, y encima la boca y/o los ojos que se hayan elegido ver.
 function pintar() {
   if (!skin) return;
+  pintarBase();
+  if (capa2) { const cv = $('#vivo-lienzo'), ctx = cv.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.drawImage(capa2, 0, 0, cv.width, cv.height); }
+}
+function pintarBase() {
   const cv = $('#vivo-lienzo'), ctx = cv.getContext('2d'), u = cv.width / 8, v = ver();
   const pre = v.boca && modoBoca() === 'pre';
   const d = pre ? skin0 : skin;   // con la boca prediseñada se ven los labios pintados de la skin; con la de pixeles los dibuja la boca
@@ -63,7 +80,7 @@ function pintar() {
     const p = d.data.subarray((y * 8 + x) * 4);
     ctx.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`; ctx.fillRect(x * u, y * u, u, u);
   }
-  if (v.ojos) OJ.dibujar(ctx, u, estOjos, $('#vivo-ojos-modelo').value, piel);
+  if (v.ojos) OJ.dibujar(ctx, u, estOjos, $('#vivo-ojos-modelo').value, piel, offOjos);
   if (pre) {
     dibujarFormaBoca(ctx, imBoca, $('#vivo-modelo').value.startsWith('Woman') ? 'Woman' : 'Man', forma0, cv.width);
     return;
@@ -77,6 +94,11 @@ function pintar() {
   }
 }
 
+// de donde se mira la cara: la camara, o la toma grabada cuando se la esta reproduciendo (asi se ve la grabacion y la cara a la vez)
+const fuente = () => { const r = $('#reproductor'); return r && !r.hidden && r.readyState >= 2 ? r : $('#cam'); };
+let fuenteAnt = null;
+const espejar = () => $('#vivo-lienzo').classList.toggle('espejo', $('#vivo-espejo').checked && fuente() === $('#cam'));   // la toma grabada no esta espejada
+
 function estado(t) { $('#vivo-estado').textContent = t; }
 const LISTO = 'En vivo. Si algo no queda bien con la cara quieta, tocá "Recalibrar".';
 
@@ -88,7 +110,8 @@ export function recalibrar() {
 function bucle(ts) {
   raf = 0;
   if (!activo) return;
-  const video = $('#cam');
+  const video = fuente();
+  if (video !== fuenteAnt) { const habia = fuenteAnt; fuenteAnt = video; espejar(); if (habia) recalibrar(); }   // otra fuente: se mide de nuevo la cara quieta
   if (lm && video.readyState >= 2 && ts - ultima > 33) {
     ultima = ts;
     reloj = Math.max(reloj + 1, Math.round(ts));
@@ -129,6 +152,7 @@ function bucle(ts) {
   raf = requestAnimationFrame(bucle);
 }
 
+export const estaPrendido = () => activo;
 export async function prender(si) {
   activo = si;
   $('#vivo-lado').hidden = !si; $('#vivo-panel').hidden = !si;
@@ -154,7 +178,7 @@ export function iniciarVivo() {
     for (const id of GUARDAR) { const v = localStorage.getItem('mocap_' + id); if (v !== null) $('#' + id).checked = v === '1'; }
     const m = localStorage.getItem('mocap_vivo-boca-modo'); if (m === 'pre' || m === 'vivo') $('#vivo-boca-modo').value = m;
   } catch { /* sin almacenamiento */ }
-  const espejo = () => $('#vivo-lienzo').classList.toggle('espejo', $('#vivo-espejo').checked);
+  const espejo = espejar;
   espejo();
   for (const id of GUARDAR) $('#' + id).addEventListener('change', () => {
     try { localStorage.setItem('mocap_' + id, $('#' + id).checked ? '1' : '0'); } catch { /* sin almacenamiento */ }
@@ -169,6 +193,22 @@ export function iniciarVivo() {
     formas = []; sincronizar();
   });
   $('#vivo-fab').addEventListener('click', () => prender(!activo));
+  // skin de la cara (compartida con la Vista 3D)
+  $('#vivo-skin-elegir').addEventListener('click', () => $('#vivo-skin-archivo').click());
+  $('#vivo-skin-archivo').addEventListener('change', (e) => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    const lector = new FileReader();
+    lector.onload = async () => {
+      try { await imagenSkin(lector.result); } catch (err) { return estado(err.message || 'No se pudo leer la skin.'); }
+      try { localStorage.setItem('skin3d', lector.result); } catch { return estado('No se pudo guardar la skin en este navegador.'); }
+      await cargarSkin(true); pintar(); estado('Skin cambiada (también la usa la Vista 3D).');
+    };
+    lector.readAsDataURL(f);
+  });
+  $('#vivo-skin-defecto').addEventListener('click', async () => {
+    try { localStorage.removeItem('skin3d'); } catch { /* sin almacenamiento */ }
+    await cargarSkin(true); pintar(); estado('Skin por defecto.');
+  });
   $('#vivo-recalibrar').addEventListener('click', recalibrar);
   $('#vivo-modelo').addEventListener('change', () => { historia = []; ultBoca = null; pintar(); });
   $('#vivo-ojos-modelo').addEventListener('change', () => pintar());
