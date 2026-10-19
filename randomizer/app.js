@@ -506,18 +506,23 @@ $('#inColorPropPick').addEventListener('change', (e) => { $('#inColorProp').valu
 // ---------------- color del grupo ----------------
 const NOTAS = {
   rgb: 'Un color RGB totalmente al azar, opaco.',
-  rgba: 'Un color RGB al azar con transparencia entre 50 % y 100 %.',
+  rgba: 'Un color RGB al azar con transparencia entre la opacidad mínima (abajo) y 255.',
   grises: 'Un gris al azar (rojo = verde = azul), opaco, entre los dos tonos de abajo.',
   paleta: 'Se elige un color de la lista; cuanto mayor el peso, más seguido sale.',
 };
 function renderColor() {
   const g = grupo();
-  if (!g) { $('#tituloColor').textContent = 'COLOR'; $('#notaColor').textContent = ''; ['#panelCanales', '#panelGrises', '#panelPaleta'].forEach((s) => ($(s).hidden = true)); return; }
+  if (!g) { $('#tituloColor').textContent = 'COLOR'; $('#notaColor').textContent = ''; ['#panelCanales', '#panelGrises', '#panelPaleta', '#panelShift'].forEach((s) => ($(s).hidden = true)); return; }
   const c = g.Color, modo = String(c.Modo).toLowerCase();
   $('#tituloColor').textContent = 'COLOR (MODO: ' + modo.toUpperCase() + ')';
   $('#notaColor').textContent = NOTAS[modo] || 'Sin color: la capa se usa tal cual (blanca / sin teñir).';
   $('#panelCanales').hidden = !(modo === 'rgb' || modo === 'rgba');
   $('#filaA').hidden = modo !== 'rgba';
+  $('#filaAlfaMin').hidden = modo !== 'rgba';
+  $('#inAlfaMin').value = c.AlfaMin;
+  $('#panelShift').hidden = false;
+  const sy = g.ShiftY !== null && g.ShiftY !== undefined;
+  $('#chkShiftY').checked = sy; $('#inShiftY').value = sy ? g.ShiftY : 0; $('#inShiftY').disabled = !sy;
   for (const k of 'RGBA') {
     const v = c['Fijo' + k];
     const chk = document.querySelector(`[data-c="${k}"]`), txt = document.querySelector(`[data-v="${k}"]`);
@@ -543,6 +548,20 @@ for (const k of 'RGBA') {
   };
   chk.addEventListener('change', leer); txt.addEventListener('change', leer);
 }
+$('#inAlfaMin').addEventListener('change', (e) => {
+  const g = grupo(); if (!g) return;
+  if (valido255(e.target.value)) { g.Color.AlfaMin = +e.target.value; cambio(); } else malValor(e.target.value);
+});
+const leerShiftY = () => {
+  const g = grupo(); if (!g) return;
+  const t = $('#inShiftY').value.trim();
+  $('#inShiftY').disabled = !$('#chkShiftY').checked;
+  if (!$('#chkShiftY').checked) g.ShiftY = null;
+  else if (/^-?\d+$/.test(t)) g.ShiftY = +t;
+  else { estado(`El valor «${t}» no es válido: tiene que ser un número entero (puede ser negativo).`, 'error'); return; }
+  cambio();
+};
+$('#chkShiftY').addEventListener('change', leerShiftY); $('#inShiftY').addEventListener('change', leerShiftY);
 for (const [id, k] of [['#inGrisMin', 'GrisMin'], ['#inGrisMax', 'GrisMax']]) {
   $(id).addEventListener('change', (e) => {
     const g = grupo(); if (!g) return;
