@@ -55,9 +55,13 @@ main { flex: 1; min-height: 0; display: grid; grid-template-columns: 210px minma
 .campos label.ancho input { flex: 1; }
 
 .tabla { border: 1px solid var(--borde); border-radius: 7px; overflow: auto; margin-top: 6px; max-height: 260px; min-height: 80px; background: #1b1f27; }
-.fila-g { display: grid; grid-template-columns: minmax(170px, 1.6fr) 76px minmax(90px, 1.2fr) 96px 50px; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid #ffffff08; cursor: pointer; }
+.fila-g { display: grid; grid-template-columns: 24px minmax(170px, 1.6fr) 76px minmax(90px, 1.2fr) 96px 50px; gap: 6px; align-items: center; padding: 3px 6px; border-bottom: 1px solid #ffffff08; cursor: pointer; }
 .fila-g.cab { position: sticky; top: 0; background: var(--panel2); color: var(--suave); font-size: 12px; cursor: default; z-index: 1; }
 .fila-g.activa { background: var(--sel); }
+.fila-g .asa { cursor: grab; text-align: center; color: var(--suave); font-size: 17px; line-height: 1; touch-action: none; user-select: none; padding: 6px 0; }
+.fila-g.arrastrando { opacity: .6; }
+.fila-g.suelta-arriba { box-shadow: inset 0 3px 0 var(--acento); }
+.fila-g.suelta-abajo { box-shadow: inset 0 -3px 0 var(--acento); }
 .fila-g input, .fila-g select { padding: 3px 6px; width: 100%; }
 .fila-g .res { color: var(--suave); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fila-g.activa .res { color: #cfd8e8; }
@@ -118,7 +122,16 @@ dialog::backdrop { background: #0009; }
 .dlg-cab, .dlg-pie { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ruta { display: flex; flex-wrap: wrap; gap: 2px; align-items: center; font-size: 13px; }
 .ruta button { padding: 2px 8px; }
-.elegir { flex: 1; }
+.elegir { flex: 1; min-width: 0; min-height: 0; }
+.elegir-cuerpo { flex: 1; min-height: 0; display: flex; gap: 8px; }
+.elegir-visor { flex: 0 0 44%; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+#elegirVista3d { flex: 1; min-height: 140px; position: relative; background: radial-gradient(circle at 50% 40%, #2b3240, #14171d); border-radius: 7px; overflow: hidden; }
+#elegirVista3d canvas { display: block; touch-action: none; }
+.cand.viendo { outline: 2px solid var(--acento); outline-offset: -2px; }
+@media (max-width: 900px) {
+  .elegir-cuerpo { flex-direction: column; }
+  .elegir-visor { flex: 0 0 40%; }
+}
 .elegir .cand input[type=checkbox] { flex: none; }
 .carpeta-fila { font-weight: 600; }
 #dlgPapelera { height: auto; max-height: 80vh; }
@@ -138,7 +151,7 @@ dialog::backdrop { background: #0009; }
   .panel.activa { display: flex; }
   #pEditor.activa { display: block; }
   .titulo-barra h3 { flex-basis: 100%; }
-  .fila-g { grid-template-columns: minmax(120px, 1fr) 62px 88px 40px; }
+  .fila-g { grid-template-columns: 30px minmax(110px, 1fr) 62px 88px 40px; }
   .fila-g .res { display: none; }
   .tabla { max-height: 220px; }
   #panelGrupo { min-height: 0; }

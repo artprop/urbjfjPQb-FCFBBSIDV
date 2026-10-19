@@ -263,9 +263,10 @@ function renderEditor() {
 
 function renderGrupos() {
   const p = actual(), t = $('#tablaGrupos'); t.innerHTML = '';
-  t.append(el('div', { class: 'fila-g cab' }, el('span', {}, 'Grupo'), el('span', {}, 'Aparece %'), el('span', { class: 'res' }, 'Candidatos'), el('span', {}, 'Color'), el('span', { class: 'borra', title: 'Capa que borra (máscara de ojos)' }, 'Borra')));
+  t.append(el('div', { class: 'fila-g cab' }, el('span', {}), el('span', {}, 'Grupo'), el('span', {}, 'Aparece %'), el('span', { class: 'res' }, 'Candidatos'), el('span', {}, 'Color'), el('span', { class: 'borra', title: 'Capa que borra (máscara de ojos)' }, 'Borra')));
   p.datos.Grupos.forEach((g, i) => {
     const fila = el('div', { class: 'fila-g' + (i === grupoIdx ? ' activa' : ''), onclick: () => { if (grupoIdx !== i) { grupoIdx = i; renderGrupos(); renderPanelGrupo(); } } },
+      el('span', { class: 'asa', title: 'Arrastrá para cambiar el orden' }),
       el('input', { value: g.Nombre, oninput: (e) => { renombrarReferencias(null, g.Nombre, e.target.value); g.Nombre = e.target.value; cambio(); actualizarTituloCands(); } }),
       el('input', { type: 'number', min: 0, max: 100, step: 'any', value: Math.round(g.Prob * 1000) / 10, onchange: (e) => {
         const v = parseFloat(String(e.target.value).replace(',', '.'));
@@ -276,7 +277,41 @@ function renderGrupos() {
       el('select', { onchange: (e) => { g.Color.Modo = e.target.value; cambio(); if (i === grupoIdx) renderColor(); } },
         MODOS.map((m) => el('option', { value: m, ...(m === String(g.Color.Modo).toLowerCase() ? { selected: true } : {}) }, m))),
       el('span', { class: 'borra' }, el('input', { type: 'checkbox', checked: g.Erase, onchange: (e) => { g.Erase = e.target.checked; cambio(); } })));
+    arrastrable(fila.querySelector('.asa'), fila, i);
     t.append(fila);
+  });
+}
+
+// arrastrar el asa «☰» para reordenar grupos (mouse y táctil)
+function arrastrable(asa, fila, desde) {
+  asa.textContent = '☰';
+  asa.addEventListener('pointerdown', (e) => {
+    if (e.button) return;
+    e.preventDefault();
+    asa.setPointerCapture(e.pointerId);
+    const t = $('#tablaGrupos');
+    const filas = [...t.querySelectorAll('.fila-g:not(.cab)')];
+    let hasta = desde;
+    fila.classList.add('arrastrando');
+    const marcar = () => filas.forEach((f, k) => { f.classList.toggle('suelta-arriba', k === hasta && hasta < desde); f.classList.toggle('suelta-abajo', k === hasta && hasta > desde); });
+    const mover = (ev) => {
+      const y = ev.clientY;
+      const k = filas.findIndex((f) => y < f.getBoundingClientRect().bottom);
+      hasta = k < 0 ? filas.length - 1 : k;
+      const r = t.getBoundingClientRect();
+      if (y < r.top + 30) t.scrollTop -= 8; else if (y > r.bottom - 30) t.scrollTop += 8;
+      marcar();
+    };
+    const fin = (ev) => {
+      asa.removeEventListener('pointermove', mover); asa.removeEventListener('pointerup', fin); asa.removeEventListener('pointercancel', fin);
+      fila.classList.remove('arrastrando'); filas.forEach((f) => f.classList.remove('suelta-arriba', 'suelta-abajo'));
+      if (ev.type === 'pointerup' && hasta !== desde) {
+        const gs = actual().datos.Grupos;
+        const [g] = gs.splice(desde, 1); gs.splice(hasta, 0, g); grupoIdx = hasta;
+        cambio(); renderGrupos(); renderPanelGrupo();
+      }
+    };
+    asa.addEventListener('pointermove', mover); asa.addEventListener('pointerup', fin); asa.addEventListener('pointercancel', fin);
   });
 }
 
@@ -727,14 +762,15 @@ $('#btnColorNuevo').addEventListener('click', () => {
 });
 
 // ---------------- elegir archivos de la carpeta bbs ----------------
-const elegir = { ruta: '', marcados: new Set() };
+const elegir = { ruta: '', marcados: new Set(), visto: null };
 $('#btnAgregar').addEventListener('click', () => {
   const p = actual(); if (!p || !grupo()) return;
   if (!disco) { alert('Abrí primero tu carpeta bbs (📂 arriba) o un .zip, para poder elegir las capas.'); return; }
   if (!disco.existeCarpeta(dirCapas(p))) { alert(`No encontré la carpeta de capas «${p.datos.Raiz}» adentro de assets. Revisá la «Raíz de capas».`); return; }
-  elegir.ruta = ''; elegir.marcados = new Set(); $('#elegirBuscar').value = '';
+  elegir.ruta = ''; elegir.marcados = new Set(); elegir.visto = null; $('#elegirBuscar').value = '';
   renderElegir();
   $('#dlgElegir').showModal();
+  verEnDialogo(null);
 });
 $('#btnElegirCerrar').addEventListener('click', () => $('#dlgElegir').close());
 $('#elegirBuscar').addEventListener('input', () => renderElegir());
@@ -760,7 +796,8 @@ function renderElegir() {
     const rel = elegir.ruta ? elegir.ruta + '/' + f : f;
     const ya = g.Archivos.includes(rel);
     const chk = el('input', { type: 'checkbox', checked: elegir.marcados.has(rel) || ya, disabled: ya });
-    const fila = el('div', { class: 'cand' + (ya ? ' excluido' : ''), title: ya ? 'Ya es candidato' : rel, onclick: (e) => {
+    const fila = el('div', { class: 'cand' + (ya ? ' excluido' : '') + (elegir.visto === rel ? ' viendo' : ''), 'data-rel': rel, title: ya ? 'Ya es candidato (tocá para verlo)' : rel, onclick: (e) => {
+      verEnDialogo(rel);
       if (ya) return;
       if (e.target !== chk) chk.checked = !chk.checked;
       if (chk.checked) elegir.marcados.add(rel); else elegir.marcados.delete(rel);
@@ -770,6 +807,22 @@ function renderElegir() {
   }
   if (!l.children.length) l.append(el('div', { class: 'item sub' }, 'No hay PNG ni carpetas acá.'));
   cuentaElegir();
+}
+// visor 3D del diálogo: la textura tocada, sola, en el modelo del prefab
+let vistaDlg = null;
+function verEnDialogo(rel) {
+  const p = actual(); if (!p) return;
+  if (!vistaDlg) { vistaDlg = new Vista($('#elegirVista3d'), $('#elegirPlano')); vistaDlg.usarFuente(fuente); }
+  if (rel) elegir.visto = rel;
+  rel = elegir.visto;
+  document.querySelectorAll('#elegirLista .cand.viendo').forEach((d) => d.classList.remove('viendo'));
+  if (!rel) { vistaDlg.limpiar(); $('#elegirNombre').textContent = 'Tocá un PNG para verlo en el modelo.'; return; }
+  document.querySelectorAll('#elegirLista .cand').forEach((d) => { if (d.dataset.rel === rel) d.classList.add('viendo'); });
+  $('#elegirNombre').textContent = `${rel.split('/').pop()} · ${p.datos.Modelo} (sola, sin color)`;
+  const ruta = `assets:${p.datos.Raiz.replace(/^\/+|\/+$/g, '')}/${rel}`;
+  vistaDlg.mostrar({ nombre: 'textura', modelo: p.datos.Modelo, capas: [{ ruta, color: null, erase: false, shiftY: null }] })
+    .then((av) => { if (av && av.length) $('#elegirNombre').textContent += ' · ' + av[0]; })
+    .catch((e) => { $('#elegirNombre').textContent = 'No pude dibujarlo: ' + (e.message || e); });
 }
 function cuentaElegir() {
   const n = elegir.marcados.size;
@@ -898,6 +951,7 @@ async function despuesDeCargar() {
   const rutas = [...fuente.usuario.keys()].filter((r) => r.startsWith('assets/')).map((r) => r.slice(7));
   disco = discoDeRutas(rutas);
   vista.usarFuente(fuente);
+  if (vistaDlg) vistaDlg.usarFuente(fuente);
   minis.clear();
   const pngs = rutas.filter((r) => /\.png$/i.test(r)).length;
   estadoFuente(`${fuente.nombre}: ${pngs} PNG en assets. Solo se lee: no se cambia nada de BBS.`);
@@ -951,11 +1005,10 @@ $('#inZip').addEventListener('change', async (e) => {
   if (!window.showDirectoryPicker) $('#btnCarpeta').hidden = true;
   actualizarTitulo();
   actualizarPapelera();
-  if (prefabs.length) elegirPrefab(ordenados()[0].id, false); else { renderPrefabs(); renderEditor(); }
-
-  await fuente.cargarInterno();
+  await fuente.cargarInterno();   // antes de dibujar nada: si no, el primer dibujo no encuentra el modelo (player/steve)
   vista.usarFuente(fuente);
   renderModelos();
+  if (prefabs.length) elegirPrefab(ordenados()[0].id, false); else { renderPrefabs(); renderEditor(); }
   const recordada = (await almacen.leer('carpeta')) || (await almacen.carpetaDelVisor());
   if (recordada && recordada.queryPermission && (await recordada.queryPermission({ mode: 'read' })) === 'granted') {
     estadoFuente('Leyendo ' + recordada.name + '…');

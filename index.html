@@ -53,7 +53,7 @@
   <div id="atajos"></div>
 </div>
 <main id="menu">
-  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.015 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
+  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.016 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
   <p class="sub">Elegí qué querés hacer. Podés pasar de un modo a otro sin perder lo que estabas haciendo.</p>
   <div id="tarjetas"></div>
   <p id="pie"></p>
@@ -67,7 +67,6 @@ const MODOS = [
   { id: 'director', ico: '🎬', nombre: 'Director', texto: 'Bocas, parpadeos y miradas solos, y el guion de escena.', notaCelu: 'En el celu la boca sale simple; exacta solo en la PC.' },
   { id: 'editor', ico: '🎞', nombre: 'Editor', texto: 'Animá personajes, poses y cámaras como en BBS, también desde el celu.' },
 ];
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});   // actualización automática (ver sw.js)
 const $ = (s) => document.querySelector(s);
 const marcos = new Map();
 const esCelu = matchMedia('(pointer: coarse)').matches && !navigator.userAgent.includes('Windows');
@@ -118,6 +117,19 @@ fetch('/pc/hola').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((
   $('#pie').textContent = d && d.pc
     ? 'Abierto en la PC. Lo que generes se guarda en la carpeta Salida del programa.' + (d.rhubarb ? '' : ' (No encontré Rhubarb: las bocas saldrán simples.)')
     : 'Lo que generes se descarga o se comparte desde acá.';
+  // actualización automática del celu/web (ver sw.js). En la PC no hace falta (servir.py ya manda siempre lo último) y además
+  // el service worker se come el aviso de «cerré la ventana»: ahí se saca.
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    if (d && d.pc) navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+    else navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  // en la PC: avisarle a servir.py que esta ventana sigue abierta (cuando se cierra, la caja negra se cierra sola)
+  if (d && d.pc) {
+    const id = Math.random().toString(36).slice(2);
+    const latir = () => fetch('/pc/latido?id=' + id, { cache: 'no-store' }).catch(() => {});
+    latir(); setInterval(latir, 5000);
+    addEventListener('pagehide', () => { try { navigator.sendBeacon('/pc/adios?id=' + id); } catch (e) {} });
+  }
 });
 if (location.hash) abrir(location.hash.slice(1), false);
 </script>
