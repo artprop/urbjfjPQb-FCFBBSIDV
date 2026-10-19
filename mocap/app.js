@@ -115,7 +115,7 @@ function ponerModoApp(modo, save = true) {
   document.querySelectorAll('#modos button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.modo === cfg.modo)));
   if (!$('#btn-convertir').disabled || $('#btn-convertir').textContent.startsWith('Convertir')) $('#btn-convertir').textContent = textoConvertir();
   if (save) guardar({ modo: cfg.modo });
-  if (cfg.modo !== 'cara' && $('#vivo-chk') && $('#vivo-chk').checked) { $('#vivo-chk').checked = false; prenderVivo(false); }
+  if (cfg.modo !== 'cara' && $('#vivo-fab').getAttribute('aria-pressed') === 'true') prenderVivo(false);
   if (vista && vista.activa()) vista.alTerminar();   // la vista 3D se re-arma (en modo cara enfoca la cara)
 }
 

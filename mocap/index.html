@@ -40,9 +40,12 @@
   </div>
 </header>
 
+<button type="button" class="vivo-fab solo-cara" id="vivo-fab" aria-pressed="false" title="Ver tus ojos y tu boca en vivo en la cara de BBS" aria-label="Ver ojos y boca en vivo">🙂<span>En vivo</span></button>
+
 <main class="layout">
   <!-- CAMARA -->
   <section class="escenario" aria-label="Cámara">
+    <div class="camara-fila">
     <div class="pantalla" id="pantalla">
       <video id="cam" autoplay playsinline muted></video>
       <canvas id="overlay"></canvas>
@@ -55,6 +58,10 @@
         <button class="btn" id="btn-activar">Activar cámara</button>
         <p class="nota" id="cam-error"></p>
       </div>
+    </div>
+    <div class="vivo-lado solo-cara" id="vivo-lado" hidden>
+      <canvas id="vivo-lienzo" class="espejo" width="256" height="256" aria-label="Tu cara en BBS, en vivo"></canvas>
+    </div>
     </div>
 
     <div class="visibles solo-cuerpo" id="visibles" aria-label="Partes del cuerpo que se ven">
@@ -77,9 +84,16 @@
         <label class="check"><input type="checkbox" id="chk-auto"> Convertir al terminar</label>
       </div>
     </div>
-    <div class="vivo solo-cara apagado" id="vivo-panel">
+    <div class="vivo solo-cara" id="vivo-panel" hidden>
       <div class="vivo-cab">
-        <label class="check"><input type="checkbox" id="vivo-chk"> Ver la boca en vivo</label>
+        <label class="check"><input type="checkbox" id="vivo-ojos" checked> Ver los ojos</label>
+        <label class="check"><input type="checkbox" id="vivo-boca" checked> Ver la boca</label>
+        <label class="check" title="Como un espejo: lo que mirás a tu izquierda se ve a la izquierda"><input type="checkbox" id="vivo-espejo" checked> Como espejo</label>
+      </div>
+      <div class="vivo-cab">
+        <label class="campo-inline">Ojos
+          <select id="vivo-ojos-modelo"><option value="eyes">2×2 (eyes)</option><option value="eyes_1px">1 píxel (eyes_1px)</option></select>
+        </label>
         <label class="campo-inline">Boca
           <select id="vivo-modelo">
             <option value="Man_1">Hombre x1</option><option value="Man_2" selected>Hombre x2</option><option value="Man_4">Hombre x4</option>
@@ -88,11 +102,8 @@
         </label>
         <button class="btn btn-chico" id="vivo-recalibrar">Recalibrar</button>
       </div>
-      <div class="vivo-cuerpo">
-        <canvas id="vivo-lienzo" width="256" height="256"></canvas>
-        <p class="ayuda" id="vivo-estado"></p>
-      </div>
-      <p class="ayuda">Es la boca de píxeles flexibles (modelos boca_pixel), calculada igual que al convertir. No graba nada: es para probar muecas.</p>
+      <p class="ayuda" id="vivo-estado"></p>
+      <p class="ayuda">Es la cara de BBS con tus ojos y tu boca, calculada igual que al convertir. No graba nada: es para probar gestos.</p>
     </div>
     <p class="consejo">Espacio para grabar o parar. Quedate quieto en pose neutral el primer segundo: define el cero de la cabeza y el torso.</p>
     <div class="salida">

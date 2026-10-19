@@ -124,7 +124,8 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
   const R = filas * k, C = COLS * k, g = new Uint8Array(R * C);
   const loc = cal.locs[i];
   const px = cal.ancho0 / 4, pv = ((px * 0.7) / sens) * (filas === 1 ? 1.6 : 1);   // la boca de mujer tiene 1 sola fila
-  const w = px / k, h = pv / k, x0 = cal.centro[0] - (COLS / 2) * px, Y0 = cal.linea - pv / 2;
+  const w = px / k, x0 = cal.centro[0] - (COLS / 2) * px;
+  let h = pv / k, Y0 = cal.linea - pv / 2;
   const poly = POLY.map(loc);
   const ordenar = (c) => c.map(loc).sort((a, b) => a[0] - b[0]);
   const sup = ordenar(SUP), inf = ordenar(INF);
@@ -141,20 +142,27 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
     let m = 0; for (let c = 1; c < C; c++) if (Math.abs(xc(c) - mid) < Math.abs(xc(m) - mid)) m = c;
     tramo.fill(false); for (let c = Math.max(0, m - k); c < Math.min(C, m + k); c++) tramo[c] = true;
   }
-  // si la boca sube mas arriba del espacio (sonrisa, labio levantado), todo baja hasta que entre
-  let tope = Infinity;
+  // si la boca no entra en el espacio (sonrisa, labio levantado, boca muy abierta) se acomoda para que se vean los dos labios:
+  // primero se corre la grilla (de a pedacitos enteros) y, si aun asi la boca es mas alta que el espacio, se achica el alto de cada pedacito
+  let tope = Infinity, fondo = -Infinity;
   for (let c = 0; c < C; c++) {
     if (!tramo[c]) continue;
-    const yu = alturaEn(sup, xc(c)), yl = alturaEn(inf, xc(c));
-    tope = Math.min(tope, yl - yu > h * 0.5 ? (labios ? yu - T / 2 : yu) : labios ? (yu + yl) / 2 - T / 2 : Infinity);
+    const yu = alturaEn(sup, xc(c)), yl = alturaEn(inf, xc(c)), abierta = yl - yu > h * 0.5;
+    tope = Math.min(tope, abierta ? (labios ? yu - T / 2 : yu) : labios ? (yu + yl) / 2 - T / 2 : Infinity);
+    fondo = Math.max(fondo, abierta ? (labios ? yl + T / 2 : yl) : labios ? (yu + yl) / 2 + T / 2 : -Infinity);
   }
-  const corr = tope < Y0 - h / 2 ? Math.ceil((Y0 - tope) / h - 0.5) * h : 0;   // menos de medio pedacito: no se mueve
+  if (tope < Infinity) {
+    const alto = R * h;
+    if (fondo - tope > alto) { h = (fondo - tope) / R; Y0 = tope; }
+    else if (tope < Y0 - h / 2) Y0 -= Math.ceil((Y0 - tope) / h - 0.5) * h;   // menos de medio pedacito: no se mueve
+    else if (fondo > Y0 + alto + h / 2) Y0 -= Math.ceil((fondo - Y0 - alto) / h - 0.5) * h;
+  }
   // abertura: pedacito con al menos 35 % adentro de la boca
   for (let r = 0; r < R; r++) {
     for (let c = 0; c < C; c++) {
       let n = 0;
       for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) {
-        if (adentro(poly, x0 + (c + (a + 0.5) / 4) * w, Y0 + (r + (b + 0.5) / 4) * h - corr)) n++;
+        if (adentro(poly, x0 + (c + (a + 0.5) / 4) * w, Y0 + (r + (b + 0.5) / 4) * h)) n++;
       }
       if (n >= 6) g[r * C + c] = HUECO;
     }
@@ -162,12 +170,14 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
   // labios
   if (labios) {
     const nb = Math.max(1, Math.round(T / 2 / h));
+    // el hueco no baja hasta la ultima fila: ahi va el labio de abajo (si no, la boca abierta queda cortada sin labio inferior)
+    for (let c = 0; c < C; c++) for (let r = Math.max(0, R - 1 - nb) + 1; r < R; r++) if (g[r * C + c] === HUECO) g[r * C + c] = 0;
     for (let c = 0; c < C; c++) {
       if (!tramo[c]) continue;
       let rt = -1, rb = -1;
       for (let r = 0; r < R; r++) if (g[r * C + c] === HUECO) { if (rt < 0) rt = r; rb = r; }
       if (rt < 0) {
-        const y0 = (alturaEn(sup, xc(c)) + alturaEn(inf, xc(c))) / 2 + corr;
+        const y0 = (alturaEn(sup, xc(c)) + alturaEn(inf, xc(c))) / 2;
         for (let r = 0; r < R; r++) if (Math.abs(Y0 + (r + 0.5) * h - y0) < T / 2) g[r * C + c] = LABIO;
       } else {
         for (let r = rt - nb; r < rt; r++) if (r >= 0 && !g[r * C + c]) g[r * C + c] = LABIO;

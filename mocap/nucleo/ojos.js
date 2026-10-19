@@ -90,7 +90,7 @@ function senalesBlendshapes(cara, offset = 0, neutralS = 1.0, ganancia = 1.0) {
   return out;
 }
 
-function ladoGeo(pts, prefijo, ext, inte) {
+export function ladoGeo(pts, prefijo, ext, inte) {
   const g = (n) => { const k = PN.indexOf(n); return pts.map((f) => f[k]); };
   const c1 = g(`${prefijo}_${ext}`), c2 = g(`${prefijo}_${inte}`);
   const sup = g(`${prefijo}_parpado_sup`), inf = g(`${prefijo}_parpado_inf`), iris = g(`${prefijo}_iris`), ceja = g(`${prefijo}_ceja`);
