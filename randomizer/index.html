@@ -77,9 +77,26 @@
             <button id="btnAgregar" title="Elegir archivos o una carpeta entera de tu carpeta bbs">+ Archivos / carpeta…</button>
             <button id="btnQuitarCand" title="Quita lo marcado. De una carpeta se pueden quitar archivos sueltos (tecla Supr)">Quitar</button>
             <button id="btnRestaurar" title="Vuelve a incluir los archivos marcados como excluidos">Volver a poner</button>
+            <button id="btnVer3d" class="solo-celu" title="Ver la textura marcada en 3D, sola">👁 Ver en 3D</button>
+          </div>
+          <div class="fila-ninguno">
+            <label class="check" title="Una parte de los sorteos no elige ningún candidato: el grupo no pone ninguna capa (y los grupos que dependen de él lo ven como «ninguno»)."><input type="checkbox" id="chkNinguno"> Puede salir «ninguno»</label>
+            <span id="filaNingunoProb" hidden><input type="number" id="inNingunoProb" min="0" max="100" step="any" title="Probabilidad de que no salga ningún candidato"> %</span>
           </div>
         </div>
         <div class="col-color">
+          <div id="panelSegmentos">
+            <h3>SEGMENTOS («O»)</h3>
+            <div class="sub">Dividí los candidatos en segmentos: sale uno entre TODOS y se sigue la lógica de su segmento (color, y los grupos que dependen de él). Marcá candidatos y pasalos a un segmento.</div>
+            <div id="chipsSeg" class="chips-seg"></div>
+            <div id="accionesSeg" class="botones" hidden>
+              <input id="inNombreSeg" size="10" title="Nombre del segmento" aria-label="Nombre del segmento">
+              <button id="btnSegQuitar" title="Los candidatos del segmento vuelven al A">Quitar segmento</button>
+            </div>
+            <button id="btnSegAsignar" disabled>Pasar lo marcado al segmento…</button>
+            <label id="filaModoSeg" class="canal" hidden>Color del segmento
+              <select id="selModoSeg"><option>ninguno</option><option>rgb</option><option>rgba</option><option>grises</option><option>paleta</option></select></label>
+          </div>
           <h3 id="tituloColor">COLOR</h3>
           <div id="notaColor" class="sub"></div>
           <div id="panelCanales" hidden>
@@ -101,6 +118,15 @@
           <div id="panelPaleta" hidden>
             <div id="listaPaleta"></div>
             <button id="btnColorNuevo">+ Color</button>
+          </div>
+          <div id="panelCondicion" hidden>
+            <h3>APARECE SOLO SI…</h3>
+            <label class="check"><input type="checkbox" id="chkCond"> Este grupo aparece solo si</label>
+            <div id="filaCond" class="botones" hidden>
+              <select id="selCondGrupo" aria-label="Grupo"></select>
+              <span>salió de</span>
+              <select id="selCondSeg" aria-label="Segmento"></select>
+            </div>
           </div>
           <div id="panelColorProp" hidden>
             <h3>COLOR DEL ARCHIVO MARCADO</h3>

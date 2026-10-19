@@ -151,3 +151,15 @@ dialog::backdrop { background: #0009; }
 @media (min-width: 901px) and (max-width: 1250px) {
   main { grid-template-columns: 190px minmax(0, 1fr) 320px; }
 }
+
+/* segmentos, ninguno y condicion */
+.fila-ninguno { display: flex; gap: 10px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+.fila-ninguno input[type=number] { width: 5em; }
+.chips-seg { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
+.chips-seg button { padding: 3px 10px; border-radius: 14px; }
+.chips-seg button.activa { background: var(--sel); border-color: var(--oro, #f0c74a); font-weight: 700; }
+#panelSegmentos { margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--borde); }
+#panelCondicion { margin-top: 14px; }
+.cand .segchip { margin-left: auto; padding: 0 7px; border-radius: 10px; background: var(--sel); font-size: 12px; font-weight: 700; }
+.solo-celu { display: none; }
+@media (max-width: 900px) { .solo-celu { display: inline-block; } }

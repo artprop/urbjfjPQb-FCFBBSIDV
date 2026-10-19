@@ -107,6 +107,16 @@ export function grupoDesde(o) {
     Color: colorDesde(col && typeof col === 'object' ? col : {}),
     Erase: !!campo(o, 'Erase'),
     ShiftY: entero(campo(o, 'ShiftY'), null),
+    // Segmentos ("O"): los candidatos de cada segmento siguen su propia logica de color; el resto es el segmento A (el grupo mismo)
+    Segmentos: lista(campo(o, 'Segmentos')).map((s) => ({
+      Nombre: texto(campo(s, 'Nombre'), 'B') ?? 'B',
+      Archivos: lista(campo(s, 'Archivos')).map(String),
+      Color: colorDesde(campo(s, 'Color') && typeof campo(s, 'Color') === 'object' ? campo(s, 'Color') : {}),
+    })),
+    // Probabilidad (0 a 1) de que no salga ninguno de los candidatos
+    NingunoProb: Math.min(Math.max(numero(campo(o, 'NingunoProb'), 0), 0), 1),
+    // El grupo aparece solo si otro grupo salio de cierto segmento: { Grupo, Segmento } con Segmento = nombre del segmento, '*' (con cualquier candidato) o '-' (ninguno)
+    Condicion: (() => { const c = campo(o, 'Condicion'); return c && typeof c === 'object' && texto(campo(c, 'Grupo'), '') ? { Grupo: texto(campo(c, 'Grupo'), ''), Segmento: texto(campo(c, 'Segmento'), 'A') ?? 'A' } : null; })(),
   };
 }
 
@@ -133,7 +143,11 @@ export function resumenGrupo(g) {
   if (g.Archivos.length) partes.push(`${g.Archivos.length} archivo(s)`);
   for (const c of g.Carpetas) partes.push('carpeta ' + c.Ruta);
   if (g.Excluidos.length) partes.push(`${g.Excluidos.length} excluido(s)`);
-  return partes.length ? partes.join(' + ') : '(vacío)';
+  let t = partes.length ? partes.join(' + ') : '(vacío)';
+  if (g.Segmentos && g.Segmentos.length) t += ` · segmentos: A${g.Segmentos.map((s) => ', ' + s.Nombre).join('')}`;
+  if (g.NingunoProb > 0) t += ` · ninguno ${Math.round(g.NingunoProb * 1000) / 10} %`;
+  if (g.Condicion) t += ` · solo si «${g.Condicion.Grupo}» = ${g.Condicion.Segmento === '*' ? 'cualquiera' : g.Condicion.Segmento === '-' ? 'ninguno' : g.Condicion.Segmento}`;
+  return t;
 }
 
 // ---------- colores ----------
@@ -294,23 +308,56 @@ export function candidatos(p, g, disco, cache, avisos) {
 const d6 = (n) => (n < 0 ? '-' + String(-n).padStart(6, '0') : String(n).padStart(6, '0'));
 export const tituloDe = (sem) => `Cameos Random [semilla: ${d6(sem)}]`;
 
+// Segmento del candidato: el objeto del segmento o null (= segmento A, el grupo mismo)
+export function segmentoDe(g, rel) {
+  if (!g.Segmentos || !g.Segmentos.length) return null;
+  const low = String(rel).replace(/\\/g, '/').toLowerCase();
+  for (const s of g.Segmentos) if (s.Archivos.some((a) => String(a).replace(/\\/g, '/').toLowerCase() === low)) return s;
+  return null;
+}
+
 function sortear(p, n, rng, disco, cache, avisos) {
-  const capas = [];
+  // 1) cada grupo sortea (siempre los mismos dos numeros, aparezca o no) ...
+  const dec = [];
   for (const g of p.Grupos) {
     // Siempre se consumen los mismos sorteos, aparezca o no el grupo.
     const dado = rng.nextDouble();
     const dadoCand = rng.nextDouble();
+    const d = { g, capa: null, segmento: null };
+    dec.push(d);
     if (dado >= g.Prob) continue;
     const cands = candidatos(p, g, disco, cache, avisos);
     if (!cands.length) { avisos.push(`${p.Nombre} / ${g.Nombre}: no hay candidatos, se saltea el grupo.`); continue; }
-    const rel = cands[Math.min(Math.trunc(dadoCand * cands.length), cands.length - 1)];
+    // "ninguno": una parte del dado queda para que no salga ningun candidato; el resto elige entre los candidatos
+    let dc = dadoCand;
+    if (g.NingunoProb > 0) { if (dadoCand < g.NingunoProb) continue; dc = (dadoCand - g.NingunoProb) / (1 - g.NingunoProb); }
+    const rel = cands[Math.min(Math.trunc(dc * cands.length), cands.length - 1)];
     const ruta = `assets:${p.Raiz.replace(/^\/+|\/+$/g, '')}/${rel}`;
     const donde = `${p.Nombre} / ${g.Nombre}`;
     let color = elegirColor(g.Color, rng, avisos, donde);
+    // El color de un segmento B, C... reemplaza al del grupo (con su propio sorteo, para no tocar los demas sorteos).
+    const seg = segmentoDe(g, rel);
+    if (seg) color = elegirColor(seg.Color, new RandomNet(Math.trunc(dc * INT_MAX)), avisos, donde + ' / segmento ' + seg.Nombre);
     // El color propio de un archivo reemplaza al del grupo sin tocar los demás sorteos.
     const propio = Object.keys(g.ColoresPropios).length ? colorPropio(g, rel) : undefined;
-    if (propio) color = elegirColor(propio, new RandomNet(Math.trunc(dadoCand * INT_MAX)), avisos, donde + ' / ' + rel);
-    capas.push({ ruta, color, erase: !!g.Erase, shiftY: g.ShiftY ?? null, sorteo: { grupo: g.Nombre, dado: dadoCand, de: cands.length } });
+    if (propio) color = elegirColor(propio, new RandomNet(Math.trunc(dc * INT_MAX)), avisos, donde + ' / ' + rel);
+    d.segmento = seg ? seg.Nombre : 'A';
+    d.capa = { ruta, color, erase: !!g.Erase, shiftY: g.ShiftY ?? null, sorteo: { grupo: g.Nombre, dado: dc, de: cands.length, segmento: d.segmento } };
+  }
+  // 2) ... y despues se ve que grupos quedan: los que tienen condicion aparecen solo si el grupo que piden salio de ese segmento
+  const capas = [];
+  for (const d of dec) {
+    if (!d.capa) continue;
+    const c = d.g.Condicion;
+    if (c) {
+      const otro = dec.find((x) => x.g !== d.g && x.g.Nombre === c.Grupo);
+      if (!otro) avisos.push(`${p.Nombre} / ${d.g.Nombre}: pide el grupo «${c.Grupo}», que no existe; se ignora la condición.`);
+      else {
+        const sale = otro.capa ? otro.segmento : null;   // null = ese grupo no puso ninguna capa
+        if (!(c.Segmento === '*' ? sale !== null : c.Segmento === '-' ? sale === null : sale === c.Segmento)) continue;
+      }
+    }
+    capas.push(d.capa);
   }
   return { nombre: `${p.Prefijo}:${String(n).padStart(2, '0')}`, modelo: p.Modelo, capas };
 }
