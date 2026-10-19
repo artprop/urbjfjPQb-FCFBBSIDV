@@ -71,7 +71,7 @@ export function actualizar(est, s, { umbral = 0.5, cejas = true } = {}) {
  * El ojo derecho del personaje queda a la izquierda de la pantalla (columnas 1-2) y el izquierdo a la derecha (columnas 5-6).
  */
 export function dibujar(g, u, est, modelo, piel) {
-  const alto = modelo === 'eyes_1px' ? 1 : 2, fila = modelo === 'eyes_1px' ? 5 : 4, filaCeja = modelo === 'eyes_1px' ? 4 : 3;
+  const alto = modelo === 'eyes_1px' ? 1 : 2, fila = 4, filaCeja = 3;   // los dos modelos arrancan en la fila 4, la de los ojos pintados en la skin
   const [gx, gy] = est.g;
   const rect = (x, y, w, h, c, caja) => {   // en pixeles de la cara; si hay caja, se recorta a ella
     let x0 = x, y0 = y, x1 = x + w, y1 = y + h;
