@@ -2,7 +2,7 @@
 // camara. La base (ojos abiertos, mirando al frente) se mide con los cuadros de calibracion. Despues se dibuja la cara de 8x8 con los ojos
 // de BBS (eyes 2x2 o eyes_1px) siguiendo las mismas poses que usa la conversion: mirada a saltos de 0,5, parpadeo, entrecerrar y cejas.
 import * as M from './mat.js';
-import { PUNTOS, ladoGeo } from './ojos.js';
+import { PUNTOS, ladoGeo, mirarVertical } from './ojos.js';
 
 export const INDICES = Object.values(PUNTOS);
 const CEJA_ARRIBA = 0.625, CEJA_ABAJO = 0.70, RECORRIDO_V = 0.625, HOLGURA_NARIZ = 0.25;
@@ -44,7 +44,7 @@ export function senal(base, pts, bs, { mirada = 1 } = {}) {
   const gx = clip((g.irisX - base.irisX) / (0.22 / esc), -1, 1);
   const gyGeo = clip(-(g.irisY - base.irisY) / (0.35 / esc), -1, 1);
   const gyB = clip((gyBs(base.nombres, bs) - base.gyBs) / (0.5 / esc), -1, 1);
-  const out = { cierre, gx, gy: clip(0.5 * gyGeo + 0.5 * gyB, -1, 1), squint: clip((cierre - 0.2) / 0.3, 0, 1) };
+  const out = { cierre, gx, gy: mirarVertical(clip(0.5 * gyGeo + 0.5 * gyB, -1, 1), cierre), squint: clip((cierre - 0.2) / 0.3, 0, 1) };
   for (const [lado, o, nom] of [['l', g.L, 'Left'], ['r', g.R, 'Right']]) {
     const arriba = clip((o.ceja[0] / base[lado].ceja - 1) / 0.28, 0, 1);
     const bajar = clip((bsDe(base.nombres, bs, 'browDown' + nom) - base[lado].bd) / 0.3, 0, 1);
@@ -54,8 +54,11 @@ export function senal(base, pts, bs, { mirada = 1 } = {}) {
 }
 
 /** Estado en vivo: guarda el ultimo valor y solo cambia cuando la senal se mueve mas de 0,4 (como la conversion). */
-export function nuevoEstado() { return { g: [0, 0], ceja_l: 0, ceja_r: 0, squint: 0, cerrado: false, parp: 0 }; }
+export function nuevoEstado() { return { g: [0, 0], ceja_l: 0, ceja_r: 0, squint: 0, cerrado: false, parp: 0, gc: 0 }; }
 export function actualizar(est, s, { umbral = 0.5, cejas = true, modo = 'poses' } = {}) {
+  // el "centro" vertical se va corrigiendo de a poco: si la mirada se queda un rato en el mismo lugar con el ojo bien abierto, ese es el centro
+  if (s.cierre < 0.15 && Math.abs(s.gy) < 0.7) est.gc = clip(est.gc + (s.gy - est.gc) * 0.004, -0.5, 0.5);
+  s = { ...s, gy: clip(s.gy - est.gc, -1, 1) };
   if (modo === 'vivo') {   // sigue tu cara tal cual (un poquito suavizado): mirada, cejas y parpados continuos
     const sigue = (a, b) => a + (b - a) * 0.6;
     est.g = [sigue(est.g[0], s.gx), sigue(est.g[1], s.gy)];

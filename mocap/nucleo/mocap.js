@@ -39,7 +39,7 @@ export const OPCIONES = {
   modo: 'cuerpo', ojos: false, ojos_mirada: 1.0, ojos_parpadeo: 0.5, ojos_cejas: true,
   cara_ojos: true, cara_boca: true, boca_sens: 1.0, boca_min_ticks: 2,
   usar_move: false,   // controles PlayStation Move en vez del cuerpo con la camara (ver nucleo/psmove.js)
-  ojos_modo: 'poses', boca_labios: true,   // ojos_modo: 'poses' (prediseñadas, a saltos) o 'vivo' (siguen tu cara)
+  ojos_modo: 'poses', boca_labios: true, boca_muecas: false,   // ojos_modo: 'poses' (prediseñadas, a saltos) o 'vivo' (siguen tu cara)
 };
 
 /**

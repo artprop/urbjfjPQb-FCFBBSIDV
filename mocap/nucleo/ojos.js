@@ -79,7 +79,7 @@ function senalesBlendshapes(cara, offset = 0, neutralS = 1.0, ganancia = 1.0) {
     t: pick(t, sel), ok: pick(ok, sel),
     blink: pick(blink.map((x) => M.clip((x - n.blink) / 0.5, 0, 1)), sel),
     gx: pick(gx.map((x) => M.clip((x - n.gx) / escala, -1, 1)), sel),
-    gy: pick(gy.map((x) => M.clip((x - n.gy) / escala, -1, 1)), sel),
+    gy: pick(gy.map((x, i) => mirarVertical(M.clip((x - n.gy) / escala, -1, 1), M.clip((blink[i] - n.blink) / 0.5, 0, 1))), sel),
     squint: pick(squint.map((x) => M.clip((x - n.sq) / 0.4, 0, 1)), sel),
   };
   for (const lado of ['l', 'r']) {
@@ -88,6 +88,16 @@ function senalesBlendshapes(cara, offset = 0, neutralS = 1.0, ganancia = 1.0) {
   }
   out.base = n;
   return out;
+}
+
+/**
+ * Mirada vertical (-1 abajo, 1 arriba) corregida: con el ojo entrecerrado o parpadeando el iris se mide mal y la mirada "se cae" hacia abajo,
+ * asi que ahi vale menos; y los valores chiquitos (menos de 0,22) cuentan como mirar al centro.
+ */
+export function mirarVertical(gy, cierre) {
+  const abierto = 1 - M.clip((cierre - 0.1) / 0.4, 0, 1);
+  const v = gy * abierto, zona = 0.22;
+  return (Math.sign(v) * Math.max(0, Math.abs(v) - zona)) / (1 - zona);
 }
 
 export function ladoGeo(pts, prefijo, ext, inte) {
@@ -135,7 +145,7 @@ function senalesGeometria(cara, offset = 0, neutralS = 1.0, ganancia = 1.0) {
   const cierreSel = pick(cierre, sel);
   const out = {
     t: pick(t, sel), ok: pick(ok, sel), blink: cierreSel, gx: pick(gx, sel),
-    gy: gyGeoSel.map((x, i) => M.clip(0.5 * x + 0.5 * bs.gy[i], -1, 1)),
+    gy: gyGeoSel.map((x, i) => mirarVertical(M.clip(0.5 * x + 0.5 * bs.gy[i], -1, 1), cierreSel[i])),
     squint: cierreSel.map((x) => M.clip((x - 0.2) / 0.3, 0, 1)),
   };
   for (const [lado, o, L] of [['l', ojoL, 'Left'], ['r', ojoR, 'Right']]) {

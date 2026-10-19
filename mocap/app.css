@@ -170,3 +170,20 @@ input[type=number] { width: 90px; }
   .destino { flex-wrap: wrap; }
   .v3-barra { flex-wrap: wrap; }
 }
+
+/* muecas y bocas de referencia */
+.mu-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; margin-top: 10px; }
+.mu-card { background: var(--panel-alto); border: 2px solid var(--linea); border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.mu-card.viva { border-color: var(--pasto); box-shadow: 0 0 0 2px var(--pasto-osc); }
+.mu-ref { width: 100%; aspect-ratio: 240 / 140; object-fit: cover; border-radius: 5px; background: #f0c7a6; }
+.mu-px { width: 100%; image-rendering: pixelated; border-radius: 4px; background: #f0a85a; }
+.mu-nombre { font-weight: 700; font-size: 15px; }
+.mu-sub { font-size: 13px; color: var(--texto-suave); }
+.mu-botones { display: flex; flex-wrap: wrap; gap: 4px; }
+.mu-editor { background: var(--panel); color: var(--texto); border: 1px solid var(--linea); border-radius: 10px; padding: 14px; width: min(640px, 96vw); }
+.mu-editor::backdrop { background: #000a; }
+.mu-ed-pinceles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.mu-ed-pinceles button[aria-pressed="true"] { border-color: var(--oro); box-shadow: inset 0 0 0 1px var(--oro); }
+.mu-ed-lienzo { width: 100%; image-rendering: pixelated; touch-action: none; border-radius: 4px; cursor: crosshair; }
+.mu-ed-pie { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.mu-ed-pie .btn-convertir { padding: 8px 16px; }

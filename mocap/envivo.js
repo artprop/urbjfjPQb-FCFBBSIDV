@@ -3,15 +3,22 @@
 import * as BP from './nucleo/boca_pixel.js';
 import * as OJ from './nucleo/ojos_vivo.js';
 import * as BO from './nucleo/boca.js';
+import * as MU from './nucleo/muecas.js';
+import * as AR from './nucleo/arrugas.js';
+import * as UI from './muecas_ui.js';
 import { landmarkerVivo } from './local/deteccion.js';
 
 const $ = (s) => document.querySelector(s);
+const COLS_BOCA = BP.COLS;
 const CALIBRAR = 40;            // cuadros con la cara quieta para medir tu boca y tus ojos en reposo
 let lm = null, activo = false, reloj = 0, ultima = 0, base = null, baseOjos = null, baseForma = null, juntar = [], historia = [], formas = [], forma0 = 'cerrada', skin = null, skin0 = null, capa2 = null, offOjos = [0, 0], imBoca = null, piel = '#ffa854', raf = 0;
-let ultBoca = null, estOjos = OJ.nuevoEstado();
+let ultBoca = null, estOjos = OJ.nuevoEstado(), baseBs = null, estArr = AR.nuevoEstado(), ultRasgos = null, muecaId = null, votosMueca = [];
 
-const ver = () => ({ ojos: $('#vivo-ojos').checked, boca: $('#vivo-boca').checked });
-const modoBoca = () => $('#vivo-boca-modo').value;           // 'pre' = formas prediseñadas (boca_Man / boca_Woman), 'vivo' = boca de pixeles
+const ver = () => ({ ojos: $('#vivo-ojos').checked, boca: $('#vivo-boca').checked, arrugas: $('#vivo-arrugas') ? $('#vivo-arrugas').checked : false });
+/** El gesto de la boca que estas haciendo ahora (rasgos de MediaPipe sin tu cara en reposo), para guardarlo en una mueca. */
+export const gestoActual = () => (activo && base && ultRasgos ? { ...ultRasgos } : null);
+const medianaPorColumna = (filas) => filas[0].map((_, j) => { const v = filas.map((f) => f[j]).sort((a, b) => a - b); return v[Math.floor(v.length / 2)]; });
+const modoBoca = () => $('#vivo-boca-modo').value;           // 'pre' = formas prediseñadas (boca_Man / boca_Woman), 'vivo' = boca de pixeles, 'muecas' = la mueca de referencia que mas se parece
 const modoOjos = () => $('#ojos_modo').value || 'poses';      // 'poses' = prediseñadas (a saltos), 'vivo' = siguen tu cara
 function forma() {
   const [tipo, k] = ($('#vivo-modelo').value || 'Man_2').split('_');
@@ -80,6 +87,12 @@ function pintarBase() {
     const p = d.data.subarray((y * 8 + x) * 4);
     ctx.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`; ctx.fillRect(x * u, y * u, u, u);
   }
+  if (v.arrugas && v.boca) {   // arrugas: la piel de ese lugar, mas oscura
+    for (const a of AR.pixeles(estArr)) {
+      const p = d.data.subarray((a.y * 8 + a.x) * 4), [r, g, b] = AR.oscurecer([p[0], p[1], p[2]], a.n);
+      ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(a.x * u, a.y * u, u, u);
+    }
+  }
   if (v.ojos) OJ.dibujar(ctx, u, estOjos, $('#vivo-ojos-modelo').value, piel, offOjos);
   if (pre) {
     dibujarFormaBoca(ctx, imBoca, $('#vivo-modelo').value.startsWith('Woman') ? 'Woman' : 'Man', forma0, cv.width);
@@ -103,7 +116,7 @@ function estado(t) { $('#vivo-estado').textContent = t; }
 const LISTO = 'En vivo. Si algo no queda bien con la cara quieta, tocá "Recalibrar".';
 
 export function recalibrar() {
-  base = null; baseOjos = null; baseForma = null; juntar = []; historia = []; formas = []; forma0 = 'cerrada'; ultBoca = null; estOjos = OJ.nuevoEstado();
+  base = null; baseOjos = null; baseForma = null; juntar = []; historia = []; formas = []; forma0 = 'cerrada'; ultBoca = null; estOjos = OJ.nuevoEstado(); baseBs = null; estArr = AR.nuevoEstado(); ultRasgos = null; muecaId = null; votosMueca = [];
   estado('Mirá de frente, con la boca cerrada y quieta un momento…');
 }
 
@@ -124,7 +137,7 @@ function bucle(ts) {
       if (!base) {
         juntar.push({ labios, pts, bs, boca });
         if (juntar.length >= CALIBRAR) {
-          try { base = BP.calibrarVivo(juntar, nombres, aspecto); baseOjos = OJ.calibrar(juntar, nombres); baseForma = BO.calibrarVivo(juntar, nombres, aspecto); estado(LISTO); }
+          try { base = BP.calibrarVivo(juntar, nombres, aspecto); baseBs = medianaPorColumna(juntar.map((j) => j.bs)); baseOjos = OJ.calibrar(juntar, nombres); baseForma = BO.calibrarVivo(juntar, nombres, aspecto); estado(LISTO); }
           catch (e) { juntar = []; estado('No pude medir tu cara quieta: mirá de frente, cerrá la boca y quedate quieto.'); }
         } else estado(`Midiendo tu cara quieta… ${Math.round((juntar.length / CALIBRAR) * 100)} %`);
       } else {
@@ -138,6 +151,19 @@ function bucle(ts) {
           g = c.map((x, j) => (a[j] === b[j] || a[j] === x ? a[j] : b[j] === x ? b[j] : x));
         }
         ultBoca = g;
+        // gesto y muecas: rasgos de la boca sin tu cara en reposo
+        ultRasgos = MU.rasgos(bs, nombres, baseBs);
+        const [dx, dy] = BP.corrimientoVivo(base, labios);
+        AR.actualizar(estArr, AR.intensidades(ultRasgos, dx, dy));
+        if (modoBoca() === 'muecas') {
+          const lista = UI.listaReconocimiento();
+          votosMueca.push(MU.reconocer(ultRasgos, lista, muecaId)); if (votosMueca.length > 4) votosMueca.shift();
+          const cuenta = {}; for (const x of votosMueca) cuenta[x] = (cuenta[x] || 0) + 1;
+          muecaId = Object.entries(cuenta).sort((a, b) => b[1] - a[1])[0][0];
+          const gm = UI.grillaDe(muecaId), { k, filas } = UI.modelo();
+          if (gm && gm.length === filas * k * COLS_BOCA * k) ultBoca = f.labios ? gm : gm.map((x) => (x === BP.LABIO ? 0 : x));
+          UI.resaltar(muecaId);
+        } else UI.resaltar(null);
         // forma prediseñada (a, e, i, o, u...): la que mas se repite en los ultimos 4 cuadros
         formas.push(BO.formaVivo(baseForma, boca, bs, sens)); if (formas.length > 4) formas.shift();
         const voto = {}; for (const x of formas) voto[x] = (voto[x] || 0) + 1;
@@ -165,7 +191,7 @@ export async function prender(si) {
   if (!raf) raf = requestAnimationFrame(bucle);
 }
 
-const GUARDAR = ['vivo-ojos', 'vivo-boca', 'vivo-espejo'];
+const GUARDAR = ['vivo-ojos', 'vivo-boca', 'vivo-espejo', 'vivo-arrugas'];
 // el modo de los ojos y los labios son ajustes de la conversion (paso 2): los controles de aca arriba los copian y viceversa
 const PROXY = [['vivo-ojos-modo', 'ojos_modo', 'value'], ['vivo-labios', 'boca_labios', 'checked']];
 export function sincronizar() {
@@ -176,7 +202,7 @@ export function sincronizar() {
 export function iniciarVivo() {
   try {
     for (const id of GUARDAR) { const v = localStorage.getItem('mocap_' + id); if (v !== null) $('#' + id).checked = v === '1'; }
-    const m = localStorage.getItem('mocap_vivo-boca-modo'); if (m === 'pre' || m === 'vivo') $('#vivo-boca-modo').value = m;
+    const m = localStorage.getItem('mocap_vivo-boca-modo'); if (m === 'pre' || m === 'vivo' || m === 'muecas') $('#vivo-boca-modo').value = m;
   } catch { /* sin almacenamiento */ }
   const espejo = espejar;
   espejo();
