@@ -11,6 +11,7 @@ import * as P from './nucleo/pistas.js';
 import * as A from './almacen.js';
 import { Vista } from './vista.js';
 import { Linea } from './linea.js';
+import { panelDirector, reiniciarDirector } from './director.js';
 
 const $ = (s) => document.querySelector(s);
 const D2R = Math.PI / 180;
@@ -359,7 +360,9 @@ window.addEventListener('pointercancel', () => { arr = null; vista.orbita.enable
 
 // ------------------------------------------------------------------ paneles
 const panelEl = $('#cuerpoPanel');
-const pestanas = { actores: panelActores, pose: panelPose, camaras: panelCamaras, presets: panelPresets, proyecto: panelProyecto };
+const pestanas = { actores: panelActores, pose: panelPose, camaras: panelCamaras, director: (frag) => panelDirector(frag, apiDirector()), presets: panelPresets, proyecto: panelProyecto };
+// lo que usa la pestaña Director (director.js) para trabajar sobre la escena abierta
+const apiDirector = () => ({ E, el, titulo, boton, FM, A, num, aviso, guardarDeshacer, refrescar, dibujarPanel, enfocar, irA, elegirToma, adoptar, clonar, modelos });
 let dibujando = 0;
 async function dibujarPanel() {
   const n = ++dibujando;
@@ -825,14 +828,16 @@ async function exportar() {
 }
 async function nuevoFilmPreg() {
   if (E.film.replays.length && !confirm('¿Empezar un film nuevo? Este queda guardado en "Mis films".')) return;
+  reiniciarDirector();
   E.film = FM.filmNuevo(E.plantilla); E.id = null; E.nombre = 'escena_' + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '');
   E.i = -1; E.hueso = null; E.toma = null; E.key = null; E.t = 0; pila.length = 0; pilaRehacer.length = 0;
   $('#nombreFilm').value = E.nombre; botonesDeshacer();
   await refrescar({ rearmar: true });
 }
-function adoptar(film) {
+function adoptar(film, conservar = false) {
   film.replays ??= []; film.camera ??= [];
-  film._modelo = clonar(film.replays[0] || E.plantilla.replays[0] || null);
+  if (!conservar) reiniciarDirector();   // otro film: lo que se generó con el Director en el anterior ya no vale
+  film._modelo ??= clonar(film.replays[0] || E.plantilla.replays[0] || null);
   return film;
 }
 $('#inDat').addEventListener('change', async (e) => {

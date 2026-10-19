@@ -96,3 +96,8 @@ input[type=range] { width: 100%; accent-color: var(--acento); height: 28px; }
 }
 @media (max-width: 420px) { #btnExportar .txt { display: none; } }
 @media (max-width: 520px) { #btnZoomMenos, #btnZoomMas, #btnInicio { display: none; } .herr select { max-width: 120px; } }
+
+/* pestaña Director */
+#dirGuion { width: 100%; min-height: 150px; resize: vertical; background: var(--panel2); border: 1px solid var(--borde); border-radius: 8px; padding: 8px; font: 13px/1.4 ui-monospace, 'Cascadia Mono', Consolas, monospace; color: var(--texto); margin-bottom: 6px; }
+.error-guion { background: #3a1f1b; border: 1px solid var(--peligro); border-radius: 8px; padding: 6px 8px; margin-bottom: 8px; font-size: 13px; }
+.aviso-guion { font-size: 12px; color: var(--acento); margin: 2px 0; }
