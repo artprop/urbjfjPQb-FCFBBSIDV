@@ -365,6 +365,10 @@ $('#btnPaquete').addEventListener('click', async () => {
 
 // arranque: modelos del mod y, si se puede, la carpeta recordada
 (async () => {
+  if (!window.showDirectoryPicker) {   // celu: el navegador no deja elegir carpetas; se usa el .zip
+    $('#btnCarpeta').hidden = true;
+    aviso('En el celu el navegador no deja elegir carpetas: tocá <b>🗜️ Abrir .zip</b> y elegí el .zip con tu carpeta bbs (en la compu, el Visor lo arma con «📦 Paquete para el celu»). Mientras tanto se ven los modelos que trae el mod.');
+  }
   await fuente.cargarInterno();
   reiniciarMotores();
   const recordada = await leer('carpeta');
