@@ -88,10 +88,15 @@
             <div class="canal"><label><input type="checkbox" data-c="G"> Verde (G)</label><input type="number" min="0" max="255" data-v="G"></div>
             <div class="canal"><label><input type="checkbox" data-c="B"> Azul (B)</label><input type="number" min="0" max="255" data-v="B"></div>
             <div class="canal" id="filaA"><label><input type="checkbox" data-c="A"> Opacidad (A)</label><input type="number" min="0" max="255" data-v="A"></div>
+            <div class="canal" id="filaAlfaMin"><label title="Cuánto puede bajar la opacidad al azar (0 = invisible, 255 = opaco)">Opacidad mínima</label><input type="number" min="0" max="255" id="inAlfaMin"></div>
           </div>
           <div id="panelGrises" hidden>
             <div class="canal"><label title="0 = negro">Gris más oscuro</label><input type="number" min="0" max="255" id="inGrisMin"></div>
             <div class="canal"><label title="255 = blanco">Gris más claro</label><input type="number" min="0" max="255" id="inGrisMax"></div>
+          </div>
+          <div id="panelShift" hidden>
+            <h3>DESPLAZAMIENTO VERTICAL</h3>
+            <div class="canal"><label title="Sube o baja esta capa (en píxeles de la textura). Sin marcar = no se mueve."><input type="checkbox" id="chkShiftY"> Mover en Y (px)</label><input type="number" step="1" id="inShiftY"></div>
           </div>
           <div id="panelPaleta" hidden>
             <div id="listaPaleta"></div>
