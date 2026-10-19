@@ -1,7 +1,7 @@
 // Randomizer de cameos: arma grupos de personajes de fondo al azar para BBS (como el programa de Windows).
 import {
   leerPrefab, nuevoPrefab, nuevoGrupo, resumenGrupo, generar, nombreArchivo, tituloDe, discoDeRutas,
-  archivosDeCarpeta, colorPropio, colorDesde, parseHex, argb, hexDe, limpiarRuta, aJson,
+  archivosDeCarpeta, colorPropio, colorDesde, parseHex, argb, hexDe, limpiarRuta, aJson, segmentoDe,
 } from './motor.js';
 import { PREFABS_INICIALES } from './prefabs_iniciales.js';
 import * as almacen from './almacen.js';
@@ -266,7 +266,7 @@ function renderGrupos() {
   t.append(el('div', { class: 'fila-g cab' }, el('span', {}, 'Grupo'), el('span', {}, 'Aparece %'), el('span', { class: 'res' }, 'Candidatos'), el('span', {}, 'Color'), el('span', { class: 'borra', title: 'Capa que borra (máscara de ojos)' }, 'Borra')));
   p.datos.Grupos.forEach((g, i) => {
     const fila = el('div', { class: 'fila-g' + (i === grupoIdx ? ' activa' : ''), onclick: () => { if (grupoIdx !== i) { grupoIdx = i; renderGrupos(); renderPanelGrupo(); } } },
-      el('input', { value: g.Nombre, oninput: (e) => { g.Nombre = e.target.value; cambio(); actualizarTituloCands(); } }),
+      el('input', { value: g.Nombre, oninput: (e) => { renombrarReferencias(null, g.Nombre, e.target.value); g.Nombre = e.target.value; cambio(); actualizarTituloCands(); } }),
       el('input', { type: 'number', min: 0, max: 100, step: 'any', value: Math.round(g.Prob * 1000) / 10, onchange: (e) => {
         const v = parseFloat(String(e.target.value).replace(',', '.'));
         if (isNaN(v)) { e.target.value = Math.round(g.Prob * 1000) / 10; return; }
@@ -302,6 +302,131 @@ $('#btnGrupoQuitar').addEventListener('click', () => {
   cambio(); renderGrupos(); renderPanelGrupo();
 });
 
+// ---------------- segmentos, ninguno y condicion ----------------
+// Cambia solo el texto de la columna «Candidatos» de cada fila (si se rehiciera la tabla justo al salir de un campo, se perderia el clic en otra fila).
+function actualizarResumen() {
+  const p = actual(); if (!p) return;
+  const filas = document.querySelectorAll('#tablaGrupos .fila-g:not(.cab)');
+  p.datos.Grupos.forEach((g, i) => { const r = filas[i] && filas[i].querySelector('.res'); if (r) { const t = resumenGrupo(g); r.textContent = t; r.title = t; } });
+}
+let segActivo = 0;   // 0 = segmento A (el grupo mismo); i = g.Segmentos[i - 1]
+const nombreSeg = (g, i) => (i === 0 ? 'A' : g.Segmentos[i - 1].Nombre);
+const cfgColor = (g) => (segActivo > 0 && g.Segmentos[segActivo - 1] ? g.Segmentos[segActivo - 1].Color : g.Color);
+const claveBaja = (r) => String(r).replace(/\\/g, '/').toLowerCase();
+
+function renderSegmentos() {
+  const g = grupo(), cont = $('#chipsSeg');
+  if (!g) { cont.innerHTML = ''; $('#accionesSeg').hidden = true; $('#btnSegAsignar').disabled = true; return; }
+  if (segActivo > g.Segmentos.length) segActivo = 0;
+  cont.innerHTML = '';
+  const total = new Set(itemsCand.filter((i) => i.clave).map((i) => claveBaja(i.clave))).size;
+  const enOtros = g.Segmentos.reduce((n, s) => n + s.Archivos.length, 0);
+  cont.append(el('button', { class: segActivo === 0 ? 'activa' : '', title: 'Los candidatos que no están en otro segmento', onclick: () => { segActivo = 0; renderSegmentos(); renderColor(); } }, `A (${Math.max(0, total - enOtros)})`));
+  g.Segmentos.forEach((s, i) => cont.append(el('button', { class: segActivo === i + 1 ? 'activa' : '', onclick: () => { segActivo = i + 1; renderSegmentos(); renderColor(); } }, `${s.Nombre} (${s.Archivos.length})`)));
+  cont.append(el('button', { title: 'Agrega un segmento nuevo', onclick: nuevoSegmento }, '+ Segmento'));
+  $('#accionesSeg').hidden = segActivo === 0;
+  if (segActivo > 0) $('#inNombreSeg').value = g.Segmentos[segActivo - 1].Nombre;
+  const n = marcadosVisibles().filter((i) => i.clave).length;
+  const b = $('#btnSegAsignar');
+  b.textContent = `Pasar lo marcado${n ? ` (${n})` : ''} al segmento «${nombreSeg(g, segActivo)}»`;
+  b.disabled = !n;
+}
+function nuevoSegmento() {
+  const g = grupo(); if (!g) return;
+  const usados = new Set(['A', ...g.Segmentos.map((s) => s.Nombre)]);
+  let nombre = 'B'; for (let c = 66; c < 91 && usados.has(nombre); c++) nombre = String.fromCharCode(c + 1);
+  for (let k = 2; usados.has(nombre); k++) nombre = 'S' + k;
+  g.Segmentos.push({ Nombre: nombre, Archivos: [], Color: colorDesde({ Modo: 'ninguno' }) });
+  segActivo = g.Segmentos.length; cambio(); renderSegmentos(); renderColor(); actualizarResumen(); renderCondicion();
+}
+function asignarASegmento() {
+  const g = grupo(); if (!g) return;
+  const claves = marcadosVisibles().map((i) => i.clave).filter(Boolean);
+  if (!claves.length) return;
+  const bajas = new Set(claves.map(claveBaja));
+  for (const s of g.Segmentos) s.Archivos = s.Archivos.filter((a) => !bajas.has(claveBaja(a)));   // un candidato esta en un solo segmento
+  if (segActivo > 0) g.Segmentos[segActivo - 1].Archivos.push(...claves);
+  cambio(); const l = $('#listaCands'), sc = l.scrollTop; renderCandidatos(); l.scrollTop = sc; actualizarResumen();
+}
+// quien dependia de (grupo, segmento) pasa a depender del nombre nuevo
+function renombrarReferencias(grupoNombre, viejo, nuevo, soloSegmento = false) {
+  const p = actual(); if (!p) return;
+  for (const o of p.datos.Grupos) {
+    const c = o.Condicion; if (!c) continue;
+    if (soloSegmento) { if (c.Grupo === grupoNombre && c.Segmento === viejo) c.Segmento = nuevo; }
+    else if (c.Grupo === viejo) c.Grupo = nuevo;
+  }
+}
+$('#btnSegAsignar').addEventListener('click', asignarASegmento);
+$('#inNombreSeg').addEventListener('change', (e) => {
+  const g = grupo(); if (!g || segActivo === 0) return;
+  const s = g.Segmentos[segActivo - 1], nuevo = e.target.value.trim();
+  if (!nuevo || nuevo === 'A' || nuevo === '*' || nuevo === '-' || g.Segmentos.some((x) => x !== s && x.Nombre === nuevo)) { estado('El nombre del segmento tiene que ser distinto de los demás (y de «A»).', 'error'); e.target.value = s.Nombre; return; }
+  renombrarReferencias(g.Nombre, s.Nombre, nuevo, true); s.Nombre = nuevo;
+  cambio(); actualizarResumen();
+  const chip = document.querySelector('#chipsSeg button.activa'); if (chip) chip.textContent = `${nuevo} (${s.Archivos.length})`;   // solo el texto (no se rehacen los botones)
+  $('#tituloColor').textContent = $('#tituloColor').textContent.replace(/DEL SEGMENTO .+? \(MODO/, `DEL SEGMENTO ${nuevo} (MODO`);
+});
+$('#btnSegQuitar').addEventListener('click', () => {
+  const g = grupo(); if (!g || segActivo === 0) return;
+  const s = g.Segmentos[segActivo - 1];
+  if (!confirm(`¿Quitar el segmento «${s.Nombre}»? Sus candidatos vuelven al segmento A.`)) return;
+  g.Segmentos.splice(segActivo - 1, 1);
+  renombrarReferencias(g.Nombre, s.Nombre, 'A', true);   // los grupos que dependian de este segmento pasan a depender de A
+  segActivo = 0; cambio(); renderCandidatos(); renderColor(); actualizarResumen(); renderCondicion();
+});
+$('#selModoSeg').addEventListener('change', (e) => { const g = grupo(); if (!g || segActivo === 0) return; g.Segmentos[segActivo - 1].Color.Modo = e.target.value; cambio(); renderColor(); });
+
+function renderNinguno() {
+  const g = grupo(), on = !!g && g.NingunoProb > 0;
+  $('#chkNinguno').checked = on; $('#filaNingunoProb').hidden = !on;
+  if (g && on) $('#inNingunoProb').value = Math.round(g.NingunoProb * 1000) / 10;
+}
+$('#chkNinguno').addEventListener('change', (e) => {
+  const g = grupo(); if (!g) return;
+  g.NingunoProb = e.target.checked ? 0.1 : 0;
+  cambio(); renderNinguno(); actualizarTituloCands(); actualizarResumen();
+});
+$('#inNingunoProb').addEventListener('change', (e) => {
+  const g = grupo(); if (!g) return;
+  const v = parseFloat(String(e.target.value).replace(',', '.'));
+  if (isNaN(v)) { renderNinguno(); return; }
+  g.NingunoProb = Math.min(Math.max(v, 0), 100) / 100;
+  cambio(); renderNinguno(); actualizarTituloCands(); actualizarResumen();
+});
+
+function renderCondicion() {
+  const g = grupo(), p = actual();
+  const otros = g && p ? [...new Set(p.datos.Grupos.filter((x) => x !== g && x.Nombre).map((x) => x.Nombre))] : [];
+  $('#panelCondicion').hidden = !g;
+  if (!g) return;
+  const chk = $('#chkCond'), c = g.Condicion;
+  chk.checked = !!c; chk.disabled = !otros.length && !c;
+  chk.title = otros.length ? '' : 'Hace falta otro grupo para depender de él.';
+  $('#filaCond').hidden = !c;
+  if (!c) return;
+  const sg = $('#selCondGrupo'); sg.innerHTML = '';
+  for (const n of (otros.includes(c.Grupo) ? otros : [c.Grupo, ...otros])) sg.append(el('option', { value: n, ...(n === c.Grupo ? { selected: true } : {}) }, n + (otros.includes(n) ? '' : ' (no existe)')));
+  const ref = p.datos.Grupos.find((x) => x !== g && x.Nombre === c.Grupo);
+  const opciones = [['A', 'A'], ...(ref ? ref.Segmentos.map((s) => [s.Nombre, s.Nombre]) : []), ['*', 'cualquier candidato'], ['-', 'ninguno (no puso capa)']];
+  if (!opciones.some(([v]) => v === c.Segmento)) opciones.push([c.Segmento, c.Segmento + ' (no existe)']);
+  const ss = $('#selCondSeg'); ss.innerHTML = '';
+  for (const [v, t] of opciones) ss.append(el('option', { value: v, ...(v === c.Segmento ? { selected: true } : {}) }, t));
+}
+$('#chkCond').addEventListener('change', (e) => {
+  const g = grupo(), p = actual(); if (!g || !p) return;
+  if (e.target.checked) { const otro = p.datos.Grupos.find((x) => x !== g && x.Nombre); g.Condicion = otro ? { Grupo: otro.Nombre, Segmento: otro.Segmentos.length ? otro.Segmentos[0].Nombre : '*' } : null; }
+  else g.Condicion = null;
+  cambio(); renderCondicion(); actualizarResumen();
+});
+$('#selCondGrupo').addEventListener('change', (e) => {
+  const g = grupo(), p = actual(); if (!g || !g.Condicion) return;
+  const ref = p.datos.Grupos.find((x) => x !== g && x.Nombre === e.target.value);
+  g.Condicion = { Grupo: e.target.value, Segmento: ref && ref.Segmentos.length ? ref.Segmentos[0].Nombre : '*' };
+  cambio(); renderCondicion(); actualizarResumen();
+});
+$('#selCondSeg').addEventListener('change', (e) => { const g = grupo(); if (!g || !g.Condicion) return; g.Condicion.Segmento = e.target.value; cambio(); actualizarResumen(); });
+
 // ---------------- candidatos ----------------
 function renderPanelGrupo() {
   const g = grupo();
@@ -309,8 +434,11 @@ function renderPanelGrupo() {
   $('#panelGrupo').inert = !g;
   $('#inBuscar').value = ''; // la búsqueda se vacía al cambiar de grupo
   candMarcados.clear(); anclaCand = null;
+  segActivo = 0;
   renderCandidatos();
   renderColor();
+  renderNinguno();
+  renderCondicion();
 }
 
 const dirCapas = (p) => limpiarRuta(p.datos.Raiz);
@@ -362,6 +490,10 @@ function cajaMini(ruta, obs) {
   return caja;
 }
 
+function chipSegmento(g, rel) {
+  const s = rel ? segmentoDe(g, rel) : null;
+  return s ? el('span', { class: 'segchip', title: 'Segmento ' + s.Nombre }, s.Nombre) : null;
+}
 function marcaColor(g, rel) {
   const c = colorPropio(g, rel);
   if (!c) return null;
@@ -390,7 +522,8 @@ function renderCandidatos() {
     },
     it.carpeta ? null : cajaMini(rutaAssets(p, it.rel), obs),
     el('span', { class: 'txt' }, it.carpeta ? it.texto : (it.excluido ? '✗ excluido: ' : it.deCarpeta ? '· ' : '') + it.rel),
-    !it.carpeta && !it.excluido ? marcaColor(g, it.rel) : null);
+    !it.carpeta && !it.excluido ? marcaColor(g, it.rel) : null,
+    !it.carpeta && !it.excluido && g && g.Segmentos.length ? chipSegmento(g, it.clave) : null);
     l.append(fila);
   }
   if (g && !itemsCand.length) l.append(el('div', { class: 'item sub' }, 'Sin candidatos. Usá «+ Archivos / carpeta…».'));
@@ -398,6 +531,7 @@ function renderCandidatos() {
   actualizarOcultos();
   actualizarTituloCands();
   actualizarColorProp();
+  renderSegmentos();
 }
 
 function visibles() { return itemsCand.filter(pasaFiltro); }
@@ -432,7 +566,7 @@ function actualizarTituloCands() {
   if (!g) { $('#tituloCands').textContent = 'CANDIDATOS (SE ELIGE UNO)'; return; }
   const fuera = new Set(g.Excluidos.map((x) => x.replace(/\\/g, '/').toLowerCase()));
   const n = new Set(itemsCand.map((i) => i.clave && i.clave.replace(/\\/g, '/')).filter((k) => k && !fuera.has(k.toLowerCase()))).size;
-  $('#tituloCands').textContent = `CANDIDATOS DE «${g.Nombre}»: ${n} (SE ELIGE UNO)`;
+  $('#tituloCands').textContent = `CANDIDATOS DE «${g.Nombre}»: ${n}${g.NingunoProb > 0 ? ` + ninguno (${Math.round(g.NingunoProb * 1000) / 10} %)` : ''} (SE ELIGE UNO)`;
 }
 
 let tBuscar = 0;
@@ -465,6 +599,7 @@ $('#btnRestaurar').addEventListener('click', () => {
 // ---------------- color del archivo marcado ----------------
 let actualizandoProp = false;
 function actualizarColorProp() {
+  renderSegmentos();
   const g = grupo();
   const claves = marcadosVisibles().map((i) => i.clave).filter(Boolean);
   $('#panelColorProp').hidden = !claves.length;
@@ -513,8 +648,9 @@ const NOTAS = {
 function renderColor() {
   const g = grupo();
   if (!g) { $('#tituloColor').textContent = 'COLOR'; $('#notaColor').textContent = ''; ['#panelCanales', '#panelGrises', '#panelPaleta', '#panelShift'].forEach((s) => ($(s).hidden = true)); return; }
-  const c = g.Color, modo = String(c.Modo).toLowerCase();
-  $('#tituloColor').textContent = 'COLOR (MODO: ' + modo.toUpperCase() + ')';
+  const c = cfgColor(g), modo = String(c.Modo).toLowerCase();
+  $('#tituloColor').textContent = (segActivo > 0 ? `COLOR DEL SEGMENTO ${nombreSeg(g, segActivo)}` : 'COLOR') + ' (MODO: ' + modo.toUpperCase() + ')';
+  $('#filaModoSeg').hidden = segActivo === 0; $('#selModoSeg').value = modo;
   $('#notaColor').textContent = NOTAS[modo] || 'Sin color: la capa se usa tal cual (blanca / sin teñir).';
   $('#panelCanales').hidden = !(modo === 'rgb' || modo === 'rgba');
   $('#filaA').hidden = modo !== 'rgba';
@@ -541,8 +677,8 @@ for (const k of 'RGBA') {
   const leer = () => {
     const g = grupo(); if (!g) return;
     txt.disabled = !chk.checked;
-    if (!chk.checked) g.Color['Fijo' + k] = null;
-    else if (valido255(txt.value)) g.Color['Fijo' + k] = +txt.value;
+    if (!chk.checked) cfgColor(g)['Fijo' + k] = null;
+    else if (valido255(txt.value)) cfgColor(g)['Fijo' + k] = +txt.value;
     else malValor(txt.value);
     cambio();
   };
@@ -550,7 +686,7 @@ for (const k of 'RGBA') {
 }
 $('#inAlfaMin').addEventListener('change', (e) => {
   const g = grupo(); if (!g) return;
-  if (valido255(e.target.value)) { g.Color.AlfaMin = +e.target.value; cambio(); } else malValor(e.target.value);
+  if (valido255(e.target.value)) { cfgColor(g).AlfaMin = +e.target.value; cambio(); } else malValor(e.target.value);
 });
 const leerShiftY = () => {
   const g = grupo(); if (!g) return;
@@ -565,7 +701,7 @@ $('#chkShiftY').addEventListener('change', leerShiftY); $('#inShiftY').addEventL
 for (const [id, k] of [['#inGrisMin', 'GrisMin'], ['#inGrisMax', 'GrisMax']]) {
   $(id).addEventListener('change', (e) => {
     const g = grupo(); if (!g) return;
-    if (valido255(e.target.value)) { g.Color[k] = +e.target.value; cambio(); } else malValor(e.target.value);
+    if (valido255(e.target.value)) { cfgColor(g)[k] = +e.target.value; cambio(); } else malValor(e.target.value);
   });
 }
 
@@ -573,7 +709,7 @@ function renderPaleta() {
   const g = grupo(), l = $('#listaPaleta'); l.innerHTML = '';
   if (!g) return;
   l.append(el('div', { class: 'color-fila sub' }, el('span', { style: 'width:34px' }), el('span', { class: 'hex' }, 'Color'), el('span', { class: 'peso' }, 'Peso')));
-  g.Color.Paleta.forEach((x, i) => {
+  cfgColor(g).Paleta.forEach((x, i) => {
     let css = null; try { css = '#' + hexDe(parseHex(x.Hex)).slice(-6).toLowerCase(); } catch { /* inválido */ }
     const pick = el('input', { type: 'color', value: css || '#000000', title: 'Elegir color', style: css ? '' : 'outline:2px solid var(--peligro)' });
     const hex = el('input', { class: 'hex', value: x.Hex, title: '#RRGGBB o #AARRGGBB' });
@@ -582,12 +718,12 @@ function renderPaleta() {
     hex.addEventListener('change', () => { x.Hex = hex.value.trim(); cambio(); renderPaleta(); });
     l.append(el('div', { class: 'color-fila' }, pick, hex,
       el('input', { class: 'peso', type: 'number', min: 0, step: 'any', value: x.Peso, onchange: (e) => { const v = parseFloat(String(e.target.value).replace(',', '.')); if (!isNaN(v)) { x.Peso = v; cambio(); } } }),
-      el('button', { title: 'Quitar este color', onclick: () => { g.Color.Paleta.splice(i, 1); cambio(); renderPaleta(); } }, '✕')));
+      el('button', { title: 'Quitar este color', onclick: () => { cfgColor(g).Paleta.splice(i, 1); cambio(); renderPaleta(); } }, '✕')));
   });
 }
 $('#btnColorNuevo').addEventListener('click', () => {
   const g = grupo(); if (!g) return;
-  g.Color.Paleta.push({ Hex: '#808080', Peso: 10 }); cambio(); renderPaleta();
+  cfgColor(g).Paleta.push({ Hex: '#808080', Peso: 10 }); cambio(); renderPaleta();
 });
 
 // ---------------- elegir archivos de la carpeta bbs ----------------
@@ -716,7 +852,7 @@ function renderPreview() {
       el('b', {}, `${pj.nombre}   ·   ${pj.modelo}`),
       el('div', { class: 'chips' }, pj.capas.map((c) => el('span', { class: 'chip' },
         el('i', { style: 'background:' + (c.color !== null ? hexCss(c.color) : 'transparent') }),
-        c.ruta.split('/').pop().replace(/\.[^.]*$/, '') + (c.erase ? ' (borra)' : ''))))));
+        c.ruta.split('/').pop().replace(/\.[^.]*$/, '') + (c.erase ? ' (borra)' : '') + (c.sorteo && c.sorteo.segmento && c.sorteo.segmento !== 'A' ? ` [${c.sorteo.segmento}]` : ''))))));
   });
   if (resultado.personajes.length) elegirPj(0, false);
 }
@@ -735,42 +871,27 @@ async function dibujar(pj) {
 }
 $('#btnCentrar').addEventListener('click', () => vista.recentrar());
 
-// Muestra un candidato con un color de muestra y, debajo, la piel del primer grupo.
+// Muestra la textura marcada SOLA en el muñeco (sin color ni otras capas), para ver cual es.
+let candVisto = null;
 function mostrarCandidato(rel) {
   const p = actual(), g = grupo(); if (!p || !g) return;
-  const ruta = (r) => `assets:${p.datos.Raiz.replace(/^\/+|\/+$/g, '')}/${r}`;
-  const capas = [];
-  const piel = p.datos.Grupos[0];
-  let relPiel = null;
-  if (piel && piel !== g && !piel.Erase && (relPiel = primerCandidato(piel)) !== null) capas.push({ ruta: ruta(relPiel), color: colorMuestra(piel, relPiel), erase: false, shiftY: piel.ShiftY });
-  capas.push({ ruta: ruta(rel), color: colorMuestra(g, rel), erase: g.Erase, shiftY: g.ShiftY });
+  candVisto = rel;
+  const ruta = `assets:${p.datos.Raiz.replace(/^\/+|\/+$/g, '')}/${rel}`;
   document.querySelectorAll('#listaPreview .pj.activo').forEach((d) => d.classList.remove('activo'));
+  const seg = segmentoDe(g, rel);
   $('#visorNombre').innerHTML = '';
-  $('#visorNombre').append(`Candidato: ${rel.split('/').pop()}   ·   ${p.datos.Modelo}`,
-    el('small', {}, relPiel !== null ? `color de muestra, sobre ${relPiel.split('/').pop()} (${piel.Nombre})` : 'color de muestra'));
-  dibujar({ nombre: 'candidato', modelo: p.datos.Modelo, capas });
+  $('#visorNombre').append(`Textura: ${rel.split('/').pop()}   ·   ${p.datos.Modelo}`,
+    el('small', {}, 'sola, sin color ni otras capas' + (g.Segmentos.length ? ` · segmento ${seg ? seg.Nombre : 'A'}` : '')));
+  dibujar({ nombre: 'textura', modelo: p.datos.Modelo, capas: [{ ruta, color: null, erase: false, shiftY: null }] });
 }
-function primerCandidato(g) {
-  if (g.Archivos.length) return g.Archivos[0].replace(/\\/g, '/');
-  if (!disco) return null;
-  const fuera = new Set(g.Excluidos.map((x) => x.toLowerCase()));
-  for (const c of g.Carpetas) for (const f of archivosDeCarpeta(actual().datos, c, disco)) if (!fuera.has(f.toLowerCase())) return f;
-  return null;
-}
-// Un color fijo que representa al grupo (o al color propio del archivo) para la vista previa.
-function colorMuestra(g, rel) {
-  const c = colorPropio(g, rel) || g.Color;
-  switch (String(c.Modo).toLowerCase()) {
-    case 'paleta': {
-      let mas = null; for (const x of c.Paleta) if (!mas || x.Peso > mas.Peso) mas = x;
-      try { return mas ? parseHex(mas.Hex) : null; } catch { return null; }
-    }
-    case 'rgb': case 'rgba':
-      return argb(String(c.Modo).toLowerCase() === 'rgba' ? c.FijoA ?? 255 : 255, c.FijoR ?? 190, c.FijoG ?? 110, c.FijoB ?? 70);
-    case 'grises': { const v = Math.trunc((c.GrisMin + c.GrisMax) / 2); return argb(255, v, v, v); }
-    default: return null;
-  }
-}
+// en el celu el visor esta en otra pestaña: este boton lleva a verla
+$('#btnVer3d').addEventListener('click', () => {
+  const marcado = marcadosVisibles().find((i) => i.clave);
+  const rel = marcado ? marcado.clave : candVisto;
+  if (!rel) { estado('Marcá primero un candidato de la lista.', 'error'); return; }
+  mostrarCandidato(rel);
+  if (esCelu()) irA('vista');
+});
 
 // ======================= CARPETA BBS / ZIP =======================
 async function despuesDeCargar() {
