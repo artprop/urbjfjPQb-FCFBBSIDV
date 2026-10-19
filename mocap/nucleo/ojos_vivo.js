@@ -82,9 +82,10 @@ export function actualizar(est, s, { umbral = 0.5, cejas = true, modo = 'poses' 
  * modelo: 'eyes' (2x2) o 'eyes_1px'. Pixeles de la cara: columna 0 a 7 (izquierda de la pantalla a derecha), fila 0 (arriba) a 7.
  * El ojo derecho del personaje queda a la izquierda de la pantalla (columnas 1-2) y el izquierdo a la derecha (columnas 5-6).
  */
-export function dibujar(g, u, est, modelo, piel) {
+export function dibujar(g, u, est, modelo, piel, off = [0, 0]) {
   const alto = modelo === 'eyes_1px' ? 1 : 2, fila = 4, filaCeja = 3;   // los dos modelos arrancan en la fila 4, la de los ojos pintados en la skin
   const [gx, gy] = est.g;
+  g.save(); g.translate(off[0] * u, -off[1] * u);   // posicion de los ojos para skins que los traen en otro lugar (dx a la derecha, dy hacia arriba, en pixeles)
   const rect = (x, y, w, h, c, caja) => {   // en pixeles de la cara; si hay caja, se recorta a ella
     let x0 = x, y0 = y, x1 = x + w, y1 = y + h;
     if (caja) { x0 = Math.max(x0, caja[0]); y0 = Math.max(y0, caja[1]); x1 = Math.min(x1, caja[2]); y1 = Math.min(y1, caja[3]); }
@@ -109,4 +110,5 @@ export function dibujar(g, u, est, modelo, piel) {
     const mov = -ceja * (ceja > 0 ? CEJA_ARRIBA : CEJA_ABAJO);
     rect(col, filaCeja + mov, 2, 1, COLOR.ceja, [0, 0, 8, 8]);
   }
+  g.restore();
 }
