@@ -199,3 +199,33 @@ export function construir(cara, parte, offset = 0, desde = 0, op = {}) {
   };
   return { pistas, resumen, tramos: lst };
 }
+
+// ---------------------------------------------------------------- en vivo (vista previa de Mocap)
+// La misma forma de la conversion (formaCuadro), pero de un cuadro suelto de la camara. La base es tu cara quieta, medida antes.
+const bsMedia = (nombres, bs, ...n) => { const v = n.map((x) => nombres.indexOf(x)).filter((k) => k >= 0).map((k) => bs[k]); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0; };
+function crudoVivo(nombres, bs) {
+  return {
+    jaw: bsMedia(nombres, bs, 'jawOpen'), redondo: Math.max(bsMedia(nombres, bs, 'mouthFunnel'), bsMedia(nombres, bs, 'mouthPucker')),
+    sonrisa: bsMedia(nombres, bs, 'mouthSmileLeft', 'mouthSmileRight'), estira: bsMedia(nombres, bs, 'mouthStretchLeft', 'mouthStretchRight'),
+    labios: bsMedia(nombres, bs, 'mouthUpperUpLeft', 'mouthUpperUpRight', 'mouthLowerDownLeft', 'mouthLowerDownRight'),
+  };
+}
+function geoVivo(boca, aspecto) {
+  const ojos = dist(boca[K.ojo_iz], boca[K.ojo_de], aspecto) || 1e-6;
+  return { abre: dist(boca[K.sup_int], boca[K.inf_int], aspecto) / ojos, ancho: dist(boca[K.comisura_iz], boca[K.comisura_de], aspecto) / ojos };
+}
+/** cuadros: [{boca, bs}] con la cara quieta (boca = PUNTOS_BOCA de cada cuadro). */
+export function calibrarVivo(cuadros, nombres, aspecto) {
+  const g = cuadros.map((c) => geoVivo(c.boca, aspecto)), cr = cuadros.map((c) => crudoVivo(nombres, c.bs));
+  let q = g.map((x, i) => i).filter((i) => g[i].abre < 0.04);
+  if (q.length < 5) q = g.map((_, i) => i);
+  const med = (f) => M.median(q.map(f));
+  const reposo = {}; for (const k of Object.keys(cr[0])) reposo[k] = Math.min(med((i) => cr[i][k]), 0.9);
+  return { nombres, aspecto, reposo, anchoBase: med((i) => g[i].ancho) || 1 };
+}
+/** Forma de boca ('cerrada', 'a', 'e', ... ) de un cuadro de la camara. */
+export function formaVivo(base, boca, bs, sens = 1) {
+  const g = geoVivo(boca, base.aspecto), cr = crudoVivo(base.nombres, bs), m = { abre: [g.abre], ancho: [g.ancho / base.anchoBase] };
+  for (const k of Object.keys(base.reposo)) m[k] = [Math.max(0, (cr[k] - base.reposo[k]) / (1 - base.reposo[k]))];
+  return formaCuadro(m, 0, sens);
+}

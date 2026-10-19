@@ -192,18 +192,19 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
       for (const c of [a - 1, b + 1]) if (c >= 0 && c < C && !g[r * C + c] && tramo[c]) g[r * C + c] = LABIO;
     }
   }
-  // dientes: apagados, solo los de arriba y en el medio de la abertura
+  // dientes: una sola linea recta y continua (nunca un hueco oscuro entre dos dientes).
+  // Van en todas las columnas de la abertura menos las dos de las puntas, todos en la misma fila: la mas baja de los bordes de arriba.
   const apretados = cal.JAW[i] < 0.12, sonrisa = cal.SMILE[i] > 0.6;
   if (apretados || sonrisa) {
-    const g0 = g.slice();
-    for (let c = 1; c < C - 1; c++) {
-      let rt = -1, rb = -1;
-      for (let r = 0; r < R; r++) if (g[r * C + c] === HUECO) { if (rt < 0) rt = r; rb = r; }
-      if (rt < 0 || g0[rt * C + c - 1] !== HUECO || g0[rt * C + c + 1] !== HUECO) continue;
-      let ancho = 0; for (let cc = 0; cc < C; cc++) if (g0[rt * C + cc] === HUECO) ancho++;
-      if (ancho < Math.max(3, 1.5 * k)) continue;
-      const nt = apretados ? Math.ceil((rb - rt + 1) / 2) : Math.max(1, Math.round((0.3 * pv) / h));
-      for (let r = rt; r < Math.min(rb + 1, rt + nt); r++) g[r * C + c] = DIENTE;
+    const rt = new Array(C).fill(-1), rb = new Array(C).fill(-1);
+    for (let c = 0; c < C; c++) for (let r = 0; r < R; r++) if (g[r * C + c] === HUECO) { if (rt[c] < 0) rt[c] = r; rb[c] = r; }
+    const cols = []; for (let c = 0; c < C; c++) if (rt[c] >= 0) cols.push(c);
+    if (cols.length >= Math.max(4, 1.5 * k)) {   // en una abertura muy angosta no van (quedaria un diente suelto entre dos huecos)
+      const dentro = cols.slice(1, -1);
+      const fila = Math.max(...dentro.map((c) => rt[c]));
+      const altos = dentro.map((c) => rb[c] - fila + 1).filter((x) => x > 0).sort((x, y) => x - y), tipico = altos.length ? altos[Math.floor(altos.length / 2)] : 0;
+      const nt = Math.min(tipico, apretados ? Math.max(1, Math.ceil(tipico / 2)) : Math.max(1, Math.round((0.3 * pv) / h)));   // mismo grosor en toda la linea
+      for (const c of dentro) for (let r = fila; r < Math.min(rb[c] + 1, fila + nt); r++) g[r * C + c] = DIENTE;
     }
   }
   return g;
@@ -290,14 +291,15 @@ const valor = (t, k) => (t ? { t: [t[0] / k, 0, 0], s: [t[1], 1, 1] } : { t: [0,
  * op: boca_sens (0.5..2), boca_min_ticks.
  */
 export function construir(cara, parte, offset = 0, desde = 0, op = {}) {
-  const forma = { k: parte.k, filas: parte.filas, labios: parte.labios, sens: op.boca_sens ?? 1 };
+  // boca_labios = false: no se dibujan labios (los de arriba y abajo quedan escondidos); parte.labios = si el modelo tiene piezas de labio
+  const forma = { k: parte.k, filas: parte.filas, labios: parte.labios && op.boca_labios !== false, sens: op.boca_sens ?? 1 };
   const cal = calibrar(cara);
   const pasos = tramos(cara, cal, forma, { offset, minTicks: op.boca_min_ticks ?? 2 });
   const pistas = {}, ultimo = {};
   for (const { tick, g } of pasos) {
     const pz = piezas(g, forma);
     for (const [b, t] of Object.entries(pz)) {
-      if (!forma.labios && b.startsWith('labio')) continue;
+      if (!parte.labios && b.startsWith('labio')) continue;
       const v = valor(t, forma.k), kk = JSON.stringify(v);
       if (ultimo[b] === kk) continue;
       ultimo[b] = kk;
