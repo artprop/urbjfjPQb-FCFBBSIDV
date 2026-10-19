@@ -267,7 +267,8 @@ async function activarCamara() {
       audio: false,
     });
     const v = $('#cam'); v.srcObject = stream; await v.play();
-    $('#cam-vacio').hidden = true; $('#btn-grabar').disabled = false;
+    $('#cam-vacio').hidden = true; $('#btn-grabar').disabled = false; $('#btn-apagar-cam').hidden = false;
+    try { localStorage.removeItem('mocap_cam_apagada'); } catch { /* sin almacenamiento */ }
     await listarCamaras();
     iniciarEsqueleto();
   } catch (e) {
@@ -276,6 +277,19 @@ async function activarCamara() {
       ? 'El navegador no tiene permiso para usar la cámara. Hacé clic en el ícono de la cámara en la barra de direcciones y permitilo.'
       : 'No se pudo abrir la cámara: ' + e.message;
   }
+}
+
+// Apaga la camara del todo: se sueltan las pistas del video (asi se va la luz de la camara en la compu y el icono verde en el celu)
+function apagarCamara() {
+  if (grabando) pararGrabacion();
+  if (!$('#cuenta').hidden) cancelarCuenta = true;
+  if (vivoPrendido()) prenderVivo(false);
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  const v = $('#cam'); v.pause(); v.srcObject = null; v.removeAttribute('src'); v.load();
+  const c = $('#overlay'); c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  $('#cam-vacio').hidden = false; $('#cam-error').textContent = '';
+  $('#btn-grabar').disabled = true; $('#btn-apagar-cam').hidden = true;
+  try { localStorage.setItem('mocap_cam_apagada', '1'); } catch { /* sin almacenamiento */ }   // se queda apagada la proxima vez que se abra
 }
 
 async function iniciarEsqueleto() {
@@ -448,7 +462,8 @@ async function inicio() {
   });
   enlazarAjustes(); enlazarTomas();
   $('#btn-activar').addEventListener('click', activarCamara);
-  $('#sel-camara').addEventListener('change', activarCamara);
+  $('#sel-camara').addEventListener('change', () => { if (stream) activarCamara(); });   // si esta apagada, cambiar de camara no la prende
+  $('#btn-apagar-cam').addEventListener('click', apagarCamara);
   $('#btn-grabar').addEventListener('click', alternarGrabacion);
   $('#btn-convertir').addEventListener('click', convertir);
   document.addEventListener('keydown', (e) => {
@@ -469,7 +484,8 @@ async function inicio() {
   } catch (e) { mostrarError(e); }
   if (navigator.mediaDevices?.getUserMedia) {
     const perm = await navigator.permissions?.query({ name: 'camera' }).catch(() => null);
-    if (perm && perm.state === 'granted') activarCamara();
+    let apagada = false; try { apagada = localStorage.getItem('mocap_cam_apagada') === '1'; } catch { /* sin almacenamiento */ }
+    if (perm && perm.state === 'granted' && !apagada) activarCamara();
   } else {
     $('#cam-error').textContent = 'Este navegador no permite usar la cámara. Usá Chrome o Edge.';
   }
