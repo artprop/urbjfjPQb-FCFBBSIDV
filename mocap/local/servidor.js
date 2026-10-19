@@ -11,6 +11,8 @@ import * as ojos from '../nucleo/ojos.js';
 import * as boca from '../nucleo/boca.js';
 import * as bocaPx from '../nucleo/boca_pixel.js';
 import * as muecasMod from '../nucleo/muecas.js';
+import * as arrugasMod from '../nucleo/arrugas.js';
+import { filmCara } from '../nucleo/proyecto_defecto.js';
 import { analizarPose, analizarCara } from './deteccion.js';
 import * as psmove from '../nucleo/psmove.js';
 import { leerAnimacion, aPose } from './importar.js';
@@ -270,26 +272,29 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
     const f = await datosFijos();
     const op = { ...(await leerConfig()), actor, desde };
     if (op.usar_move && op.modo !== 'cara') op.partes = 'brazo_izq,brazo_der';   // con los controles Move solo se animan los brazos
-    const film = filmNombre ? await cargarFilm(filmNombre) : null;
+    let film = filmNombre ? await cargarFilm(filmNombre) : null;
     let filmNuevo, resumen, destino;
 
     if (op.modo === 'cara') {
       if (!op.cara_ojos && !op.cara_boca) throw new Error('Marcá "Animar los ojos" o "Animar la boca" (o las dos).');
-      if (!film) throw new Error('Para animar la cara elegí un film (paso 3) cuyo actor ya tenga los ojos o la boca puestos: el programa le agrega la animacion de tu cara.');
+      const sinFilm = !film;   // sin film propio (por ejemplo en el celu): se usa el proyecto por defecto, con steve_bends, tu skin y las partes de cara
+      if (sinFilm) { film = filmCara(await bbs.leer(f.plantilla), op); log('Proyecto por defecto: actor steve_bends con tu skin y las partes de la cara.'); }
       log(`Video: ${nombreToma}  (modo cara)`);
       const reps = film.replays;
       if (!(actor >= 0 && actor < reps.length)) throw new Error(`El film tiene ${reps.length} actores: el numero de actor va de 0 a ${reps.length - 1}.`);
       const parteO = op.cara_ojos ? ojos.parteOjos(reps[actor]) : null;
       const parteP = op.cara_boca ? bocaPx.partePixel(reps[actor]) : null;
       const parteB = op.cara_boca && !parteP ? boca.parteBoca(reps[actor]) : null;
+      const parteA = op.cara_arrugas ? arrugasMod.parteArrugas(reps[actor]) : null;
       const avisos = [];
       if (op.cara_ojos && !parteO) avisos.push('Los ojos no se animaron: el actor no tiene parte de ojos (eyes o eyes_1px).');
       if (op.cara_boca && !parteB && !parteP) avisos.push('La boca no se animó: el actor no tiene parte de boca (boca_Man, boca_Woman o boca_pixel).');
+      if (op.cara_arrugas && !parteA) avisos.push('Las arrugas no se animaron: el actor no tiene parte de arrugas (por ejemplo player/arrugas_Man_x2: bajá el paquete de modelos de la cara).');
       if (!parteO && !parteB && !parteP) {
         throw new Error('El actor de ese film no tiene ' + [op.cara_ojos && 'ojos (eyes o eyes_1px)', op.cara_boca && 'boca (boca_Man, boca_Woman o boca_pixel)'].filter(Boolean).join(' ni ') +
           '. Elegí un film cuyo actor ya los tenga puestos.');
       }
-      const cara = await caraDe(nombreToma, op, reanalizar, log, prog, Boolean(parteB || parteP), Boolean(parteP));
+      const cara = await caraDe(nombreToma, op, reanalizar, log, prog, Boolean(parteB || parteP || parteA), Boolean(parteP || parteA));
       filmNuevo = bbs.clonar(film);
       const rep = filmNuevo.replays[actor]; rep.animation = rep.animation || {};
       let rO = null, rB = null;
@@ -309,10 +314,16 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
         Object.assign(rep.animation, b.pistas); rB = b.resumen;
         if (rB.cambios === 0) avisos.push('La boca quedó siempre igual: no se vio que la abrieras. Revisá que la cara se vea de frente, cerca y con luz.');
       }
+      let rA = null;
+      if (parteA) {
+        const a = arrugasMod.construir(cara, parteA, 0, op.desde, op);
+        Object.assign(rep.animation, a.pistas); rA = a.resumen;
+        if (rA.cambios === 0) avisos.push('Las arrugas quedaron siempre igual: no hubo gestos que las provoquen (sonrisa, boca de lado...).');
+      }
       const dur = (rO || rB).duracion;
-      destino = filmNombre.replace(/\.dat$/i, '') + (parteO && (parteB || parteP) ? '_cara.dat' : parteB || parteP ? '_boca.dat' : '_ojos.dat');
-      resumen = { duracion: dur, stats: {}, poses: null, omitidos: [], avisos, ojos: rO, boca: rB };
-      log(''); log(`LISTO  (${[rO && 'ojos', rB && 'boca'].filter(Boolean).join(' y ')} con tu cara)`);
+      destino = (sinFilm ? 'cara_' + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '') : filmNombre.replace(/\.dat$/i, '')) + (parteO && (parteB || parteP) ? '_cara.dat' : parteB || parteP ? '_boca.dat' : '_ojos.dat');
+      resumen = { duracion: dur, stats: {}, poses: null, omitidos: [], avisos, ojos: rO, boca: rB, arrugas: rA };
+      log(''); log(`LISTO  (${[rO && 'ojos', rB && 'boca', rA && 'arrugas'].filter(Boolean).join(' y ')} con tu cara)`);
       log(`  Duracion: ${dur.toFixed(1)} s  (${Math.trunc(dur * TICKS)} ticks), empieza en el tick ${op.desde}`);
       if (rO) log(`  Ojos (${rO.modelo}): ${rO.parpadeos} parpadeos, ${rO.cambios_mirada} cambios de mirada, ${rO.cambios_cejas} cambios de cejas, ${rO.keyframes} keyframes`);
       if (rB) log(`  Boca (${rB.modelo}): ${rB.cambios} cambios de forma, ${rB.keyframes} keyframes.` + (parteP ? ' Pixeles flexibles.' : ' ' + textoFormas(rB.formas)));

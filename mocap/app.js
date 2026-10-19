@@ -5,6 +5,7 @@ import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, impor
 import { landmarkerPose } from './local/deteccion.js';
 import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido, gestoActual } from './envivo.js';
 import { iniciarMuecas } from './muecas_ui.js';
+import { paqueteZip } from './paquete_modelos.js';
 import { iniciarCel } from './cel.js';
 import { iniciarMoveUI } from './psmove_ui.js';
 import { moveHub } from './local/psmove_hub.js';
@@ -37,7 +38,7 @@ const SLIDERS = {
   boca_sens: ['#out-boca-sens', () => `${Math.round(cfg.boca_sens * 100)} %`],
   boca_min_ticks: ['#out-boca-min', () => `${cfg.boca_min_ticks} ticks`],
 };
-const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'boca_labios', 'boca_muecas', 'usar_move'];
+const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'cara_arrugas', 'boca_labios', 'boca_muecas', 'usar_move'];
 let guardarTimer = null, pendiente = {};
 // junta los cambios y los guarda un instante despues (no se pierde ninguno si se tocan varios ajustes seguidos)
 function guardar(campos) {
@@ -65,6 +66,8 @@ function pintarAjustes() {
   verPartesCara();
   $('#calidad').value = cfg.calidad;
   $('#ojos_modo').value = cfg.ojos_modo || 'poses';
+  $('#arrugas_escala').value = String(cfg.arrugas_escala || 2);
+  $('#modelo_boca').value = cfg.modelo_boca || 'Man_2';
   sincronizarVivo();
   $('#modelo').value = cfg.modelo || 'auto';
   const elegidas = (cfg.partes || '').split(',').map((s) => s.trim());
@@ -97,6 +100,13 @@ function enlazarAjustes() {
   CHECKS.forEach((id) => $('#' + id).addEventListener('change', (e) => { cfg[id] = e.target.checked; verPartesCara(); guardar({ [id]: cfg[id] }); }));
   $('#calidad').addEventListener('change', (e) => { cfg.calidad = e.target.value; guardar({ calidad: cfg.calidad }); });
   $('#ojos_modo').addEventListener('change', (e) => { cfg.ojos_modo = e.target.value; guardar({ ojos_modo: cfg.ojos_modo }); });
+  $('#arrugas_escala').addEventListener('change', (e) => { cfg.arrugas_escala = Number(e.target.value); guardar({ arrugas_escala: cfg.arrugas_escala }); });
+  $('#modelo_boca').addEventListener('change', (e) => { cfg.modelo_boca = e.target.value; guardar({ modelo_boca: cfg.modelo_boca }); });
+  $('#paquete-modelos').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([paqueteZip()], { type: 'application/zip' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'modelos_cara_bbs.zip' });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+  });
   $('#modelo').addEventListener('change', (e) => { cfg.modelo = e.target.value; guardar({ modelo: cfg.modelo }); });
   document.querySelectorAll('#partes input').forEach((c) => c.addEventListener('change', () => {
     cfg.partes = [...document.querySelectorAll('#partes input:checked')].map((x) => x.dataset.parte).join(',');
@@ -122,6 +132,7 @@ function ponerModoApp(modo, save = true) {
   document.querySelectorAll('#modos button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.modo === cfg.modo)));
   if (!$('#btn-convertir').disabled || $('#btn-convertir').textContent.startsWith('Convertir')) $('#btn-convertir').textContent = textoConvertir();
   if (save) guardar({ modo: cfg.modo });
+  if (!$('#sel-film').value) actualizarDestino();   // el texto de «film nuevo» cambia según el modo
   if (cfg.modo !== 'cara' && $('#vivo-fab').getAttribute('aria-pressed') === 'true') prenderVivo(false);
   if (vista && vista.activa()) vista.alTerminar();   // la vista 3D se re-arma (en modo cara enfoca la cara)
 }
@@ -152,7 +163,9 @@ async function actualizarDestino() {
   const film = $('#sel-film').value; const selA = $('#sel-actor');
   if (!film) {
     selA.innerHTML = '<option value="0">Tu actor</option>'; selA.disabled = true;
-    $('#destino-ayuda').textContent = 'Se crea un film nuevo con tu actor en steve_bends.';
+    $('#destino-ayuda').textContent = cfg.modo === 'cara'
+      ? 'Sin film propio: se arma un film nuevo con steve_bends, tu skin y las partes de la cara (ojos, boca y arrugas; los modelos están en «Ojos y boca con tu cara»). Después lo exportás.'
+      : 'Se crea un film nuevo con tu actor en steve_bends.';
     return;
   }
   selA.disabled = true; selA.innerHTML = '<option>Cargando…</option>';
@@ -396,9 +409,6 @@ async function subirGrabacion() {
 let sondeo = null;
 async function convertir() {
   if (!tomaSel) return;
-  if (cfg.modo === 'cara' && !$('#sel-film').value) {
-    return mostrarError(new Error('Para animar la cara elegí en el paso 3 un film (y el actor) que ya tenga los ojos o la boca puestos. Si la lista está vacía, importá el film de BBS (o elegí la carpeta de films en la compu).'));
-  }
   const actor = $('#sel-film').value ? Number($('#sel-actor').value || 0) : 0;
   try {
     await guardarYa();   // que los ultimos ajustes (ej. modo Cara) lleguen antes de convertir
@@ -521,6 +531,14 @@ $('#imp-convertir').addEventListener('click', async () => {
   b.disabled = false;
 });
 
+// retoques en la vista 3D: los mismos ajustes del paso 2, a mano, para tocar y «Convertir de nuevo»
+const RETOQUES = [['v3-r-muecas', 'boca_muecas'], ['v3-r-arrugas', 'cara_arrugas'], ['v3-r-labios', 'boca_labios'], ['v3-r-cejas', 'ojos_cejas']];
+function pintarRetoques() { for (const [id, k] of RETOQUES) { const e = $('#' + id); if (e) e.checked = !!cfg[k]; } }
+for (const [id, k] of RETOQUES) {
+  $('#' + id).addEventListener('change', (e) => { cfg[k] = e.target.checked; $('#' + k).checked = cfg[k]; guardar({ [k]: cfg[k] }); });
+  $('#' + k).addEventListener('change', pintarRetoques);
+}
+$('.vistas').addEventListener('click', pintarRetoques);
 iniciarVivo();
 iniciarMuecas({ gesto: gestoActual });
 iniciarCel();
