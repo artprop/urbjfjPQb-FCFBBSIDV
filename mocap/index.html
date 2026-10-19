@@ -73,6 +73,33 @@
       <span class="chip-nota" id="esqueleto-estado"></span>
     </div>
 
+    <details class="vivo solo-cuerpo" id="psmove-panel">
+      <summary>🎮 Controles PlayStation Move</summary>
+      <label class="check"><input type="checkbox" id="usar_move"> Usar los controles Move en vez de mi cuerpo (se animan los brazos)</label>
+      <div class="vivo-cab">
+        <button type="button" class="btn btn-chico" id="psm-conectar">Conectar controles…</button>
+      </div>
+      <p class="ayuda" id="psm-aviso"></p>
+      <div id="psm-lista"></div>
+      <canvas id="psm-figura" width="300" height="190" aria-label="Los brazos, de frente y de costado"></canvas>
+      <details class="psm-botones-cfg">
+        <summary>¿Qué hace cada botón?</summary>
+        <div id="psm-acciones"></div>
+      </details>
+      <details class="psm-ayuda">
+        <summary>Cómo conectarlos (primera vez)</summary>
+        <ol class="ayuda">
+          <li>En Windows: Configuración → Bluetooth y dispositivos → Agregar dispositivo → Bluetooth. Apretá el botoncito <b>SYNC</b> (atrás del control, junto a la entrada USB) hasta que titile la esfera; aparece como «Motion Controller». Emparejá sin código. Después apretá el botón <b>PS</b> para que se conecte.</li>
+          <li>Alternativa sin Bluetooth: conectalo con un cable USB a la compu (sirve para probar).</li>
+          <li>Tocá «Conectar controles…» y elegí los dos. Apretá botones: tienen que iluminarse acá.</li>
+          <li>Calibrá cada brazo: con el brazo <b>abajo</b> apretá el botón <b>PS</b> del control (o «1 · Brazo abajo»); estirá el brazo <b>adelante</b> y apretá <b>PS</b> otra vez. El control vibra cuando queda listo.</li>
+          <li>«Calibrar giroscopio»: dejalo quieto 1 segundo y después inclinalo hacia adelante, atrás y a los costados durante 6 segundos (una vez por control).</li>
+          <li>Grabá la toma como siempre (también con el botón del control). Se guarda el movimiento de los controles con la toma. Después convertí.</li>
+        </ol>
+        <p class="ayuda">El control se sostiene en la mano y se supone que gira junto con todo el brazo (apuntar con el control = apuntar con el brazo). Si el giro se va corriendo de a poco, estirá el brazo adelante y apretá el botón de recentrar.</p>
+      </details>
+    </details>
+
     <div class="controles">
       <button class="grabar" id="btn-grabar" disabled>
         <span class="grabar-icono"></span><span id="grabar-texto">Grabar toma</span>
