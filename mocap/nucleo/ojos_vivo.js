@@ -54,14 +54,26 @@ export function senal(base, pts, bs, { mirada = 1 } = {}) {
 }
 
 /** Estado en vivo: guarda el ultimo valor y solo cambia cuando la senal se mueve mas de 0,4 (como la conversion). */
-export function nuevoEstado() { return { g: [0, 0], ceja_l: 0, ceja_r: 0, squint: 0, cerrado: false }; }
-export function actualizar(est, s, { umbral = 0.5, cejas = true } = {}) {
+export function nuevoEstado() { return { g: [0, 0], ceja_l: 0, ceja_r: 0, squint: 0, cerrado: false, parp: 0 }; }
+export function actualizar(est, s, { umbral = 0.5, cejas = true, modo = 'poses' } = {}) {
+  if (modo === 'vivo') {   // sigue tu cara tal cual (un poquito suavizado): mirada, cejas y parpados continuos
+    const sigue = (a, b) => a + (b - a) * 0.6;
+    est.g = [sigue(est.g[0], s.gx), sigue(est.g[1], s.gy)];
+    est.ceja_l = cejas ? sigue(est.ceja_l, s.ceja_l) : 0;
+    est.ceja_r = cejas ? sigue(est.ceja_r, s.ceja_r) : 0;
+    est.squint = 0;
+    const desde = Math.max(0.05, umbral * 0.25);   // igual que la conversion en vivo
+    est.parp = sigue(est.parp, clip((s.cierre - desde) / (0.85 - desde), 0, 1));
+    est.cerrado = est.parp >= 0.99;
+    return est;
+  }
   const salta = (a, b) => (Math.abs(b - a) > 0.4 ? b : a);
   est.g = [salta(est.g[0], s.gx), salta(est.g[1], s.gy)];
   est.ceja_l = cejas ? salta(est.ceja_l, s.ceja_l) : 0;
   est.ceja_r = cejas ? salta(est.ceja_r, s.ceja_r) : 0;
   est.squint = salta(est.squint, s.squint);
   est.cerrado = est.cerrado ? s.cierre >= umbral * 0.6 : s.cierre >= umbral;   // se cierra al pasar el umbral y se abre un poco antes
+  est.parp = est.cerrado ? 1 : 0;
   return est;
 }
 
@@ -84,12 +96,14 @@ export function dibujar(g, u, est, modelo, piel) {
   for (const [lado, col, sg, pupCol, ceja] of [['r', 1, -1, 2, est.ceja_r], ['l', 5, 1, 5, est.ceja_l]]) {
     const caja = [col, fila, col + 2, fila + alto];
     rect(col, fila, 2, alto, COLOR.ojo);
-    if (!est.cerrado) {
+    const parp = est.parp ?? (est.cerrado ? 1 : 0), cierra = parp >= 0.99;
+    if (!cierra) {
       const afuera = gx * sg > 0, dx = gx * (afuera ? 1 : HOLGURA_NARIZ), dy = -gy * RECORRIDO_V;   // dx > 0 = hacia la derecha de la pantalla
       rect(pupCol + dx, fila + dy, 1, alto, COLOR.pupila, caja);
     }
     // parpados: cerrado = tapa todo el ojo; entrecerrar = tapa media fila de arriba y de abajo
-    if (est.cerrado) { rect(col, fila, 2, alto, piel); rect(col, fila + alto / 2 - 0.12, 2, 0.24, COLOR.parpado); }
+    if (cierra) { rect(col, fila, 2, alto, piel); rect(col, fila + alto / 2 - 0.12, 2, 0.24, COLOR.parpado); }
+    else if (parp > 0.02) { const t = (parp * alto) / 2; rect(col, fila, 2, t, piel); rect(col, fila + alto - t, 2, t, piel); }
     else if (est.squint > 0) { const t = 0.5 * est.squint; rect(col, fila, 2, t, piel); rect(col, fila + alto - t, 2, t, piel); }
     // cejas: suben o bajan (la inclinacion de enojo/ruego no se dibuja)
     const mov = -ceja * (ceja > 0 ? CEJA_ARRIBA : CEJA_ABAJO);

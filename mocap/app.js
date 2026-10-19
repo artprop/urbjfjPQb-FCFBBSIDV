@@ -3,7 +3,7 @@ import { crearVista } from './vista.js';
 // Toda la logica corre en el navegador (PC y celular): las rutas /api/... las responde local/servidor.js
 import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, importarAnimacion } from './local/servidor.js';
 import { landmarkerPose } from './local/deteccion.js';
-import { iniciarVivo, prender as prenderVivo } from './envivo.js';
+import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo } from './envivo.js';
 import { persistir } from './local/almacen.js';
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
@@ -33,7 +33,7 @@ const SLIDERS = {
   boca_sens: ['#out-boca-sens', () => `${Math.round(cfg.boca_sens * 100)} %`],
   boca_min_ticks: ['#out-boca-min', () => `${cfg.boca_min_ticks} ticks`],
 };
-const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca'];
+const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'boca_labios'];
 let guardarTimer = null, pendiente = {};
 // junta los cambios y los guarda un instante despues (no se pierde ninguno si se tocan varios ajustes seguidos)
 function guardar(campos) {
@@ -60,6 +60,8 @@ function pintarAjustes() {
   CHECKS.forEach((id) => ($('#' + id).checked = !!cfg[id]));
   verPartesCara();
   $('#calidad').value = cfg.calidad;
+  $('#ojos_modo').value = cfg.ojos_modo || 'poses';
+  sincronizarVivo();
   $('#modelo').value = cfg.modelo || 'auto';
   const elegidas = (cfg.partes || '').split(',').map((s) => s.trim());
   document.querySelectorAll('#partes input').forEach((c) => (c.checked = elegidas.includes(c.dataset.parte)));
@@ -90,6 +92,7 @@ function enlazarAjustes() {
   }
   CHECKS.forEach((id) => $('#' + id).addEventListener('change', (e) => { cfg[id] = e.target.checked; verPartesCara(); guardar({ [id]: cfg[id] }); }));
   $('#calidad').addEventListener('change', (e) => { cfg.calidad = e.target.value; guardar({ calidad: cfg.calidad }); });
+  $('#ojos_modo').addEventListener('change', (e) => { cfg.ojos_modo = e.target.value; guardar({ ojos_modo: cfg.ojos_modo }); });
   $('#modelo').addEventListener('change', (e) => { cfg.modelo = e.target.value; guardar({ modelo: cfg.modelo }); });
   document.querySelectorAll('#partes input').forEach((c) => c.addEventListener('change', () => {
     cfg.partes = [...document.querySelectorAll('#partes input:checked')].map((x) => x.dataset.parte).join(',');

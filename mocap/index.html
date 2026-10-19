@@ -94,7 +94,16 @@
         <label class="campo-inline">Ojos
           <select id="vivo-ojos-modelo"><option value="eyes">2×2 (eyes)</option><option value="eyes_1px">1 píxel (eyes_1px)</option></select>
         </label>
+        <label class="campo-inline">Posiciones
+          <select id="vivo-ojos-modo"><option value="poses">Prediseñadas</option><option value="vivo">En vivo</option></select>
+        </label>
+      </div>
+      <div class="vivo-cab">
         <label class="campo-inline">Boca
+          <select id="vivo-boca-modo"><option value="vivo" selected>En vivo (píxeles)</option><option value="pre">Prediseñada</option></select>
+        </label>
+        <label class="check"><input type="checkbox" id="vivo-labios" checked> Labios</label>
+        <label class="campo-inline">Modelo
           <select id="vivo-modelo">
             <option value="Man_1">Hombre x1</option><option value="Man_2" selected>Hombre x2</option><option value="Man_4">Hombre x4</option>
             <option value="Woman_1">Mujer x1</option><option value="Woman_2">Mujer x2</option><option value="Woman_4">Mujer x4</option>
@@ -267,6 +276,14 @@
       <label class="check"><input type="checkbox" id="cara_ojos"> Animar los ojos</label>
       <div id="ajustes-ojos">
         <div class="campo">
+          <div class="campo-cab"><label for="ojos_modo">Posiciones de los ojos</label></div>
+          <select id="ojos_modo">
+            <option value="poses">Prediseñadas (a saltos, como en tus films)</option>
+            <option value="vivo">En vivo (siguen tu cara cuadro a cuadro)</option>
+          </select>
+          <p class="ayuda">Prediseñadas: la mirada salta entre posiciones fijas y el parpadeo es todo o nada. En vivo: la mirada, las cejas y los párpados copian tu cara de forma continua (más keyframes).</p>
+        </div>
+        <div class="campo">
           <div class="campo-cab"><label for="ojos_mirada">Cuánto se mueve la mirada</label><output id="out-ojos-mirada"></output></div>
           <input type="range" id="ojos_mirada" min="0.5" max="2" step="0.1">
           <p class="ayuda">Más a la derecha, los ojos se mueven más con el mismo movimiento de tu cara.</p>
@@ -280,6 +297,9 @@
       </div>
       <label class="check" style="margin-top:14px"><input type="checkbox" id="cara_boca"> Animar la boca</label>
       <div id="ajustes-boca">
+        <p class="ayuda">La boca que se usa la decide el modelo del actor: con boca_Man o boca_Woman salen las formas prediseñadas; con boca_pixel, la forma exacta en vivo.</p>
+        <label class="check"><input type="checkbox" id="boca_labios"> Dibujar los labios (boca_pixel de hombre)</label>
+        <p class="ayuda">Sin labios queda solo el hueco y los dientes, sin el borde de color.</p>
         <p class="ayuda">Copia la forma de tu boca cuadro por cuadro (hables o hagas muecas). Con boca_Man o boca_Woman elige entre cerrada, A, E, I, O, U, dientes, dientes apretados o sonrisa con dientes. Con una boca boca_pixel (por ejemplo boca_pixel_Man_x2) copia la forma exacta en pedacitos de píxel.</p>
         <div class="campo">
           <div class="campo-cab"><label for="boca_sens">Sensibilidad de la boca</label><output id="out-boca-sens"></output></div>

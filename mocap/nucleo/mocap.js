@@ -38,6 +38,7 @@ export const OPCIONES = {
   partes: 'torso,cabeza,brazo_izq,brazo_der,pierna_izq,pierna_der', torso: 0.4, poses_fijas: '',
   modo: 'cuerpo', ojos: false, ojos_mirada: 1.0, ojos_parpadeo: 0.5, ojos_cejas: true,
   cara_ojos: true, cara_boca: true, boca_sens: 1.0, boca_min_ticks: 2,
+  ojos_modo: 'poses', boca_labios: true,   // ojos_modo: 'poses' (prediseñadas, a saltos) o 'vivo' (siguen tu cara)
 };
 
 /**

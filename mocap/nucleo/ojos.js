@@ -321,6 +321,8 @@ export function construir(cara, parte, offset = 0, desde = 0, op = {}, posesMode
     return out;
   }
 
+  if (op.ojos_modo === 'vivo') return construirVivo({ S, t, blinks, rest, cerrado, recorrido, factorV, idx, modelo, desde, conCejas, umbral });
+
   const pistas = {}, ultimo = {};
   const r3 = (a) => a.map((x) => M.roundTo(x, 3)).join(',');
   for (const tk of ticks) {
@@ -342,6 +344,78 @@ export function construir(cara, parte, offset = 0, desde = 0, op = {}, posesMode
     parpadeos: blinks.length, cambios_mirada: camG.length, cambios_cejas: camC.l.length + camC.r.length,
     entrecerrar: camS.length, modelo, keyframes: Object.values(pistas).reduce((s, p) => s + p.keyframes.length, 0),
     duracion: t[t.length - 1],
+  };
+  return { pistas, resumen };
+}
+
+// ---------------------------------------------------------------- ojos "en vivo"
+// En vez de saltar entre poses prediseñadas (mirada de a 0,5, parpadeo todo o nada), copia tu cara tick por tick:
+// la mirada y las cejas siguen el valor medido y los parpados se cierran de a poco. Los keyframes van con interpolacion lineal.
+function suavizar(a, r) {
+  return a.map((_, i) => { let s = 0, n = 0; for (let k = Math.max(0, i - r); k <= Math.min(a.length - 1, i + r); k++) { s += a[k]; n++; } return s / n; });
+}
+function construirVivo({ S, t, blinks, rest, cerrado, recorrido, factorV, idx, modelo, desde, conCejas, umbral }) {
+  const N = t.length, diffs = []; for (let i = 1; i < N; i++) diffs.push(t[i] - t[i - 1]);
+  const r = Math.max(1, Math.round(0.05 / (M.median(diffs) || 1 / 30)));   // ventana de +-0,05 s: saca temblores sin atrasar los gestos
+  const sinHuecos = (a) => { let u = a[0]; return a.map((x, i) => { if (S.ok[i]) u = x; return u; }); };   // sin cara: queda el ultimo valor
+  const X = { gx: suavizar(sinHuecos(S.gx), r), gy: suavizar(sinHuecos(S.gy), r), cierre: suavizar(sinHuecos(S.blink), 1),
+    cl: suavizar(sinHuecos(S.ceja_l), r), cr: suavizar(sinHuecos(S.ceja_r), r) };
+  const en = (a, seg) => M.interp(seg, t, a);
+  const nTicks = Math.max(1, M.roundHalfEven(t[N - 1] * TICKS));
+  const desdeCierre = Math.max(0.05, umbral * 0.25), hastaCierre = 0.85;   // por debajo de eso el ojo esta abierto; por encima, cerrado del todo
+
+  function estado(tick) {
+    const seg = tick / TICKS, gx = en(X.gx, seg), gy = en(X.gy, seg);
+    const amt = M.clip((en(X.cierre, seg) - desdeCierre) / (hastaCierre - desdeCierre), 0, 1);
+    const niv = { l: conCejas ? en(X.cl, seg) : 0, r: conCejas ? en(X.cr, seg) : 0 };
+    const out = {};
+    for (const [lado, sg] of [['l', 1], ['r', -1]]) {
+      let v = rest('pupil_' + lado);
+      v.t[0] += gx * (gx * sg > 0 ? recorrido : HOLGURA_NARIZ);
+      v.t[1] += gy * RECORRIDO_V * factorV;
+      out['pupil_' + lado] = v;
+      for (const pos of ['t', 'b']) {
+        const nombre = `eyelid_${lado}${pos}`;
+        v = rest(nombre);
+        const d = cerrado[nombre];
+        if (amt > 0 && d) {
+          const dtv = d.t || [0, 0, 0], dsv = d.s || [1, 1, 1];
+          v.t = v.t.map((a, k) => a + amt * dtv[k]);
+          v.s = v.s.map((a, k) => a * (1 + amt * (dsv[k] - 1)));
+          if (amt >= 0.99) v.t[2] = Math.min(v.t[2], PROF_PARPADO_CERRADO);
+        }
+        out[nombre] = v;
+      }
+      const nivel = niv[lado];
+      v = rest('eyebrow_' + lado);
+      v.t[1] += nivel * (nivel > 0 ? CEJA_ARRIBA : CEJA_ABAJO);
+      v.r[2] += (lado === 'l' ? -1 : 1) * (nivel < 0 ? INCL_ENOJO * -nivel : -INCL_RUEGO * nivel);
+      out['eyebrow_' + lado] = v;
+    }
+    return out;
+  }
+
+  const pistas = {}, ultimo = {};
+  const lejos = (a, b, eps) => a.some((x, i) => Math.abs(x - b[i]) > eps);
+  for (let tk = 0; tk <= nTicks; tk++) {
+    const est = estado(tk), final = tk === nTicks;
+    for (const b of HUESOS) {
+      const v = est[b], u = ultimo[b];
+      if (u && !final && !lejos(v.t, u.t, 0.015) && !lejos(v.s, u.s, 0.015) && !lejos(v.r, u.r, 0.005)) continue;
+      if (u && !lejos(v.t, u.t, 1e-4) && !lejos(v.s, u.s, 1e-4) && !lejos(v.r, u.r, 1e-4)) continue;
+      ultimo[b] = v;
+      const k = `${idx}/pose/${b}`;
+      if (!pistas[k]) pistas[k] = { keyframes: [], type: 'pose_transform' };
+      pistas[k].keyframes.push({
+        interp: 'linear', tick: F(tk + desde),
+        value: { r: v.r.map((x) => F(x)), s: v.s.map((x) => F(x)), t: v.t.map((x) => F(x)), fix: F(0.0), color: I(Math.trunc(v.color)), lighting: F(0.0) },
+      });
+    }
+  }
+  const cuenta = (b) => (pistas[`${idx}/pose/${b}`] || { keyframes: [] }).keyframes.length;
+  const resumen = {
+    parpadeos: blinks.length, cambios_mirada: cuenta('pupil_l'), cambios_cejas: cuenta('eyebrow_l') + cuenta('eyebrow_r'),
+    entrecerrar: 0, modelo, modo: 'vivo', keyframes: Object.values(pistas).reduce((s, p) => s + p.keyframes.length, 0), duracion: t[t.length - 1],
   };
   return { pistas, resumen };
 }
