@@ -14,6 +14,7 @@ const CALIBRAR = 40;            // cuadros con la cara quieta para medir tu boca
 let lm = null, activo = false, reloj = 0, ultima = 0, base = null, baseOjos = null, baseForma = null, juntar = [], historia = [], formas = [], forma0 = 'cerrada', skin = null, skin0 = null, capa2 = null, offOjos = [0, 0], imBoca = null, piel = '#ffa854', raf = 0;
 let ultBoca = null, estOjos = OJ.nuevoEstado(), baseBs = null, estArr = AR.nuevoEstado(), ultRasgos = null, muecaId = null, votosMueca = [];
 
+const escalaArrugas = () => { const e = $('#vivo-arrugas-escala'); const k = e ? Number(e.value) : 0; return k === 2 || k === 4 ? k : 0; };   // 0 = sin arrugas (nunca x1)
 const ver = () => ({ ojos: $('#vivo-ojos').checked, boca: $('#vivo-boca').checked, arrugas: $('#vivo-arrugas') ? $('#vivo-arrugas').checked : false });
 /** El gesto de la boca que estas haciendo ahora (rasgos de MediaPipe sin tu cara en reposo), para guardarlo en una mueca. */
 export const gestoActual = () => (activo && base && ultRasgos ? { ...ultRasgos } : null);
@@ -87,10 +88,12 @@ function pintarBase() {
     const p = d.data.subarray((y * 8 + x) * 4);
     ctx.fillStyle = `rgb(${p[0]},${p[1]},${p[2]})`; ctx.fillRect(x * u, y * u, u, u);
   }
-  if (v.arrugas && v.boca) {   // arrugas: la piel de ese lugar, mas oscura
-    for (const a of AR.pixeles(estArr)) {
-      const p = d.data.subarray((a.y * 8 + a.x) * 4), [r, g, b] = AR.oscurecer([p[0], p[1], p[2]], a.n);
-      ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(a.x * u, a.y * u, u, u);
+  if (v.arrugas && v.boca) {   // arrugas: solo adentro del segmento de la boca (6 x 2 pixeles de la cara; 6 x 1 en la mujer), con su propia escala
+    const kw = escalaArrugas(), filas = forma().filas, fila = filas === 2 ? 6 : 7;
+    if (kw) for (const a of AR.pixeles(estArr, kw, filas)) {
+      const px = 1 + Math.floor(a.c / kw), py = fila + Math.floor(a.r / kw), p = d.data.subarray((py * 8 + px) * 4);
+      const [r, g, b] = AR.oscurecer([p[0], p[1], p[2]], a.n);
+      ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect((1 + a.c / kw) * u, (fila + a.r / kw) * u, u / kw, u / kw);
     }
   }
   if (v.ojos) OJ.dibujar(ctx, u, estOjos, $('#vivo-ojos-modelo').value, piel, offOjos);
@@ -193,7 +196,7 @@ export async function prender(si) {
 
 const GUARDAR = ['vivo-ojos', 'vivo-boca', 'vivo-espejo', 'vivo-arrugas'];
 // el modo de los ojos y los labios son ajustes de la conversion (paso 2): los controles de aca arriba los copian y viceversa
-const PROXY = [['vivo-ojos-modo', 'ojos_modo', 'value'], ['vivo-labios', 'boca_labios', 'checked']];
+const PROXY = [['vivo-ojos-modo', 'ojos_modo', 'value'], ['vivo-labios', 'boca_labios', 'checked'], ['vivo-arrugas-escala', 'arrugas_escala', 'value'], ['vivo-modelo', 'modelo_boca', 'value']];
 export function sincronizar() {
   for (const [vivo, paso2, prop] of PROXY) { const a = $('#' + paso2), b = $('#' + vivo); if (a && b) b[prop] = a[prop]; }
   $('#vivo-labios').disabled = modoBoca() === 'pre';

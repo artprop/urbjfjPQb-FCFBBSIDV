@@ -119,6 +119,7 @@
         <label class="check"><input type="checkbox" id="vivo-ojos" checked> Ver los ojos</label>
         <label class="check"><input type="checkbox" id="vivo-boca" checked> Ver la boca</label>
         <label class="check" title="Pequeñas arrugas al lado y debajo de la boca cuando el gesto las provoca"><input type="checkbox" id="vivo-arrugas" checked> Arrugas</label>
+        <label class="campo-inline" title="Tamaño de los cuadraditos de las arrugas, aparte de la escala de la boca. Nunca x1.">Escala <select id="vivo-arrugas-escala"><option value="2">x2</option><option value="4">x4</option></select></label>
         <label class="check" title="Como un espejo: lo que mirás a tu izquierda se ve a la izquierda"><input type="checkbox" id="vivo-espejo" checked> Como espejo</label>
       </div>
       <div class="vivo-cab">
@@ -173,7 +174,7 @@
       </div>
       <ul class="tomas" id="tomas" aria-label="Tomas grabadas"></ul>
       <div class="importar-anim solo-cuerpo">
-        <label class="btn btn-chico">Importar animación (FBX, GLB, BVH)<input type="file" id="imp-archivo" accept=".fbx,.glb,.gltf,.bvh" hidden></label>
+        <label class="btn btn-chico">Importar animación (FBX, GLB, BVH)<input type="file" id="imp-archivo" hidden></label>
         <div id="imp-panel" hidden>
           <p class="ayuda" id="imp-nombre"></p>
           <div class="destino">
@@ -335,6 +336,21 @@
         <label class="check"><input type="checkbox" id="ojos_cejas"> Mover también las cejas</label>
       </div>
       <label class="check" style="margin-top:14px"><input type="checkbox" id="cara_boca"> Animar la boca</label>
+      <div class="campo" id="ajustes-modelos">
+        <div class="campo-cab"><label for="modelo_boca">Boca del proyecto por defecto</label></div>
+        <select id="modelo_boca">
+          <option value="Man_1">Hombre x1</option><option value="Man_2">Hombre x2</option><option value="Man_4">Hombre x4</option>
+          <option value="Woman_1">Mujer x1</option><option value="Woman_2">Mujer x2</option><option value="Woman_4">Mujer x4</option>
+        </select>
+        <p class="ayuda">Cuando no elegís un film (por ejemplo en el celu), se arma un film nuevo con steve_bends y tu skin, y se le ponen ojos, esta boca y las arrugas. Los modelos de la boca y de las arrugas se instalan en BBS con el paquete de abajo.</p>
+        <label class="check"><input type="checkbox" id="cara_arrugas"> Animar las arrugas de la boca</label>
+        <label class="campo-inline">Escala de las arrugas
+          <select id="arrugas_escala"><option value="2">x2</option><option value="4">x4</option></select>
+        </label>
+        <p class="ayuda">Las arrugas viven solo adentro de los 6 × 2 píxeles de la boca (6 × 1 en mujer), con su propia escala: puede ser una boca x1 con arrugas x4. Nunca x1. Hacen falta los modelos arrugas_Man_x2 / x4 (o Woman) como parte del actor.</p>
+        <button type="button" class="btn btn-chico" id="paquete-modelos">⬇ Modelos de la cara para BBS (.zip)</button>
+        <p class="ayuda">Trae boca_pixel_* y arrugas_*: copiá la carpeta «assets» adentro de tu carpeta bbs y sumalos como partes de «head» del actor.</p>
+      </div>
       <div id="ajustes-boca">
         <p class="ayuda">La boca que se usa la decide el modelo del actor: con boca_Man o boca_Woman salen las formas prediseñadas; con boca_pixel, la forma exacta en vivo.</p>
         <label class="check"><input type="checkbox" id="boca_labios"> Dibujar los labios (boca_pixel de hombre)</label>
@@ -392,7 +408,7 @@
           <button class="btn btn-chico" id="btn-carpeta-reconectar" hidden>Permitir</button>
         </div>
         <div class="fila">
-          <label class="btn btn-chico">Importar film (.dat)<input type="file" id="importar-film" accept=".dat,application/octet-stream" hidden></label>
+          <label class="btn btn-chico">Importar film (.dat)<input type="file" id="importar-film" hidden></label>
           <button class="btn btn-chico" id="btn-exportar-film">Exportar el film elegido</button>
         </div>
         <p class="ayuda" id="carpeta-msg"></p>
@@ -421,6 +437,13 @@
 
 <!-- VISTA 3D -->
 <main class="vista3d" id="vista3d" hidden>
+  <div class="v3-barra v3-retoques" id="v3-retoques" title="Retoques: tocá y después «Convertir de nuevo»">
+    <span class="campo-inline"><b>Retoques</b> (después «Convertir de nuevo»)</span>
+    <label class="check"><input type="checkbox" id="v3-r-muecas"> Muecas de referencia</label>
+    <label class="check"><input type="checkbox" id="v3-r-arrugas"> Arrugas</label>
+    <label class="check"><input type="checkbox" id="v3-r-labios"> Labios</label>
+    <label class="check"><input type="checkbox" id="v3-r-cejas"> Mover las cejas</label>
+  </div>
   <div class="v3-barra">
     <label class="campo-inline">Toma <select id="v3-toma"></select></label>
     <label class="campo-inline">Film <select id="v3-film"><option value="">El de la toma</option></select></label>
