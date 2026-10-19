@@ -5,6 +5,8 @@ import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, impor
 import { landmarkerPose } from './local/deteccion.js';
 import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido } from './envivo.js';
 import { iniciarCel } from './cel.js';
+import { iniciarMoveUI } from './psmove_ui.js';
+import { moveHub } from './local/psmove_hub.js';
 import { persistir } from './local/almacen.js';
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
@@ -34,7 +36,7 @@ const SLIDERS = {
   boca_sens: ['#out-boca-sens', () => `${Math.round(cfg.boca_sens * 100)} %`],
   boca_min_ticks: ['#out-boca-min', () => `${cfg.boca_min_ticks} ticks`],
 };
-const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'boca_labios'];
+const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'boca_labios', 'usar_move'];
 let guardarTimer = null, pendiente = {};
 // junta los cambios y los guarda un instante despues (no se pierde ninguno si se tocan varios ajustes seguidos)
 function guardar(campos) {
@@ -346,14 +348,16 @@ async function alternarGrabacion() {
   recorder.onstop = subirGrabacion;
   recorder.start(500);
   grabando = true; tRec = performance.now();
+  datosMove = null; if (cfg.usar_move && moveHub.hay) moveHub.iniciarToma();   // los controles Move se graban junto con el video
   b.disabled = false; b.classList.add('activo'); $('#grabar-texto').textContent = 'Terminar toma';
   $('#rec-badge').hidden = false;
   timerRec = setInterval(() => ($('#rec-tiempo').textContent = fmt((performance.now() - tRec) / 1000) + ' s'), 100);
 }
-let cancelarCuenta = false;
+let cancelarCuenta = false, datosMove = null;
 
 function pararGrabacion() {
   grabando = false; clearInterval(timerRec);
+  datosMove = moveHub.terminarToma();
   recorder.stop();
   const b = $('#btn-grabar'); b.classList.remove('activo'); $('#grabar-texto').textContent = 'Grabar toma';
   $('#rec-badge').hidden = true;
@@ -368,6 +372,7 @@ async function subirGrabacion() {
     mensaje('Guardando la toma…');
     const r = await api('/api/subir', { method: 'POST', headers: { 'X-Nombre': 'toma' + ext, 'X-Duracion': dur.toFixed(2) }, body: blob });
     tomaSel = r.nombre; pintarTomas(r.tomas); limpiarMensaje();
+    if (datosMove) { await post('/api/psmove', { toma: r.nombre, datos: datosMove }); datosMove = null; mensaje('Toma guardada con los datos de los controles Move.'); }
     if ($('#chk-auto').checked) convertir();
   } catch (e) { mostrarError(e); }
 }
@@ -501,4 +506,5 @@ $('#imp-convertir').addEventListener('click', async () => {
 
 iniciarVivo();
 iniciarCel();
+iniciarMoveUI({ grabar: () => alternarGrabacion() });
 inicio();

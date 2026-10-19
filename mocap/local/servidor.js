@@ -11,6 +11,7 @@ import * as ojos from '../nucleo/ojos.js';
 import * as boca from '../nucleo/boca.js';
 import * as bocaPx from '../nucleo/boca_pixel.js';
 import { analizarPose, analizarCara } from './deteccion.js';
+import * as psmove from '../nucleo/psmove.js';
 import { leerAnimacion, aPose } from './importar.js';
 
 const BASE = new URL('..', import.meta.url).href;
@@ -110,6 +111,15 @@ async function borrarToma(nombre) {
 
 // ---------- analisis guardados (como los .npz del programa de PC) ----------
 async function poseDe(nombre, op, reanalizar, log, progreso) {
+  if (op.usar_move) {   // controles PlayStation Move: se usan los datos guardados con la toma (no se mira el video)
+    const m = await A.leerKV('psmove:' + nombre);
+    if (!m) throw new Error('Esta toma no tiene datos de los controles Move. Grabala con los controles conectados y calibrados (panel «Controles PlayStation Move»).');
+    const t = await toma(nombre);
+    const r = psmove.construirPose(m, { duracion: Math.max(m.duracion || 0, t.info.duracion || 0) });
+    log(`Controles Move: ${(m.izq || []).length} datos del izquierdo y ${(m.der || []).length} del derecho` + (m.marcas && m.marcas.length ? `, ${m.marcas.length} momentos marcados.` : '.'));
+    progreso && progreso(1);
+    return r;
+  }
   const k = `pose_${op.calidad}${op.espejo ? '_espejo' : ''}:${nombre}`;
   const g = !reanalizar && (await A.leerKV(k));
   if (g) { log('Usando el analisis ya guardado de este video.'); return g; }
@@ -258,6 +268,7 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
   try {
     const f = await datosFijos();
     const op = { ...(await leerConfig()), actor, desde };
+    if (op.usar_move && op.modo !== 'cara') op.partes = 'brazo_izq,brazo_der';   // con los controles Move solo se animan los brazos
     const film = filmNombre ? await cargarFilm(filmNombre) : null;
     let filmNuevo, resumen, destino;
 
@@ -378,6 +389,7 @@ const RUTAS = {
     if (q.get('modelo') === 'emoticons_steve') pose = emoticons.poseUnica(pose);
     return { huesos: pose };
   },
+  'POST /api/psmove': async (_, d) => { await A.guardarKV('psmove:' + d.toma, d.datos); return { ok: true }; },
   'POST /api/config': async (_, d) => { await guardarConfig(d); return { ok: true, films: await C.listarFilms(), carpeta_ok: await C.permisoCarpeta() }; },
   'POST /api/borrar_toma': async (_, d) => borrarToma(d.nombre),
   'POST /api/procesar': async (_, d) => {

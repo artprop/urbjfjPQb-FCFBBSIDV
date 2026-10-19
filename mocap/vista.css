@@ -77,3 +77,16 @@ body[data-modo="cuerpo"] .solo-cara, body[data-modo="cara"] .solo-cuerpo { displ
 .vivo-fab span { font-size: 14px; font-weight: 700; }
 .vivo-fab.on { background: var(--pasto-osc); border-color: var(--pasto); }
 @media (max-width: 700px) { .vivo-lado { flex-basis: 38%; } .vivo-fab span { display: none; } .vivo-fab { padding: 0; width: 56px; justify-content: center; } }
+
+/* controles PlayStation Move */
+.psm-card { border: 1px solid var(--linea); border-radius: 10px; padding: 8px 10px; margin: 8px 0; background: var(--panel); }
+.psm-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 6px; }
+.psm-cab select { margin-left: auto; }
+.psm-botones { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.psm-bot { padding: 2px 8px; border-radius: 12px; border: 1px solid var(--linea); color: var(--texto-suave); font-size: 13px; }
+.psm-bot.on { background: var(--pasto-osc); color: #fff; border-color: var(--pasto); }
+.psm-gatillo { height: 8px; border-radius: 4px; background: var(--panel-alto); margin-bottom: 8px; overflow: hidden; }
+.psm-gatillo span { display: block; height: 100%; background: var(--oro); }
+.psm-paso.pide { outline: 2px solid var(--oro); }
+#psm-figura { width: 100%; max-width: 360px; background: #1b1f27; border-radius: 8px; margin: 6px 0; }
+#psm-acciones { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
