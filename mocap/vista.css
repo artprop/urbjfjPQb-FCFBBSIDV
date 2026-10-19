@@ -90,3 +90,7 @@ body[data-modo="cuerpo"] .solo-cara, body[data-modo="cara"] .solo-cuerpo { displ
 .psm-paso.pide { outline: 2px solid var(--oro); }
 #psm-figura { width: 100%; max-width: 360px; background: #1b1f27; border-radius: 8px; margin: 6px 0; }
 #psm-acciones { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+
+/* apagar la camara del todo */
+.apagar-cam { position: absolute; bottom: 12px; right: 12px; z-index: 5; background: rgba(20,20,22,.8); }
+.pantalla:has(#reproductor:not([hidden])) .apagar-cam { display: none; }
