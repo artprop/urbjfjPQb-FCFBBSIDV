@@ -1,8 +1,9 @@
 // Mocap BBS - interfaz
 import { crearVista } from './vista.js';
 // Toda la logica corre en el navegador (PC y celular): las rutas /api/... las responde local/servidor.js
-import { api, post, urlToma, importarFilm, exportarFilm } from './local/servidor.js';
+import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, importarAnimacion } from './local/servidor.js';
 import { landmarkerPose } from './local/deteccion.js';
+import { iniciarVivo, prender as prenderVivo } from './envivo.js';
 import { persistir } from './local/almacen.js';
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
@@ -114,6 +115,7 @@ function ponerModoApp(modo, save = true) {
   document.querySelectorAll('#modos button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.modo === cfg.modo)));
   if (!$('#btn-convertir').disabled || $('#btn-convertir').textContent.startsWith('Convertir')) $('#btn-convertir').textContent = textoConvertir();
   if (save) guardar({ modo: cfg.modo });
+  if (cfg.modo !== 'cara' && $('#vivo-chk') && $('#vivo-chk').checked) { $('#vivo-chk').checked = false; prenderVivo(false); }
   if (vista && vista.activa()) vista.alTerminar();   // la vista 3D se re-arma (en modo cara enfoca la cara)
 }
 
@@ -462,4 +464,35 @@ async function inicio() {
     $('#cam-error').textContent = 'Este navegador no permite usar la cámara. Usá Chrome o Edge.';
   }
 }
+/* ---------- importar animacion de otro modelo (FBX, GLB, BVH) ---------- */
+let archivoAnim = null;
+$('#imp-archivo').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  $('#imp-panel').hidden = false; $('#imp-msg').textContent = 'Leyendo…'; $('#imp-nombre').textContent = f.name;
+  try {
+    const clips = await clipsDeAnimacion(f);
+    archivoAnim = f;
+    $('#imp-clip').innerHTML = clips.map((c) => `<option value="${c.indice}">${esc(c.nombre)} (${c.duracion.toFixed(1).replace('.', ',')} s)</option>`).join('');
+    const larga = clips.reduce((m, c) => (c.duracion > clips[m].duracion ? c.indice : m), 0);   // la mas larga suele ser la de verdad
+    $('#imp-clip').value = String(larga);
+    $('#imp-msg').textContent = '';
+  } catch (err) { archivoAnim = null; $('#imp-msg').textContent = err.message; }
+});
+$('#imp-convertir').addEventListener('click', async () => {
+  if (!archivoAnim) return;
+  const b = $('#imp-convertir'); b.disabled = true; $('#imp-msg').textContent = 'Convirtiendo…';
+  try {
+    const film = $('#sel-film').value;
+    const r = await importarAnimacion(archivoAnim, {
+      clip: Number($('#imp-clip').value || 0), estilo: $('#imp-estilo').value,
+      film, actor: film ? Number($('#sel-actor').value || 0) : 0, desde: Number($('#desde').value || 0),
+    });
+    pintarFilms(r.films, carpeta.ok);
+    $('#imp-msg').textContent = `Listo: ${r.destino} (${r.duracion.toFixed(1).replace('.', ',')} s). Miralo en la Vista 3D eligiendo ese film.`;
+  } catch (err) { $('#imp-msg').textContent = 'No se pudo: ' + err.message; }
+  b.disabled = false;
+});
+
+iniciarVivo();
 inicio();

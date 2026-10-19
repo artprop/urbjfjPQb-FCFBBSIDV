@@ -77,6 +77,23 @@
         <label class="check"><input type="checkbox" id="chk-auto"> Convertir al terminar</label>
       </div>
     </div>
+    <div class="vivo solo-cara apagado" id="vivo-panel">
+      <div class="vivo-cab">
+        <label class="check"><input type="checkbox" id="vivo-chk"> Ver la boca en vivo</label>
+        <label class="campo-inline">Boca
+          <select id="vivo-modelo">
+            <option value="Man_1">Hombre x1</option><option value="Man_2" selected>Hombre x2</option><option value="Man_4">Hombre x4</option>
+            <option value="Woman_1">Mujer x1</option><option value="Woman_2">Mujer x2</option><option value="Woman_4">Mujer x4</option>
+          </select>
+        </label>
+        <button class="btn btn-chico" id="vivo-recalibrar">Recalibrar</button>
+      </div>
+      <div class="vivo-cuerpo">
+        <canvas id="vivo-lienzo" width="256" height="256"></canvas>
+        <p class="ayuda" id="vivo-estado"></p>
+      </div>
+      <p class="ayuda">Es la boca de píxeles flexibles (modelos boca_pixel), calculada igual que al convertir. No graba nada: es para probar muecas.</p>
+    </div>
     <p class="consejo">Espacio para grabar o parar. Quedate quieto en pose neutral el primer segundo: define el cero de la cabeza y el torso.</p>
     <div class="salida">
       <div class="resultado" id="resultado" hidden></div>
@@ -97,6 +114,21 @@
         </div>
       </div>
       <ul class="tomas" id="tomas" aria-label="Tomas grabadas"></ul>
+      <div class="importar-anim solo-cuerpo">
+        <label class="btn btn-chico">Importar animación (FBX, GLB, BVH)<input type="file" id="imp-archivo" accept=".fbx,.glb,.gltf,.bvh" hidden></label>
+        <div id="imp-panel" hidden>
+          <p class="ayuda" id="imp-nombre"></p>
+          <div class="destino">
+            <label class="campo-inline">Animación <select id="imp-clip"></select></label>
+            <label class="campo-inline">Estilo
+              <select id="imp-estilo"><option value="realista" selected>Realista (copia fiel)</option><option value="minecraft">Minecraft (pose a pose)</option></select>
+            </label>
+            <button class="btn btn-chico" id="imp-convertir">Convertir animación</button>
+          </div>
+          <p class="ayuda" id="imp-msg"></p>
+        </div>
+        <p class="ayuda">Copia el baile o gesto de un modelo humanoide (por ejemplo de Mixamo) a steve_bends, sin video. Se guarda en el film y actor del paso 3.</p>
+      </div>
     </div>
 
     <div class="paso solo-cuerpo">
@@ -237,7 +269,7 @@
       </div>
       <label class="check" style="margin-top:14px"><input type="checkbox" id="cara_boca"> Animar la boca</label>
       <div id="ajustes-boca">
-        <p class="ayuda">Copia la forma de tu boca cuadro por cuadro (hables o hagas muecas): cerrada, A, E, I, O, U, dientes, dientes apretados o sonrisa con dientes.</p>
+        <p class="ayuda">Copia la forma de tu boca cuadro por cuadro (hables o hagas muecas). Con boca_Man o boca_Woman elige entre cerrada, A, E, I, O, U, dientes, dientes apretados o sonrisa con dientes. Con una boca boca_pixel (por ejemplo boca_pixel_Man_x2) copia la forma exacta en pedacitos de píxel.</p>
         <div class="campo">
           <div class="campo-cab"><label for="boca_sens">Sensibilidad de la boca</label><output id="out-boca-sens"></output></div>
           <input type="range" id="boca_sens" min="0.5" max="2" step="0.1">
@@ -326,7 +358,7 @@
     <div class="v3-caja">
       <span class="v3-cap">Tu video</span>
       <video id="v3-video" playsinline muted hidden></video>
-      <p class="v3-vacio" id="v3-sin-video">No encuentro el video de esta toma.</p>
+      <p class="v3-vacio" id="v3-sin-video">Este film no tiene video al lado (por ejemplo, una animación importada).</p>
     </div>
     <div class="v3-caja">
       <span class="v3-cap">Vista previa 3D · arrastrá para girar, rueda para acercar</span>

@@ -9,7 +9,9 @@ import * as posesLib from '../nucleo/poses_lib.js';
 import * as emoticons from '../nucleo/emoticons.js';
 import * as ojos from '../nucleo/ojos.js';
 import * as boca from '../nucleo/boca.js';
+import * as bocaPx from '../nucleo/boca_pixel.js';
 import { analizarPose, analizarCara } from './deteccion.js';
+import { leerAnimacion, aPose } from './importar.js';
 
 const BASE = new URL('..', import.meta.url).href;
 const TICKS = 20;
@@ -116,10 +118,10 @@ async function poseDe(nombre, op, reanalizar, log, progreso) {
   await A.guardarKV(k, r);
   return r;
 }
-async function caraDe(nombre, op, reanalizar, log, progreso, conBoca = false) {
+async function caraDe(nombre, op, reanalizar, log, progreso, conBoca = false, conLabios = false) {
   const k = `cara${op.espejo ? '_espejo' : ''}:${nombre}`;
   const g = !reanalizar && (await A.leerKV(k));
-  if (g && (!conBoca || g.boca)) { log('Usando el analisis de cara ya guardado de este video.'); return g; }
+  if (g && (!conBoca || g.boca) && (!conLabios || g.labios)) { log('Usando el analisis de cara ya guardado de este video.'); return g; }
   if (g) log('El analisis guardado de este video no tiene la boca: lo hago de nuevo.');
   const t = await toma(nombre);
   const r = await analizarCara(t.blob, { espejo: op.espejo, progreso, log, duracion: t.info.duracion || 0 });
@@ -170,6 +172,8 @@ function caraDelActor(rep) {
 
 // boca del actor para la vista 3D: { parte, modelo, reposo: {capa: visible}, pistas: {capa: [{t, v}]} } o null
 function bocaDelActor(rep) {
+  const pp = bocaPx.partePixel(rep);
+  if (pp) return bocaPixelDelActor(rep, pp);
   const pb = boca.parteBoca(rep);
   if (!pb) return null;
   const fm = rep.form.parts[pb.idx].form || {};
@@ -184,6 +188,26 @@ function bocaDelActor(rep) {
   }
   const textura = /conejo/i.test(JSON.stringify(fm)) ? 'conejo' : 'normal';
   return { parte: pb.idx, modelo: pb.modelo, nombreModelo: pb.nombreModelo, textura, reposo, pistas };
+}
+
+// boca de pixeles flexibles: { tipo: 'pixel', modelo, k, filas, reposo: {hueso: [desde, largo] o null}, pistas: {hueso: [{t, v}]} }
+function bocaPixelDelActor(rep, pp) {
+  const fm = rep.form.parts[pp.idx].form || {};
+  const pieza = (v) => {
+    const s = v.s ? v.s.map(bbs.num) : [1, 1, 1], t = v.t ? v.t.map(bbs.num) : [0, 0, 0];
+    return s[0] > 1e-3 && s[1] > 1e-3 ? [Math.round(t[0] * pp.k), Math.round(s[0])] : null;
+  };
+  const reposo = {}, pistas = {};
+  for (const b of bocaPx.nombresHuesos(pp.k, pp.filas)) {
+    if (!pp.labios && b.startsWith('labio')) continue;
+    const v = (fm.pose || {})[b];
+    reposo[b] = v ? pieza(v) : [0, 1];   // sin pose, BBS muestra la pieza como esta en el modelo (1 pedacito)
+    const p = (rep.animation || {})[`${pp.idx}/pose/${b}`];
+    if (!p) continue;
+    const kfs = (p.keyframes || []).map((k) => ({ t: bbs.num(k.tick), v: pieza(k.value || {}) })).sort((a, b) => a.t - b.t);
+    if (kfs.length) pistas[b] = kfs;
+  }
+  return { tipo: 'pixel', parte: pp.idx, modelo: pp.modelo, nombreModelo: pp.nombreModelo, k: pp.k, filas: pp.filas, labios: pp.labios, reposo, pistas };
 }
 
 async function animacion(nombreToma, film, actor) {
@@ -244,15 +268,16 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
       const reps = film.replays;
       if (!(actor >= 0 && actor < reps.length)) throw new Error(`El film tiene ${reps.length} actores: el numero de actor va de 0 a ${reps.length - 1}.`);
       const parteO = op.cara_ojos ? ojos.parteOjos(reps[actor]) : null;
-      const parteB = op.cara_boca ? boca.parteBoca(reps[actor]) : null;
+      const parteP = op.cara_boca ? bocaPx.partePixel(reps[actor]) : null;
+      const parteB = op.cara_boca && !parteP ? boca.parteBoca(reps[actor]) : null;
       const avisos = [];
       if (op.cara_ojos && !parteO) avisos.push('Los ojos no se animaron: el actor no tiene parte de ojos (eyes o eyes_1px).');
-      if (op.cara_boca && !parteB) avisos.push('La boca no se animó: el actor no tiene parte de boca (boca_Man o boca_Woman).');
-      if (!parteO && !parteB) {
-        throw new Error('El actor de ese film no tiene ' + [op.cara_ojos && 'ojos (eyes o eyes_1px)', op.cara_boca && 'boca (boca_Man o boca_Woman)'].filter(Boolean).join(' ni ') +
+      if (op.cara_boca && !parteB && !parteP) avisos.push('La boca no se animó: el actor no tiene parte de boca (boca_Man, boca_Woman o boca_pixel).');
+      if (!parteO && !parteB && !parteP) {
+        throw new Error('El actor de ese film no tiene ' + [op.cara_ojos && 'ojos (eyes o eyes_1px)', op.cara_boca && 'boca (boca_Man, boca_Woman o boca_pixel)'].filter(Boolean).join(' ni ') +
           '. Elegí un film cuyo actor ya los tenga puestos.');
       }
-      const cara = await caraDe(nombreToma, op, reanalizar, log, prog, Boolean(parteB));
+      const cara = await caraDe(nombreToma, op, reanalizar, log, prog, Boolean(parteB || parteP), Boolean(parteP));
       filmNuevo = bbs.clonar(film);
       const rep = filmNuevo.replays[actor]; rep.animation = rep.animation || {};
       let rO = null, rB = null;
@@ -266,13 +291,18 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
         Object.assign(rep.animation, b.pistas); rB = b.resumen;
         if (rB.cambios === 0) avisos.push('La boca quedó siempre igual: no se vio que la abrieras. Revisá que la cara se vea de frente, cerca y con luz.');
       }
+      if (parteP) {
+        const b = bocaPx.construir(cara, parteP, 0, op.desde, op);
+        Object.assign(rep.animation, b.pistas); rB = b.resumen;
+        if (rB.cambios === 0) avisos.push('La boca quedó siempre igual: no se vio que la abrieras. Revisá que la cara se vea de frente, cerca y con luz.');
+      }
       const dur = (rO || rB).duracion;
-      destino = filmNombre.replace(/\.dat$/i, '') + (parteO && parteB ? '_cara.dat' : parteB ? '_boca.dat' : '_ojos.dat');
+      destino = filmNombre.replace(/\.dat$/i, '') + (parteO && (parteB || parteP) ? '_cara.dat' : parteB || parteP ? '_boca.dat' : '_ojos.dat');
       resumen = { duracion: dur, stats: {}, poses: null, omitidos: [], avisos, ojos: rO, boca: rB };
       log(''); log(`LISTO  (${[rO && 'ojos', rB && 'boca'].filter(Boolean).join(' y ')} con tu cara)`);
       log(`  Duracion: ${dur.toFixed(1)} s  (${Math.trunc(dur * TICKS)} ticks), empieza en el tick ${op.desde}`);
       if (rO) log(`  Ojos (${rO.modelo}): ${rO.parpadeos} parpadeos, ${rO.cambios_mirada} cambios de mirada, ${rO.cambios_cejas} cambios de cejas, ${rO.keyframes} keyframes`);
-      if (rB) log(`  Boca (${rB.modelo}): ${rB.cambios} cambios de forma, ${rB.keyframes} keyframes. ` + textoFormas(rB.formas));
+      if (rB) log(`  Boca (${rB.modelo}): ${rB.cambios} cambios de forma, ${rB.keyframes} keyframes.` + (parteP ? ' Pixeles flexibles.' : ' ' + textoFormas(rB.formas)));
     } else {
       log(`Video: ${nombreToma}`);
       const pose = await poseDe(nombreToma, op, reanalizar, log, op.ojos ? (x) => prog(x * 0.6) : prog);
@@ -370,6 +400,30 @@ const RUTAS = {
     return { poses: Object.keys(await biblioteca()).sort() };
   },
 };
+
+// Importar una animacion de otro modelo humanoide (FBX de Mixamo, GLB/GLTF, BVH) y pasarla a un film de BBS.
+// Se convierte en los mismos puntos que da MediaPipe y sigue el camino del Mocap (retarget, estilo, film).
+export async function clipsDeAnimacion(file) {
+  const an = await leerAnimacion(file.name, await file.arrayBuffer());
+  return an.clips.map((c, i) => ({ indice: i, nombre: c.name || `animacion ${i + 1}`, duracion: c.duration }));
+}
+export async function importarAnimacion(file, { clip = 0, estilo = 'realista', film = '', actor = 0, desde = 0 } = {}, log = () => {}) {
+  const f = await datosFijos();
+  const op = { ...(await leerConfig()), modo: 'cuerpo', estilo, actor, desde,
+    neutral: 0, torso: 1, con_giro: true, sin_giro: false, suavizado: 0.02, poses_fijas: '' };
+  const an = await leerAnimacion(file.name, await file.arrayBuffer());
+  const c = an.clips[clip] || an.clips[0];
+  log(`Animacion: ${file.name} (${c.name || 'sin nombre'}, ${c.duration.toFixed(1)} s)`);
+  const pose = aPose(an, c);
+  const r = mocap.procesarCuerpo(op, {
+    pose, film: film ? await cargarFilm(film) : null, plantilla: await bbs.leer(f.plantilla), biblioteca: await biblioteca(), manual: [],
+  }, log);
+  const stem = file.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_-]+/g, '_');
+  const destino = film ? film.replace(/\.dat$/i, '') + `_${stem}.dat` : `anim_${stem}.dat`;
+  const g = await C.guardarFilm(destino, await bbs.escribir(r.film));
+  log(`Guardado: ${g.nombre}${g.enCarpeta ? ' (en tu carpeta de films)' : ' (en la app; exportalo con "Exportar .dat")'}`);
+  return { destino: g.nombre, enCarpeta: g.enCarpeta, resumen: r.resumen, clip: c.name, duracion: c.duration, films: await C.listarFilms() };
+}
 
 // Importar un film (.dat) elegido con el selector de archivos
 export async function importarFilm(file) {

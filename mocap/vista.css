@@ -63,3 +63,10 @@ body[data-modo="cuerpo"] .solo-cara, body[data-modo="cara"] .solo-cuerpo { displ
 .v3-manual-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; background: var(--panel-alto); border-radius: 8px; padding: 8px 10px; border-left: 4px solid #e5484d; }
 .v3-manual-lista input[type="number"] { width: 4.2em; }
 .v3-manual-lista .quitar { margin-left: auto; }
+/* boca en vivo (modo Cara) */
+.vivo { margin: 10px 0; padding: 10px; border: 1px solid rgba(255,255,255,.12); border-radius: 10px; }
+.vivo-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.vivo-cuerpo { display: flex; gap: 12px; align-items: center; margin-top: 8px; }
+.vivo-cuerpo canvas { width: 160px; height: 160px; image-rendering: pixelated; border-radius: 6px; background: #111; flex: none; }
+.vivo.apagado .vivo-cuerpo, .vivo.apagado #vivo-recalibrar, .vivo.apagado #vivo-modelo { display: none; }
+.vivo.apagado .campo-inline { display: none; }

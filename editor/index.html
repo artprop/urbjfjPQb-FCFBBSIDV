@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#16181c">
+<title>Editor BBS</title>
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+<header id="barra">
+  <input id="nombreFilm" aria-label="Nombre del film" spellcheck="false" value="mi_escena">
+  <button id="btnDeshacer" title="Deshacer (Ctrl+Z)">↶</button>
+  <button id="btnRehacer" title="Rehacer (Ctrl+Y)">↷</button>
+  <button id="btnExportar" class="principal" title="Guardar el film para BBS (.dat)">💾 <span class="txt">A BBS</span></button>
+</header>
+<main id="principal">
+  <section id="escena">
+    <div id="modos">
+      <button data-modo="mover" class="activo" title="Arrastrá un actor por el piso">✋<span>Mover</span></button>
+      <button data-modo="girar" title="Arrastrá alrededor del actor para girarlo">🔄<span>Girar</span></button>
+      <button data-modo="posar" title="Tocá una parte del cuerpo y arrastrá para doblarla">🦴<span>Posar</span></button>
+      <button id="btnPorCamara" title="Ver por la cámara del film">🎥<span>Cámara</span></button>
+      <button id="btnCentrar" title="Centrar la vista en el actor elegido (o en todos)">🎯<span>Centrar</span></button>
+    </div>
+    <div id="infoSel"></div>
+    <div id="aviso" hidden></div>
+  </section>
+  <section id="tiempo">
+    <div class="herr">
+      <button id="btnInicio" title="Al principio">⏮</button>
+      <button id="btnAtras" title="Un tick atrás">◀︎</button>
+      <button id="btnPlay" class="play" title="Reproducir (espacio)">▶</button>
+      <button id="btnAdelante" title="Un tick adelante">▶︎|</button>
+      <span id="reloj">0.00 s</span>
+      <span class="sep"></span>
+      <button id="btnKey" title="Poner keyframe de lo elegido acá">◆</button>
+      <select id="selCurva" title="Curva del keyframe elegido" disabled></select>
+      <button id="btnBorrarKey" title="Borrar el keyframe elegido" disabled>🗑</button>
+      <button id="btnZoomMenos" title="Alejar">−</button>
+      <button id="btnZoomMas" title="Acercar">+</button>
+    </div>
+    <canvas id="linea"></canvas>
+  </section>
+  <aside id="panel">
+    <nav id="pestanas">
+      <button data-p="actores" class="activa">👥 Actores</button>
+      <button data-p="pose">🦴 Pose</button>
+      <button data-p="camaras">🎥 Cámaras</button>
+      <button data-p="presets">⭐ Presets</button>
+      <button data-p="proyecto">📁 Film</button>
+    </nav>
+    <div id="cuerpoPanel"></div>
+  </aside>
+</main>
+<div id="hoja" hidden>
+  <div class="hojaCaja">
+    <div class="hojaCab"><b id="hojaTitulo"></b><button id="hojaCerrar" title="Cerrar">✕</button></div>
+    <div id="hojaCuerpo"></div>
+  </div>
+</div>
+<input type="file" id="inDat" accept=".dat" hidden>
+<input type="file" id="inZip" accept=".zip,application/zip" hidden>
+<input type="file" id="inAudio" accept="audio/*" hidden>
+<input type="file" id="inPresets" accept=".json,application/json" hidden>
+<script type="module" src="app.js"></script>
+</body>
+</html>

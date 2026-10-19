@@ -2,6 +2,7 @@
 // (FaceLandmarker) sobre un video. Hace lo mismo que pose_video.py y cara_video.py del programa de PC.
 import { PUNTOS } from '../nucleo/ojos.js';
 import { PUNTOS_BOCA } from '../nucleo/boca.js';
+import { PUNTOS_LABIOS } from '../nucleo/boca_pixel.js';
 import { recorrerCuadros } from './cuadros.js';
 
 const BASE = new URL('..', import.meta.url).href;   // carpeta www/
@@ -50,6 +51,18 @@ async function landmarkerCara() {
     });
   }
   return cache.cara;
+}
+
+// Otra instancia para la boca en vivo (camara): usa su propio reloj y no se mezcla con el analisis de videos.
+export async function landmarkerVivo() {
+  if (!cache.vivo) {
+    cache.vivo = crear('cara', {
+      baseOptions: { modelAssetPath: BASE + 'modelos/face_landmarker.task' },
+      runningMode: 'VIDEO', numFaces: 1, outputFaceBlendshapes: true, outputFacialTransformationMatrixes: false,
+      minFaceDetectionConfidence: 0.5, minFacePresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+    });
+  }
+  return cache.vivo;
 }
 
 // Recorre los cuadros del video uno por uno: fn(lienzo, tiempo_s). El video se pausa en cada cuadro mientras se analiza.
@@ -151,18 +164,18 @@ export async function analizarPose(blob, { calidad = 'normal', espejo = false, p
   };
 }
 
-/** Cara: devuelve { times, bs (N x 52), nombres, pts (N x 17 x 2), boca (N x 8 x 3), aspecto, ok, offset: 0 }. pts como cara_video.extract. */
+/** Cara: devuelve { times, bs (N x 52), nombres, pts (N x 17 x 2), boca (N x 8 x 3), labios (N x 25 x 2), aspecto, ok, offset: 0 }. pts como cara_video.extract. */
 export async function analizarCara(blob, { espejo = false, progreso = null, log = () => {}, duracion = 0 } = {}) {
   const lm = await landmarkerCara();
-  const idx = Object.values(PUNTOS), idxB = Object.values(PUNTOS_BOCA);
-  let nombres = null, lastBs = null, lastPts = null, lastBoca = null, msPrev = -1, aspecto = 1;
-  const bss = [], ptss = [], bocas = [], oks = [], times = [];
+  const idx = Object.values(PUNTOS), idxB = Object.values(PUNTOS_BOCA), idxL = PUNTOS_LABIOS;
+  let nombres = null, lastBs = null, lastPts = null, lastBoca = null, lastLab = null, msPrev = -1, aspecto = 1;
+  const bss = [], ptss = [], bocas = [], labios = [], oks = [], times = [];
   const t0 = performance.now();
   const n = await recorrer(blob, espejo, (lienzo, t) => {
     const ms = Math.max(msPrev + 1, Math.round(t * 1000)); msPrev = ms;
     const r = lm.detectForVideo(lienzo, ms);
     aspecto = lienzo.width / lienzo.height;
-    let bs, pts, boca;
+    let bs, pts, boca, lab;
     if (r.faceBlendshapes?.length && r.faceLandmarks?.length) {
       const cats = r.faceBlendshapes[0].categories;
       if (!nombres) nombres = cats.map((c) => c.categoryName);
@@ -170,17 +183,19 @@ export async function analizarCara(blob, { espejo = false, progreso = null, log 
       const l = r.faceLandmarks[0];
       pts = idx.map((k) => [l[k].x, l[k].y]);
       boca = idxB.map((k) => [l[k].x, l[k].y, l[k].z]);
-      lastBs = bs; lastPts = pts; lastBoca = boca; oks.push(true);
+      lab = idxL.map((k) => [l[k].x, l[k].y]);
+      lastBs = bs; lastPts = pts; lastBoca = boca; lastLab = lab; oks.push(true);
     } else {
       bs = lastBs || new Array(52).fill(0);
       pts = lastPts || idx.map(() => [0, 0]);
       boca = lastBoca || idxB.map(() => [0, 0, 0]);
+      lab = lastLab || idxL.map(() => [0, 0]);
       oks.push(false);
     }
-    bss.push(bs); ptss.push(pts); bocas.push(boca); times.push(t);
+    bss.push(bs); ptss.push(pts); bocas.push(boca); labios.push(lab); times.push(t);
   }, progreso, duracion, log);
   const detectada = oks.filter(Boolean).length;
   log(`Cara: ${n} cuadros en ${Math.round((performance.now() - t0) / 1000)} s; detectada en ${detectada}.`);
   if (!detectada) throw new Error('No se detecto ninguna cara en el video.');
-  return { times, bs: bss, nombres: nombres || Array.from({ length: 52 }, (_, k) => 'bs' + k), pts: ptss, boca: bocas, aspecto, ok: oks, offset: 0 };
+  return { times, bs: bss, nombres: nombres || Array.from({ length: 52 }, (_, k) => 'bs' + k), pts: ptss, boca: bocas, labios, aspecto, ok: oks, offset: 0 };
 }

@@ -3,7 +3,7 @@
 // asi que los angulos del .dat se usan tal cual. Unidades: 1 bloque = 16 pixeles del modelo.
 import * as THREE from './three.module.min.js';
 import { Ojos3D } from './ojos3d.js';
-import { Boca3D, capasEn } from './boca3d.js';
+import { Boca3D, capasEn, grillaEn } from './boca3d.js';
 import { crearModelo } from './modelo3d.js';
 
 const TICKS_POR_S = 20;
@@ -89,7 +89,7 @@ export class Escena {
     if (this.skinTex) { this.modelo.ponerTextura(this.skinTex); this.ojos.ponerTextura(this.skinTex); }
     this.ojos.mover(...this.ojosPos);
     this._elegirOjos();
-    this.boca = this.huesos.pielCabeza ? new Boca3D(this.huesos.head) : { usar() {}, aplicar() {} };
+    this.boca = this.huesos.pielCabeza ? new Boca3D(this.huesos.head) : { usar() {}, aplicar() {}, aplicarGrilla() {} };
     this.boca.alCambiar = () => this.dibujar();
     this._elegirBoca();
     if (this.listo) this.ir(this.tick || 0);
@@ -150,7 +150,7 @@ export class Escena {
   ponerBoca(datos) { this.bocaDatos = datos || null; this._elegirBoca(); }
   _elegirBoca() {
     const d = this.bocaDatos;
-    if (this.boca) this.boca.usar(d ? d.modelo : null, d ? d.textura : 'normal');
+    if (this.boca) this.boca.usar(d ? d.modelo : null, d ? d.textura : 'normal', d && d.tipo === 'pixel' ? { k: d.k, filas: d.filas } : null);
   }
   usarOjos(modoOjos) { this.modoOjos = modoOjos; this._elegirOjos(); this.ir(this.tick || 0); }
   _elegirOjos() {
@@ -173,7 +173,10 @@ export class Escena {
   ir(tick) {
     this.tick = tick;
     this._ojos(tick);
-    if (this.bocaDatos) this.boca.aplicar(capasEn(this.bocaDatos, tick));
+    if (this.bocaDatos) {
+      if (this.bocaDatos.tipo === 'pixel') this.boca.aplicarGrilla(grillaEn(this.bocaDatos, tick));
+      else this.boca.aplicar(capasEn(this.bocaDatos, tick));
+    }
     const v = this.tmp, rel = this.modelo.restRel;   // emoticons/steve: cada hueso tiene su orientacion de reposo
     const poner = (b, g, x, y, z) => {
       if (rel) g.quaternion.copy(rel[b]).multiply(this._q.setFromEuler(new THREE.Euler(x, y, z, 'ZYX')));
