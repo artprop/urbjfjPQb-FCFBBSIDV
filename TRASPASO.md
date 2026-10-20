@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.026)
+# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.027)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,7 +9,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.026**; la próxima es **v.027**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.027**; la próxima es **v.028**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
@@ -35,7 +35,7 @@ Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap
 - `director/` guion de escena, capas automáticas, mundo; `director/nucleo/camaras_auto.js` = **cámaras automáticas con reglas de composición**.
 - `editor/` editor tipo BBS (actores, poses, cámaras, presets, film). **Pestaña «🎬 Director»** (`editor/director.js`): guion de escena armado directo sobre la escena + cámaras automáticas + capas automáticas (parpadeos, boca con audio).
 - `convertidor/` «Armourer's → BBS»: arregla los `.obj` de Armourer's Workshop (píxeles→bloques, comas→puntos, sin `.mtl`, centrado en el piso) y guarda `Salida\convertidor\<Nombre>\`. Usa `comun/plataforma.js`. Su tarjeta del menú faltaba; se agregó en v.023. No probado con un `.obj` real ni dentro de BBS.
-- `ojos/` **«Ojos para BBS»** (v.025): se suelta la skin y arma un paquete de ojos para BBS (modelo `.bbs.json` + `textura.png` + `poses.json` de 20 poses + `config.json`, en `assets/models/player/<nombre>/`). `nucleo.js` (puro, probable en node): `detectarOjos` (busca en la cara 8×8 de la skin cada ojo: caja del ojo, pupila/iris y ceja; sirve para ojos de 1 punto, saltones 3×3, con iris, etc.), `generar` (geometría paramétrica copiada de la lógica del modelo original, textura que copia los píxeles de la propia skin, animación de las pupilas y poses), `dibujarFrente` (vista previa 2D). Las poses salen de las 20 del modelo original `eyes` (2 px de alto) escaladas por reglas según el alto del ojo y el lugar de la pupila; `closed` se calcula exacto. Mapa: columna c de la cara -> x desde 3-c hasta 4-c; fila f -> y desde 7-f hasta 8-f (el ojo de la izquierda de la imagen es `eye_r`). Con el ojo de 1 px de alto reproduce la geometría de `eyes_1px` y 78 de 89 valores de pose coinciden (±0,3). La vista previa coincide píxel a píxel con el cargador 3D del Visor (probado en reposo). **No probado dentro de BBS.** No lo usa todavía el Mocap de la cara (que solo conoce `eyes` y `eyes_1px`).
+- `ojos/` **«Ojos para BBS»** (v.025): se suelta la skin y arma un paquete de ojos para BBS (modelo `.bbs.json` + `textura.png` + `poses.json` de 20 poses + `config.json`, en `assets/models/player/<nombre>/`). `nucleo.js` (puro, probable en node): `detectarOjos` (busca en la cara 8×8 de la skin cada ojo: caja del ojo, pupila/iris y ceja; sirve para ojos de 1 punto, saltones 3×3, con iris, etc.), `generar` (geometría paramétrica copiada de la lógica del modelo original, textura que copia los píxeles de la propia skin, animación de las pupilas y poses), `dibujarFrente` y `dibujarEscena` (vista previa 2D con el hueco de borrado). Las poses salen de las 20 del modelo original `eyes` (2 px de alto) escaladas por reglas según el alto del ojo y el lugar de la pupila; `closed` se calcula exacto. Mapa: columna c de la cara -> x desde 3-c hasta 4-c; fila f -> y desde 7-f hasta 8-f (el ojo de la izquierda de la imagen es `eye_r`). Con el ojo de 1 px de alto reproduce la geometría de `eyes_1px` y 78 de 89 valores de pose coinciden (±0,3). La vista previa coincide píxel a píxel con el cargador 3D del Visor (probado en reposo). **No probado dentro de BBS.** No lo usa todavía el Mocap de la cara (que solo conoce `eyes` y `eyes_1px`).
 - `pc/` `servir.py` (se actualiza solo al abrir con `abrir.bat`) y `actualizar.bat` (obsoleto).
 
 ## 5. Lo hecho (resumen por versión)
@@ -50,6 +50,7 @@ v.022: Convertidor «Armourer's → BBS» (modo nuevo).
 v.023: tarjeta del convertidor en el menú (faltaba).
 v.024: **mano de emoticons** (punta del brazo `low_*_arm.end`): el lector `.bobj` del Visor/Editor ahora conserva huesos y pesos de piel (malla con esqueleto), el Editor deja posar brazo, antebrazo y mano (también tocándola en la escena), y el Mocap anima la mano con el meñique y el índice de MediaPipe (solo con emoticons; giro mínimo con tope de ~75°, sin torsión).
 v.025: modo **Ojos** (ver arriba).
+v.027: Ojos revisado con lo que pidió el usuario: se corrige **dibujando sobre la cara** (elegir Ojo/Pupila/Ceja de cada lado y arrastrar; flechas para subir/bajar/mover los ojos; espejo opcional; los números quedaron en «avanzado»); la vista es como la ve BBS (**hueco de borrado** sobre cada ojo: la piel en z=-4 tapa lo que está atrás, párpados y pupila asoman solo por el hueco, las cejas van por delante); pupilas de cualquier tamaño (1×2, 2×2…) y de varios colores (el iris copia los píxeles de la skin, y un píxel de otro color pegado a la pupila se suma a ella); **exportar**: `.png` de la textura, o carpeta del modelo (PC: `Salida\ojos\<nombre>\`; navegador con selector: eligiendo dónde; celu: 4 archivos sueltos). Ya no hay `.zip`.
 v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animación de referencia del usuario) y arrugas de trompa.
 
 ## 6. Cosas que hay que saber (decisiones y trampas)

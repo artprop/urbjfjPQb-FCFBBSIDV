@@ -36,7 +36,7 @@ const esOscuro = (p) => lum(p) < 60;
 
 /** Qué es cada píxel de la cara: 'B' blanco (esclerótica), 'O' oscuro (pupila o ceja), 'C' color fuerte (iris), '' piel/otra cosa. */
 export function clasesDeCara(cara) {
-  const base = [0, 1, 2].map((k) => mediana(Array.from({ length: 40 }, (_, i) => cara[((2 + (i / 8 | 0)) * 8 + (i % 8)) * 4 + k])));
+  const base = [0, 1, 2].map((k) => mediana(Array.from({ length: 24 }, (_, i) => cara[((2 + (i / 8 | 0)) * 8 + (i % 8)) * 4 + k])));
   const clase = [];
   for (let f = 0; f < 8; f++) for (let c = 0; c < 8; c++) {
     const p = pix(cara, f, c);
@@ -54,7 +54,7 @@ const espejoOjo = (o) => ({ ...espejoCaja(o), p: espejoCaja(o.p), ceja: o.ceja ?
  * Cada ojo: { c0, c1, r0, r1 (caja del ojo, en columnas/filas de la cara), p: {c0,c1,r0,r1} (pupila o iris), ceja: {c0,c1,r} | null }.
  */
 export function detectarOjos(cara) {
-  const { clase } = clasesDeCara(cara);
+  const { clase, base } = clasesDeCara(cara);
   const FMIN = 2, FMAX = 5;
   const k = (f, c) => (f >= FMIN && f <= FMAX ? clase[f * 8 + c] : '');
   const visto = new Set(), comps = [];
@@ -88,6 +88,15 @@ export function detectarOjos(cara) {
   }
   const avisos = [];
   const armar = (d, lado) => {
+    // un iris de varios colores: un píxel pegado a la pupila, distinto a la piel y no claro, también es pupila
+    const hay = new Set(d.pts.map((p) => p.f * 8 + p.c));
+    for (const p of d.pts.filter((q) => q.k === 'O' || q.k === 'C')) for (const [dy, dx] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const f = p.f + dy, c = p.c + dx;
+      if (f < FMIN || f > FMAX || c < 0 || c > 7 || hay.has(f * 8 + c)) continue;
+      const q = pix(cara, f, c);
+      if (q[3] < 128 || dist(q, base) <= 150 || lum(q) >= 200 || (sat(q) < 0.3 && lum(q) >= 90)) continue;
+      hay.add(f * 8 + c); d.pts.push({ f, c, k: 'C' });
+    }
     const ojo = caja(d.pts), pup = d.pts.filter((p) => p.k === 'O' || p.k === 'C');
     const p = pup.length ? caja(pup) : { c0: lado === 'a' ? ojo.c1 : ojo.c0, c1: lado === 'a' ? ojo.c1 : ojo.c0, r0: ojo.r0, r1: ojo.r1 };
     return { ...ojo, p, ceja: d.ceja };
@@ -335,7 +344,7 @@ export function generarPoses(G) {
  * Dibuja los ojos vistos de frente sobre la cara. ctx: contexto 2D; carga: ImageData/Canvas de la textura (T x T);
  * modelo: el .bbs.json; pose: { hueso: {r:[x,y,z], s:[x,y,z], t:[x,y,z]} } (formato de poses.json) o null; E = píxeles por píxel de skin.
  */
-export function dibujarFrente(ctx, textura, modelo, pose, E, ox = 0, oy = 0) {
+export function dibujarFrente(ctx, textura, modelo, pose, E, ox = 0, oy = 0, rango = null) {
   const grupos = modelo.model.groups;
   const mat = (a, b, c, d, e, f) => [a, b, c, d, e, f];
   const por = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
@@ -357,6 +366,8 @@ export function dibujarFrente(ctx, textura, modelo, pose, E, ox = 0, oy = 0) {
   for (const [id, g] of Object.entries(grupos)) for (const c of g.cubes) if (c.uvs.front && c.size[0] > 0 && c.size[1] > 0) piezas.push({ id, c });
   piezas.sort((p, q) => q.c.from[2] - p.c.from[2]);     // de atrás para adelante (z más negativo = más cerca)
   for (const { id, c } of piezas) {
+    if (rango === 'detras' && c.from[2] <= -4) continue;      // la piel está en z = -4: lo que está atrás se ve solo por el hueco
+    if (rango === 'delante' && c.from[2] > -4) continue;
     const [u0, v0, u1, v1] = c.uvs.front, uw = u1 - u0, vh = v1 - v0;
     const xmax = c.from[0] + c.size[0], ymax = c.from[1] + c.size[1];
     // píxel de textura (u,v) -> modelo (x = xmax - (u-u0)*sx, y = ymax - (v-v0)*sy) -> hueso -> pantalla (X = (4 - x) * E, Y = (8 - y) * E)
@@ -368,4 +379,23 @@ export function dibujarFrente(ctx, textura, modelo, pose, E, ox = 0, oy = 0) {
     ctx.drawImage(textura, u0, v0, uw, vh, u0, v0, uw, vh);
     ctx.restore();
   }
+}
+
+/**
+ * La escena como la ve BBS: la skin de la cara con el hueco de los ojos borrado (la "máscara de borrado"), los ojos del modelo detrás
+ * (los párpados y la pupila quedan escondidos detrás de la piel y solo se ven por el hueco) y las cejas, que van por delante de la piel.
+ * cara: lienzo o imagen de 8x8 con la cara; huecos: [{c0, c1, r0, r1}] en columnas/filas de la cara.
+ */
+export function dibujarEscena(ctx, { cara, textura, modelo, pose, E, huecos }) {
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#16110f'; ctx.fillRect(0, 0, 8 * E, 8 * E);
+  dibujarFrente(ctx, textura, modelo, pose, E, 0, 0, 'detras');
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, 8 * E, 8 * E);
+  for (const h of huecos) ctx.rect(h.c0 * E, h.r0 * E, (h.c1 - h.c0 + 1) * E, (h.r1 - h.r0 + 1) * E);
+  ctx.clip('evenodd');
+  ctx.imageSmoothingEnabled = false; ctx.drawImage(cara, 0, 0, 8 * E, 8 * E);
+  ctx.restore();
+  dibujarFrente(ctx, textura, modelo, pose, E, 0, 0, 'delante');
+  ctx.restore();
 }
