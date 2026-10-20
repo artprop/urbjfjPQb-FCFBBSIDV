@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.021)
+# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.023)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,7 +9,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última publicada: **v.021**; la próxima es **v.022**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.023**; la próxima es **v.024**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
@@ -26,7 +26,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
 - En la PC la app corre con `servir.py` (agrega `/pc/guardar`, `/pc/rhubarb`, `/pc/latido`, `/pc/adios`); en la PC el service worker se desregistra (se tragaba el aviso de cierre).
 
 ## 4. Estructura (JS puro con módulos ES, sin build)
-Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap`, `director`, `editor`).
+Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap`, `director`, `editor`, `convertidor`).
 - `visor/` Visor 3D de forms/modelos/texturas de BBS (three.js). `visor/builtin/` trae modelos del mod (`index.json`).
 - `randomizer/` armado al azar de personajes de fondo: prefabs, grupos de capas, **segmentos «O»**, condiciones entre grupos, «ninguno», visor 3D de cada textura, orden de grupos con asa ☰.
 - `mocap/` video → film de BBS: cuerpo (MediaPipe pose), cara (ojos + boca), PS Move (WebHID), importar animaciones FBX/GLB/BVH, simulación en vivo, muecas, arrugas.
@@ -34,6 +34,7 @@ Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap
   - `local/` lo que depende del navegador: `servidor.js` (falso «servidor» en el navegador, guarda en IndexedDB), `deteccion.js` (MediaPipe), `psmove_hub.js`.
 - `director/` guion de escena, capas automáticas, mundo; `director/nucleo/camaras_auto.js` = **cámaras automáticas con reglas de composición**.
 - `editor/` editor tipo BBS (actores, poses, cámaras, presets, film). **Pestaña «🎬 Director»** (`editor/director.js`): guion de escena armado directo sobre la escena + cámaras automáticas + capas automáticas (parpadeos, boca con audio).
+- `convertidor/` «Armourer's → BBS»: arregla los `.obj` de Armourer's Workshop (píxeles→bloques, comas→puntos, sin `.mtl`, centrado en el piso) y guarda `Salida\convertidor\<Nombre>\`. Usa `comun/plataforma.js`. Su tarjeta del menú faltaba; se agregó en v.023. No probado con un `.obj` real ni dentro de BBS.
 - `pc/` `servir.py` y `actualizar.bat`.
 
 ## 5. Lo hecho (resumen por versión)
@@ -51,7 +52,7 @@ v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animació
 - **Boca de píxeles:** grilla de `6·k` columnas × `filas·k` filas (hombre 2 filas, mujer 1); `k` = x1/x2/x4. La base de las muecas es x4 y se baja a x2/x1. Las arrugas tienen **escala propia** (2 o 4), independiente de la de la boca, y viven solo en los 6×2 (o 6×1) píxeles de la boca.
 - **Modelos de BBS que hay que instalar a mano:** `boca_pixel_*` y `arrugas_*` (botón «⬇ Modelos de la cara para BBS (.zip)»). Las arrugas son un negro translúcido por `color` del hueso. **Nunca probado dentro de BBS.**
 - **Skin del proyecto por defecto:** la de `mocap/datos/plantilla.dat` = `assets:models/player/_LosSaucera/001FranSauce.png`.
-- **emoticons/steve:** el cuerpo (cámara y Move) se convierte a su rig (`nucleo/emoticons.js` + `datos/emoticons_steve.armadura.json`). **No tiene manos** en el modelo que trae la app. Para otro modelo de la línea emoticons hace falta su armadura (huesos/ejes): hoy está fija para `emoticons/steve`.
+- **emoticons/steve:** el cuerpo (cámara y Move) se convierte a su rig (`nucleo/emoticons.js` + `datos/emoticons_steve.armadura.json`). **La mano es el hueso `low_*_arm.end`** (punta del antebrazo, con vértices propios): existe en el modelo, pero el Editor lee los `.bobj` sin huesos ni pesos (`parseBOBJ` en `visor/bbs.js`) y no deja posarlo, y la conversión de Mocap no lo anima. Pendiente. Para otro modelo de la línea emoticons hace falta su armadura (huesos/ejes): hoy está fija para `emoticons/steve`.
 - **Nutria de dedsafio:** se convirtió el modelo del `.jar` a `.bbs.json` y se le entregó al usuario (zip). No está en la app (pidió dejarla así).
 - **No publicar fotos con copyright** (se descartó la foto stock de muecas; los dibujos de referencia son propios).
 - La Vista 3D del Mocap **no dibuja** arrugas ni los ojos de emoticons; solo la vista en vivo y el film lo hacen.
@@ -68,7 +69,8 @@ v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animació
 **Por confirmar por el usuario:** ojos mirando hacia abajo (v.017, ajustes sin reproducir el caso); que el selector de archivos del celu ya muestre el `.bvh` (v.019); `servir.py` nuevo en su PC; arrugas, modelos y partes de cara dentro de BBS; muecas con su cara real; Move reales (calibrar y ver la simulación).
 **Pendiente de hacer:**
 - **Preset de muecas con los dibujos del usuario** (formas de «P», «U», «T», «O» de su animación de referencia) para que la conversión use exactamente sus bocas. Propuesto, aún no pedido.
-- Modelo emoticons **con manos** u otro de la línea emoticons: pedir al usuario el archivo del modelo y adaptar la armadura.
+- Editor: que el lector `.bobj` conserve huesos y pesos para poder posar emoticons (brazo, antebrazo y punta/mano). Mocap: animar `low_*_arm.end`. Anotado, aún no pedido hacerlo.
+- Otro modelo de la línea emoticons: pedir el archivo y adaptar la armadura.
 - Cámaras automáticas **con el mapa del mundo** (hoy pueden quedar tapadas por bloques).
 - Retocar la grabación en la Vista 3D con más opciones (hoy: muecas, arrugas, labios, cejas).
 - Boca más chica en «línea fina» (hoy copia el tamaño real; se achica con la sensibilidad).
