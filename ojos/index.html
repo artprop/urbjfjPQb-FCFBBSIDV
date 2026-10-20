@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ojos para BBS</title>
+<link rel="icon" href="../icono.svg">
+<style>
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e5645a; --azul: #3b6fd6; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; flex-direction: column; background: var(--fondo); color: var(--texto); font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif; }
+  button, .boton, input, select { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 7px; padding: 6px 12px; }
+  button, .boton { cursor: pointer; white-space: nowrap; }
+  button:hover, .boton:hover { border-color: var(--acento); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.principal { background: var(--azul); border-color: var(--azul); font-weight: 600; }
+  header { padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+  header b { font-size: 16px; }
+  header p { margin: 4px 0 0; color: var(--suave); font-size: 13px; max-width: 980px; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(300px, 430px) 1fr; min-height: 0; }
+  #lado { padding: 12px; overflow: auto; border-right: 1px solid var(--borde); display: flex; flex-direction: column; gap: 10px; }
+  #zona { border: 2px dashed var(--borde); border-radius: 12px; padding: 16px 12px; text-align: center; color: var(--suave); }
+  #zona.encima { border-color: var(--acento); color: var(--texto); }
+  #zona .botones { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+  .caja { background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .caja h3 { margin: 0; font-size: 13px; color: var(--suave); font-weight: 600; }
+  .det { color: var(--suave); font-size: 12.5px; }
+  .grilla { display: grid; grid-template-columns: auto repeat(4, 1fr); gap: 4px 6px; align-items: center; font-size: 12.5px; }
+  .grilla input[type=number] { width: 100%; min-width: 0; padding: 3px 4px; text-align: center; }
+  .grilla .tit { color: var(--suave); font-size: 11.5px; text-align: center; }
+  .fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .fila input[type=text] { flex: 1; min-width: 120px; }
+  .fila input[type=color] { width: 44px; height: 30px; padding: 1px; }
+  .ok { color: var(--acento); } .av { color: var(--aviso); } .mal { color: var(--error); }
+  #estado { font-size: 13px; white-space: pre-wrap; }
+  #vista { padding: 12px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+  #grande { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; }
+  canvas { image-rendering: pixelated; background: #0f1218; border: 1px solid var(--borde); border-radius: 8px; }
+  #galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+  .pose { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 6px; text-align: center; cursor: pointer; font-size: 12px; color: var(--suave); }
+  .pose.activa { border-color: var(--acento); color: var(--texto); }
+  .pose canvas { width: 96px; height: 96px; border: 0; background: transparent; }
+  details { color: var(--suave); font-size: 13px; }
+  details ol { padding-left: 18px; margin: 6px 0; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } #lado { border-right: 0; border-bottom: 1px solid var(--borde); } }
+</style>
+</head>
+<body>
+<header>
+  <b>👁 Ojos para BBS</b>
+  <p>Soltá la skin de un personaje y la herramienta encuentra sus ojos (de un punto, saltones, con iris…), arma el modelo de ojos de BBS con su textura ya pintada y crea las 20 poses (parpadeo, enojo, mirar a los costados…) ajustadas a ese tipo de ojo. Después revisás todo en la vista y lo bajás listo para BBS.</p>
+</header>
+<main>
+  <section id="lado">
+    <div id="zona">
+      Soltá acá la <b>skin</b> del personaje (.png de 64×64 o 64×32)
+      <div class="botones"><label class="boton">🖼️ Elegir skin<input type="file" id="inSkin" accept="image/png,image/*" hidden></label></div>
+    </div>
+    <div id="panelOjos" hidden style="display:contents">
+      <div class="caja">
+        <h3>Qué encontré</h3>
+        <div class="det" id="detectado"></div>
+        <div class="fila"><button id="btnReanalizar" title="Vuelve a buscar los ojos y borra tus cambios">🔄 Buscar de nuevo</button><button id="btnEspejo" title="Copia el ojo de la izquierda de la imagen al de la derecha, en espejo">↔ Copiar izquierdo al derecho</button></div>
+      </div>
+      <div class="caja">
+        <h3>Ojo de la izquierda de la imagen <span class="det">(columnas 0–7 de izquierda a derecha, filas 0–7 de arriba abajo)</span></h3>
+        <div class="grilla" id="gridA"></div>
+      </div>
+      <div class="caja">
+        <h3>Ojo de la derecha de la imagen</h3>
+        <div class="grilla" id="gridB"></div>
+      </div>
+      <div class="caja">
+        <h3>Ajustes</h3>
+        <label class="fila">Saltones (hacia afuera) <input type="range" id="rgSaliente" min="0" max="2" step="0.25" value="0" style="flex:1"> <span id="txSaliente">0 px</span></label>
+        <label class="fila"><input type="checkbox" id="chkLisos"> Párpados lisos (un solo color de piel; si no, copian la piel de al lado)</label>
+        <label class="fila"><input type="checkbox" id="chkColores"> Usar estos colores en vez de los de la skin</label>
+        <div class="fila" id="filaColores">
+          <label>Piel <input type="color" id="colPiel"></label>
+          <label>Blanco <input type="color" id="colBlanco"></label>
+          <label>Cejas <input type="color" id="colCeja"></label>
+        </div>
+        <div class="fila"><label>Nombre del modelo <input type="text" id="inNombre" value="eyes_nuevo"></label></div>
+      </div>
+      <div class="fila">
+        <button id="btnGuardar" class="principal">💾 Guardar paquete para BBS</button>
+        <button id="btnCarpeta" hidden title="Elegís tu carpeta bbs y se copian los archivos adentro de assets/models/player">📁 Guardar en mi carpeta bbs…</button>
+      </div>
+    </div>
+    <div id="estado"></div>
+    <details>
+      <summary>Cómo ponerlo en BBS</summary>
+      <ol>
+        <li>Guardá el paquete (queda un .zip, o una carpeta si elegís tu carpeta bbs).</li>
+        <li>Copiá la carpeta <code>assets</code> del zip adentro de tu carpeta bbs (se suma, no pisa nada).</li>
+        <li>En BBS, al personaje agregale una <b>parte hija de «head»</b> con el modelo <code>player/&lt;nombre&gt;</code>. Las poses aparecen en el editor de ese modelo.</li>
+        <li>Las poses se calculan con reglas a partir de las del modelo original: probalas y, si alguna no te gusta, retocala en BBS.</li>
+      </ol>
+    </details>
+  </section>
+  <section id="vista">
+    <div id="vacio" class="det">Todavía no hay skin. Soltá una a la izquierda.</div>
+    <div id="grande" hidden>
+      <div><canvas id="cvGrande" width="320" height="320"></canvas><div class="det" id="txPose" style="text-align:center">Reposo</div></div>
+      <div><canvas id="cvSkin" width="320" height="320"></canvas><div class="det" style="text-align:center">La skin sola (para comparar)</div></div>
+      <div><canvas id="cvTextura" width="128" height="128"></canvas><div class="det" style="text-align:center">Textura de los ojos</div></div>
+    </div>
+    <div id="galeria"></div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
