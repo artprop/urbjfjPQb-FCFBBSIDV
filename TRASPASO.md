@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.024)
+# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.025)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,7 +9,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.024**; la próxima es **v.025**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.025**; la próxima es **v.026**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
@@ -26,7 +26,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
 - En la PC la app corre con `servir.py` (agrega `/pc/guardar`, `/pc/rhubarb`, `/pc/latido`, `/pc/adios`); en la PC el service worker se desregistra (se tragaba el aviso de cierre).
 
 ## 4. Estructura (JS puro con módulos ES, sin build)
-Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap`, `director`, `editor`, `convertidor`).
+Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap`, `director`, `editor`, `convertidor`, `ojos`).
 - `visor/` Visor 3D de forms/modelos/texturas de BBS (three.js). `visor/builtin/` trae modelos del mod (`index.json`).
 - `randomizer/` armado al azar de personajes de fondo: prefabs, grupos de capas, **segmentos «O»**, condiciones entre grupos, «ninguno», visor 3D de cada textura, orden de grupos con asa ☰.
 - `mocap/` video → film de BBS: cuerpo (MediaPipe pose), cara (ojos + boca), PS Move (WebHID), importar animaciones FBX/GLB/BVH, simulación en vivo, muecas, arrugas.
@@ -35,6 +35,7 @@ Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap
 - `director/` guion de escena, capas automáticas, mundo; `director/nucleo/camaras_auto.js` = **cámaras automáticas con reglas de composición**.
 - `editor/` editor tipo BBS (actores, poses, cámaras, presets, film). **Pestaña «🎬 Director»** (`editor/director.js`): guion de escena armado directo sobre la escena + cámaras automáticas + capas automáticas (parpadeos, boca con audio).
 - `convertidor/` «Armourer's → BBS»: arregla los `.obj` de Armourer's Workshop (píxeles→bloques, comas→puntos, sin `.mtl`, centrado en el piso) y guarda `Salida\convertidor\<Nombre>\`. Usa `comun/plataforma.js`. Su tarjeta del menú faltaba; se agregó en v.023. No probado con un `.obj` real ni dentro de BBS.
+- `ojos/` **«Ojos para BBS»** (v.025): se suelta la skin y arma un paquete de ojos para BBS (modelo `.bbs.json` + `textura.png` + `poses.json` de 20 poses + `config.json`, en `assets/models/player/<nombre>/`). `nucleo.js` (puro, probable en node): `detectarOjos` (busca en la cara 8×8 de la skin cada ojo: caja del ojo, pupila/iris y ceja; sirve para ojos de 1 punto, saltones 3×3, con iris, etc.), `generar` (geometría paramétrica copiada de la lógica del modelo original, textura que copia los píxeles de la propia skin, animación de las pupilas y poses), `dibujarFrente` (vista previa 2D). Las poses salen de las 20 del modelo original `eyes` (2 px de alto) escaladas por reglas según el alto del ojo y el lugar de la pupila; `closed` se calcula exacto. Mapa: columna c de la cara -> x desde 3-c hasta 4-c; fila f -> y desde 7-f hasta 8-f (el ojo de la izquierda de la imagen es `eye_r`). Con el ojo de 1 px de alto reproduce la geometría de `eyes_1px` y 78 de 89 valores de pose coinciden (±0,3). La vista previa coincide píxel a píxel con el cargador 3D del Visor (probado en reposo). **No probado dentro de BBS.** No lo usa todavía el Mocap de la cara (que solo conoce `eyes` y `eyes_1px`).
 - `pc/` `servir.py` y `actualizar.bat`.
 
 ## 5. Lo hecho (resumen por versión)
@@ -48,6 +49,7 @@ v.020: interfaz de Mocap en PC con pestañas Toma/Ajustes/Guardar; **simulación
 v.022: Convertidor «Armourer's → BBS» (modo nuevo).
 v.023: tarjeta del convertidor en el menú (faltaba).
 v.024: **mano de emoticons** (punta del brazo `low_*_arm.end`): el lector `.bobj` del Visor/Editor ahora conserva huesos y pesos de piel (malla con esqueleto), el Editor deja posar brazo, antebrazo y mano (también tocándola en la escena), y el Mocap anima la mano con el meñique y el índice de MediaPipe (solo con emoticons; giro mínimo con tope de ~75°, sin torsión).
+v.025: modo **Ojos** (ver arriba).
 v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animación de referencia del usuario) y arrugas de trompa.
 
 ## 6. Cosas que hay que saber (decisiones y trampas)
@@ -71,6 +73,7 @@ v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animació
 ## 8. Pendiente / ideas
 **Por confirmar por el usuario:** ojos mirando hacia abajo (v.017, ajustes sin reproducir el caso); que el selector de archivos del celu ya muestre el `.bvh` (v.019); `servir.py` nuevo en su PC; arrugas, modelos y partes de cara dentro de BBS; muecas con su cara real; Move reales (calibrar y ver la simulación).
 **Pendiente de hacer:**
+- Ojos: que el Mocap de la cara use los modelos de ojos generados (hoy solo `eyes`/`eyes_1px`); guardar los ajustes por personaje; probar el paquete dentro de BBS (si el nombre del modelo debe contener `eyes`, ya lo contiene).
 - **Preset de muecas con los dibujos del usuario** (formas de «P», «U», «T», «O» de su animación de referencia) para que la conversión use exactamente sus bocas. Propuesto, aún no pedido.
 - Editor: mover/escalar partes de un `.bobj` (hoy solo gira); las partes pegadas a un hueso de un `.bobj` (ítems en la mano) no siguen al hueso.
 - Otro modelo de la línea emoticons: pedir el archivo y adaptar la armadura.
