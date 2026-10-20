@@ -94,3 +94,7 @@ body[data-modo="cuerpo"] .solo-cara, body[data-modo="cara"] .solo-cuerpo { displ
 /* apagar la camara del todo */
 .apagar-cam { position: absolute; bottom: 12px; right: 12px; z-index: 5; background: rgba(20,20,22,.8); }
 .pantalla:has(#reproductor:not([hidden])) .apagar-cam { display: none; }
+
+/* opciones de la vista 3D: en la compu siempre a la vista; en el celu se abren con un toque */
+.v3-opc { display: flex; flex-direction: column; gap: 10px; }
+.v3-opc > summary { display: none; }

@@ -477,48 +477,51 @@
 
 <!-- VISTA 3D -->
 <main class="vista3d" id="vista3d" hidden>
+  <details class="v3-opc" open>
+    <summary>⚙ Opciones de la vista (toma, film, modelo, skin, ojos, retoques)</summary>
   <div class="v3-barra v3-retoques" id="v3-retoques" title="Retoques: tocá y después «Convertir de nuevo»">
-    <span class="campo-inline"><b>Retoques</b> (después «Convertir de nuevo»)</span>
-    <label class="check"><input type="checkbox" id="v3-r-muecas"> Muecas de referencia</label>
-    <label class="check"><input type="checkbox" id="v3-r-arrugas"> Arrugas</label>
-    <label class="check"><input type="checkbox" id="v3-r-labios"> Labios</label>
-    <label class="check"><input type="checkbox" id="v3-r-cejas"> Mover las cejas</label>
-  </div>
-  <div class="v3-barra">
-    <label class="campo-inline">Toma <select id="v3-toma"></select></label>
-    <label class="campo-inline">Film <select id="v3-film"><option value="">El de la toma</option></select></label>
-    <label class="campo-inline">Actor <select id="v3-actor" disabled><option value="">El de la toma</option></select></label>
-    <label class="campo-inline">Modelo
-      <select id="v3-modelo">
-        <option value="auto">El del film</option>
-        <option value="steve_bends">steve_bends</option>
-        <option value="alex_bends">alex_bends (brazos finos)</option>
-        <option value="emoticons_steve">emoticons_steve</option>
-      </select>
-    </label>
-    <label class="campo-inline">Probar pose
-      <select id="v3-pose"><option value="">(ninguna: sigue la animación)</option></select>
-    </label>
-    <span class="campo-inline">Skin
-      <button type="button" class="chip-btn" id="v3-skin-elegir">Elegir…</button>
-      <button type="button" class="chip-btn" id="v3-skin-defecto">Por defecto</button>
-      <input type="file" id="v3-skin-archivo" accept="image/png" hidden>
-    </span>
-    <span class="campo-inline" title="Solo para la vista previa: no cambia el film">Posición de los ojos
-      <label>← → <input type="range" id="v3-ojos-x" min="-3" max="3" step="0.25" value="0" style="width:7em"></label>
-      <label>↑ ↓ <input type="range" id="v3-ojos-y" min="-3" max="3" step="0.25" value="0" style="width:7em"></label>
-      <output id="v3-ojos-pos"></output>
-      <button type="button" class="chip-btn" id="v3-ojos-reset">Reiniciar</button>
-    </span>
-    <label class="campo-inline">Ojos
-      <select id="v3-ojos">
-        <option value="auto">Los del film</option>
-        <option value="eyes">eyes (2×2)</option>
-        <option value="eyes_1px">eyes_1px (1 píxel)</option>
-        <option value="ninguno">Sin ojos</option>
-      </select>
-    </label>
-  </div>
+      <span class="campo-inline"><b>Retoques</b> (después «Convertir de nuevo»)</span>
+      <label class="check"><input type="checkbox" id="v3-r-muecas"> Muecas de referencia</label>
+      <label class="check"><input type="checkbox" id="v3-r-arrugas"> Arrugas</label>
+      <label class="check"><input type="checkbox" id="v3-r-labios"> Labios</label>
+      <label class="check"><input type="checkbox" id="v3-r-cejas"> Mover las cejas</label>
+    </div>
+    <div class="v3-barra">
+      <label class="campo-inline">Toma <select id="v3-toma"></select></label>
+      <label class="campo-inline">Film <select id="v3-film"><option value="">El de la toma</option></select></label>
+      <label class="campo-inline">Actor <select id="v3-actor" disabled><option value="">El de la toma</option></select></label>
+      <label class="campo-inline">Modelo
+        <select id="v3-modelo">
+          <option value="auto">El del film</option>
+          <option value="steve_bends">steve_bends</option>
+          <option value="alex_bends">alex_bends (brazos finos)</option>
+          <option value="emoticons_steve">emoticons_steve</option>
+        </select>
+      </label>
+      <label class="campo-inline">Probar pose
+        <select id="v3-pose"><option value="">(ninguna: sigue la animación)</option></select>
+      </label>
+      <span class="campo-inline">Skin
+        <button type="button" class="chip-btn" id="v3-skin-elegir">Elegir…</button>
+        <button type="button" class="chip-btn" id="v3-skin-defecto">Por defecto</button>
+        <input type="file" id="v3-skin-archivo" accept="image/png" hidden>
+      </span>
+      <span class="campo-inline" title="Solo para la vista previa: no cambia el film">Posición de los ojos
+        <label>← → <input type="range" id="v3-ojos-x" min="-3" max="3" step="0.25" value="0" style="width:7em"></label>
+        <label>↑ ↓ <input type="range" id="v3-ojos-y" min="-3" max="3" step="0.25" value="0" style="width:7em"></label>
+        <output id="v3-ojos-pos"></output>
+        <button type="button" class="chip-btn" id="v3-ojos-reset">Reiniciar</button>
+      </span>
+      <label class="campo-inline">Ojos
+        <select id="v3-ojos">
+          <option value="auto">Los del film</option>
+          <option value="eyes">eyes (2×2)</option>
+          <option value="eyes_1px">eyes_1px (1 píxel)</option>
+          <option value="ninguno">Sin ojos</option>
+        </select>
+      </label>
+    </div>
+  </details>
   <div class="v3-vistas">
     <div class="v3-caja">
       <span class="v3-cap">Tu video</span>

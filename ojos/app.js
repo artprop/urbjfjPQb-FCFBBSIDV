@@ -4,7 +4,8 @@ import { guardarSalida, esPC } from '../comun/plataforma.js';
 import * as N from './nucleo.js';
 
 const $ = (s) => document.querySelector(s);
-const estado = (t, cl = '') => { const e = $('#estado'); e.textContent = t; e.className = cl; };
+let tAviso = 0;
+const estado = (t, cl = '') => { const e = $('#estado'); e.textContent = t; e.className = cl; clearTimeout(tAviso); if (t) tAviso = setTimeout(() => { e.textContent = ''; }, 9000); };
 const hex = (c) => '#' + c.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('');
 const deHex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -35,7 +36,8 @@ async function cargarSkin(archivo) {
     caraCv = lienzoDe(8, 8, cara);
     $('#inNombre').value = 'eyes_' + base;
     buscar();
-    $('#panelOjos').hidden = false; $('#vacio').hidden = true; $('#grande').hidden = false; $('#notaVista').hidden = false;
+    $('#panelOjos').hidden = false; $('#vacio').hidden = true;
+    for (const id of ['#btnPng', '#btnModelo', '#btnAjustes']) $(id).disabled = false;
     estado('');
   } catch (e) { estado('No pude leer esa imagen: ' + (e.message || e), 'mal'); }
 }
@@ -54,13 +56,11 @@ function buscar() {
 // ------------------------------------------------------------------ elegir qué corregir
 function armarPiezas() {
   const g = $('#piezas'); g.textContent = '';
-  const celda = (html) => { const d = document.createElement('div'); d.className = 'det'; d.innerHTML = html; g.append(d); };
-  celda('');
-  for (const [, nombre, color] of PIEZAS) celda(`<i style="background:${color}"></i>${nombre}`);
   for (const lado of ['a', 'b']) {
-    celda(lado === 'a' ? 'Izquierda' : 'Derecha');
-    for (const [pieza, nombre] of PIEZAS) {
-      const b = document.createElement('button'); b.textContent = nombre; b.dataset.lado = lado; b.dataset.pieza = pieza;
+    const t = document.createElement('span'); t.textContent = lado === 'a' ? 'Izq' : 'Der'; g.append(t);
+    for (const [pieza, nombre, color] of PIEZAS) {
+      const b = document.createElement('button'); b.dataset.lado = lado; b.dataset.pieza = pieza;
+      b.innerHTML = `<i style="background:${color}"></i>${nombre}`; b.title = `${nombre} del ojo de la ${lado === 'a' ? 'izquierda' : 'derecha'} de la imagen`;
       b.onclick = () => { activo = { lado, pieza }; marcarActivo(); dibujarEditor(); };
       g.append(b);
     }
@@ -203,8 +203,7 @@ function hacer() {
   try { res = N.generar(cara, { a: cfg.a, b: cfg.b, saliente: cfg.saliente, colores, parpadosLisos: $('#chkLisos').checked, nombre: nombreModelo() }); }
   catch (e) { estado('No pude armar los ojos con esos números: ' + (e.message || e), 'mal'); return; }
   const av = cfg.avisos.length ? '\n⚠ ' + cfg.avisos.join('\n⚠ ') : '';
-  $('#detectado').textContent = `Izquierda de la imagen: ${res.info.ojoA}.\nDerecha de la imagen: ${res.info.ojoB}.\nTextura de ${res.info.textura}.` + av;
-  $('#detectado').style.whiteSpace = 'pre-wrap';
+  $('#detectado').textContent = `Izq: ${res.info.ojoA} · Der: ${res.info.ojoB} · textura ${res.info.textura}` + av;
   if (!$('#chkColores').checked) { $('#colPiel').value = hex(res.colores.piel); $('#colBlanco').value = hex(res.colores.blanco); $('#colCeja').value = hex(res.colores.ceja); }
   dibujar();
 }
@@ -221,13 +220,13 @@ function dibujar() {
     N.dibujarEscena(cx, { cara: caraCv, textura: tex, modelo: res.modelo, pose: pose(n), E, huecos });
   };
   pintar($('#cvGrande'), 44, poseActiva);
-  $('#txPose').textContent = (poseActiva || 'Reposo') + ' · así lo ve BBS';
+  $('#txPose').textContent = (poseActiva || 'Reposo') + ' · como en BBS';
   const t = $('#cvTextura').getContext('2d'); t.clearRect(0, 0, 128, 128); t.imageSmoothingEnabled = false; t.drawImage(tex, 0, 0, 128, 128);
   const gal = $('#galeria');
   if (!gal.children.length) {
     for (const n of [null, ...N.NOMBRES_POSES]) {
       const d = document.createElement('div'); d.className = 'pose'; d.dataset.pose = n || '';
-      const cv = document.createElement('canvas'); cv.width = cv.height = 96; d.append(cv, document.createTextNode(n || 'reposo'));
+      const cv = document.createElement('canvas'); cv.width = cv.height = 96; d.title = n || 'reposo'; d.append(cv, document.createTextNode(n ? n.replace('look_', '→').replace('thinking_', 'pienso ') : 'reposo'));
       d.onclick = () => { poseActiva = n; dibujar(); };
       gal.append(d);
     }
@@ -313,4 +312,9 @@ $('#btnPng').onclick = exportarPng;
 $('#btnModelo').onclick = exportarModelo;
 $('#btnOtra').onclick = elegirCarpeta;
 $('#btnOtra').hidden = !window.showDirectoryPicker;
+const hoja = $('#hoja');
+$('#btnAjustes').onclick = () => { hoja.hidden = false; };
+$('#btnCerrar').onclick = () => { hoja.hidden = true; };
+hoja.addEventListener('pointerdown', (e) => { if (e.target === hoja) hoja.hidden = true; });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hoja.hidden = true; });
 window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular };   // para las pruebas

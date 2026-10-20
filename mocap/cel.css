@@ -57,4 +57,38 @@
   /* vista 3d: que nada se salga por los costados */
   body.cel .v3-barra .campo-inline, body.cel .v3-grupo, body.cel .v3-pie, body.cel .v3-tiempo { flex-wrap: wrap; max-width: 100%; }
   body.cel .v3-barra input[type="range"] { width: 6em; }
+
+  /* vista 3d: lo importante (el video, el muñeco, la línea de tiempo y reproducir) en una sola pantalla; las opciones, con un toque */
+  body.cel .vista3d { padding: 8px 10px; gap: 8px; }
+  body.cel .v3-opc > summary { display: block; cursor: pointer; font-weight: 700; padding: 8px 10px; background: var(--panel); border: 1px solid var(--linea); border-radius: 10px; }
+  body.cel .v3-opc[open] { gap: 8px; }
+  body.cel .v3-opc[open] > summary { margin-bottom: 2px; }
+  body.cel .v3-vistas { grid-template-columns: 1fr 1fr; gap: 8px; order: -1; }
+  body.cel .v3-caja { aspect-ratio: 3 / 4; max-height: 36vh; }
+  body.cel .v3-cap { font-size: 11px; padding: 1px 6px; top: 5px; left: 6px; }
+  body.cel .v3-tiempo { padding: 6px 8px; gap: 6px; }
+  body.cel .v3-tiempo .btn { padding: 6px 8px; font-size: 13px; min-width: 0; }
+  body.cel .v3-play { min-width: 0; flex: 1; }
+  body.cel .v3-linea { min-width: 100%; order: 5; }
+  body.cel .v3-lectura { min-width: 0; font-size: 12px; margin-left: auto; }
+  body.cel .v3-pie { gap: 6px 12px; font-size: 13px; }
+  body.cel .v3-rehacer { margin-left: 0; width: 100%; }
+  body.cel #v3-aviso { font-size: 12px; margin: 0; }
+
+  /* camara: un poco más chica para que entre todo en una pantalla */
+  body.cel .pantalla { width: min(100%, 27vh); }
+  body.cel .consejo { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; margin-top: 4px; }
+  body.cel .grabar { min-height: 48px; font-size: 17px; }
+  body.cel .layout { padding: 6px 10px 8px; gap: 6px; }
+  body.cel .paso { padding: 8px; }
+  body.cel .mas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; }
+  body.cel .mas-grid .check { font-size: 13px; }
+  body.cel .camara-fila .pantalla { aspect-ratio: auto; height: 33vh; min-height: 150px; }
+
+  /* ajustes con acordeón: tocá el título para abrir o cerrar el bloque */
+  body.cel .paso[data-panel="ajustes"] > .paso-cab { cursor: pointer; }
+  body.cel .paso[data-panel="ajustes"] > .paso-cab h2::after { content: '▾'; float: right; color: var(--texto-suave); }
+  body.cel .paso[data-panel="ajustes"].cerrado > .paso-cab h2::after { content: '▸'; }
+  body.cel .paso.cerrado > :not(.paso-cab) { display: none !important; }
+  body.cel .mu-lista { grid-template-columns: 1fr 1fr; gap: 8px; }
 }
