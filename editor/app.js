@@ -164,7 +164,7 @@ function autoguardar() {
 }
 
 // ------------------------------------------------------------------ reproducir
-let audio = null, ultimo = 0;
+let audio = null, ultimo = 0, audioArchivo = null;
 function play(si = !E.play) {
   E.play = si;
   $('#btnPlay').textContent = si ? '⏸' : '▶';
@@ -362,7 +362,7 @@ window.addEventListener('pointercancel', () => { arr = null; vista.orbita.enable
 const panelEl = $('#cuerpoPanel');
 const pestanas = { actores: panelActores, pose: panelPose, camaras: panelCamaras, director: (frag) => panelDirector(frag, apiDirector()), presets: panelPresets, proyecto: panelProyecto };
 // lo que usa la pestaña Director (director.js) para trabajar sobre la escena abierta
-const apiDirector = () => ({ E, el, titulo, boton, FM, A, num, aviso, guardarDeshacer, refrescar, dibujarPanel, enfocar, irA, elegirToma, adoptar, clonar, modelos });
+const apiDirector = () => ({ audioArchivo: () => audioArchivo, E, el, titulo, boton, FM, A, num, aviso, guardarDeshacer, refrescar, dibujarPanel, enfocar, irA, elegirToma, adoptar, clonar, modelos });
 let dibujando = 0;
 async function dibujarPanel() {
   const n = ++dibujando;
@@ -790,7 +790,7 @@ async function panelProyecto(frag) {
   frag.append(el('div', { class: 'fila' }, 'X', cx, 'Y', cy, 'Z', cz, boton('Correr', () => correrTodo(Number(cx.value), Number(cy.value), Number(cz.value)))));
   frag.append(titulo('Audio de referencia'));
   frag.append(el('div', { class: 'nota' }, 'Cargá las voces o la música para animar al ritmo (se escucha al reproducir; no va dentro del .dat).'));
-  frag.append(el('div', { class: 'fila' }, boton(audio ? '🔁 Cambiar audio' : '🎵 Cargar audio', () => $('#inAudio').click()), audio ? boton('✕ Quitar audio', () => { audio.pause(); audio = null; dibujarPanel(); }) : null));
+  frag.append(el('div', { class: 'fila' }, boton(audio ? '🔁 Cambiar audio' : '🎵 Cargar audio', () => $('#inAudio').click()), audio ? boton('✕ Quitar audio', () => { audio.pause(); audio = null; audioArchivo = null; dibujarPanel(); }) : null));
   frag.append(titulo('Ajustes'));
   const iman = el('input', { type: 'checkbox', checked: E.iman });
   iman.addEventListener('change', () => { E.iman = iman.checked; });
@@ -862,7 +862,7 @@ async function abrirGuardado(id) {
 $('#inAudio').addEventListener('change', (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   if (audio) audio.pause();
-  audio = new Audio(URL.createObjectURL(f)); audio.preload = 'auto';
+  audioArchivo = f; audio = new Audio(URL.createObjectURL(f)); audio.preload = 'auto';
   aviso('Audio cargado: ' + f.name); dibujarPanel();
 });
 

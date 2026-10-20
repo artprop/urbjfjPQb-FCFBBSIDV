@@ -187,6 +187,21 @@ function cuerpoBase() {
 }
 
 /**
+ * Un cuadro en vivo: los 33 puntos (mundo de MediaPipe, en metros) con los brazos puestos segun la direccion de cada control
+ * (dIzq / dDer: de MapaBrazo.direccion(), o null = brazo abajo) y el resto del cuerpo parado y quieto. Es lo mismo que hace
+ * construirPose() para cada cuadro de una toma, pero de a uno, para la simulacion en vivo.
+ */
+export function poseEnVivo(dIzq, dDer) {
+  const P = cuerpoBase(), abajo = [0, 1, 0];
+  for (const [d, signo, iH, iC, iM, dedos] of [[dIzq, 1, 11, 13, 15, [17, 19, 21]], [dDer, -1, 12, 14, 16, [18, 20, 22]]]) {
+    const r = codo(P[iH], add(P[iH], mul(unit(d || abajo), ALCANCE)), signo);
+    P[iC] = r.codo; P[iM] = r.muneca;
+    for (const k of dedos) P[k] = r.muneca;
+  }
+  return P;
+}
+
+/**
  * muestras: { izq: [{ t, d: [x, y, z] }], der: [...] } con t en segundos desde que empezo la toma y d la direccion del brazo (ver MapaBrazo).
  * Devuelve { world, vis, times, offset } como el analisis de cuerpo con la camara (a 30 cuadros por segundo).
  */

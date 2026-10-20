@@ -42,7 +42,7 @@ export function iniciarCel() {
     if (mq.matches && en3d !== (tab === '3d')) ponerTab(en3d ? '3d' : 'cam', false);
   }).observe($('#vista3d'), { attributes: true, attributeFilter: ['hidden'] });
   // los textos de ayuda largos se ven en una linea; un toque los abre
-  document.addEventListener('click', (e) => { const a = e.target.closest('.cel .campo .ayuda'); if (a) a.classList.toggle('abierta'); });
+  document.addEventListener('click', (e) => { const a = e.target.closest('.cel .campo .ayuda, body[data-ptab] .campo .ayuda'); if (a) a.classList.toggle('abierta'); });
   mq.addEventListener('change', aplicar);
   aplicar();
 }
