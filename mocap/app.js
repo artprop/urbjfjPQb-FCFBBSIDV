@@ -6,6 +6,7 @@ import { landmarkerPose } from './local/deteccion.js';
 import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido, gestoActual } from './envivo.js';
 import { iniciarMuecas } from './muecas_ui.js';
 import { paqueteZip } from './paquete_modelos.js';
+import { iniciarSimulacion, alPoseCamara } from './simulacion.js';
 import { iniciarCel } from './cel.js';
 import { iniciarMoveUI } from './psmove_ui.js';
 import { moveHub } from './local/psmove_hub.js';
@@ -332,6 +333,7 @@ function bucle(ts) {
       const r = landmarker.detectForVideo(v, ++relojEsqueleto);
       ctx.clearRect(0, 0, c.width, c.height);
       const lm = r.landmarks && r.landmarks[0];
+      alPoseCamara(r.worldLandmarks && r.worldLandmarks[0], lm);   // la simulación en vivo usa los mismos puntos
       for (const [parte, idx] of Object.entries(PARTES)) {
         const el = document.querySelector(`.chip[data-parte="${parte}"]`);
         const ok = lm && idx.every((i) => (lm[i].visibility ?? 1) > 0.5);
@@ -539,6 +541,20 @@ for (const [id, k] of RETOQUES) {
   $('#' + k).addEventListener('change', pintarRetoques);
 }
 $('.vistas').addEventListener('click', pintarRetoques);
+// pestañas de la compu (Toma / Ajustes / Guardar): un solo panel a la vez en la columna de la derecha
+function iniciarPestanasPC() {
+  const poner = (t) => {
+    document.body.dataset.ptab = t;
+    document.querySelectorAll('#pestanas-pc button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.pt === t)));
+    try { localStorage.setItem('mocap_ptab', t); } catch { /* sin almacenamiento */ }
+  };
+  $('#pestanas-pc').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) poner(b.dataset.pt); });
+  let t = 'toma'; try { t = localStorage.getItem('mocap_ptab') || 'toma'; } catch { /* sin almacenamiento */ }
+  poner(['toma', 'ajustes', 'guardar'].includes(t) ? t : 'toma');
+  window.verPestanaPC = poner;
+}
+iniciarPestanasPC();
+iniciarSimulacion();
 iniciarVivo();
 iniciarMuecas({ gesto: gestoActual });
 iniciarCel();

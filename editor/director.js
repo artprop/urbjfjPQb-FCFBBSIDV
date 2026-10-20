@@ -3,6 +3,8 @@
 // las poses, las cámaras). El guion es la base; el Editor es el detalle. También arma cámaras automáticas con reglas de composición.
 import * as escena from '../director/nucleo/escena.js';
 import * as camaras from '../director/nucleo/camaras_auto.js';
+import * as capas from '../director/nucleo/capas.js';
+import { bocaSimple } from '../director/nucleo/audio.js';
 
 // lo que hay que recordar entre una vez y otra que se dibuja el panel
 const D = {
@@ -40,6 +42,55 @@ async function cargarPoses(api, film) {
   }
   try { for (const p of await api.A.presets('pose')) extra[p.nombre] = p.datos; } catch { /* sin presets */ }
   return (rep) => ({ ...escena.posesDisponibles(rep, (g) => [cache[g] || null, null]), ...extra });
+}
+
+D.semillaParp = 1;
+let TABLA_BOCAS = {};
+fetch(new URL('../director/nucleo/bocas.json', import.meta.url)).then((r) => r.json()).then((j) => { delete j._ayuda; TABLA_BOCAS = j; }).catch(() => {});
+const posesOjosCache = {};
+async function posesOjos(modelo) {
+  if (!posesOjosCache[modelo]) posesOjosCache[modelo] = await fetch(new URL(`../mocap/datos/ojos/${modelo}/poses.json`, import.meta.url)).then((r) => r.json()).catch(() => ({}));
+  return posesOjosCache[modelo];
+}
+
+async function parpadeos(api) {
+  const { E } = api;
+  const conOjos = E.film.replays.map((r, i) => i).filter((i) => capas.parteOjos(E.film.replays[i]));
+  if (!conOjos.length) return api.aviso('Ningún actor tiene ojos (player/eyes o eyes_1px) como parte del modelo.', true, 5000);
+  const cache = {}; for (const i of conOjos) { const m = capas.parteOjos(E.film.replays[i]).modelo; cache[m] = await posesOjos(m); }
+  api.guardarDeshacer();
+  const plan = { tramos: [], extras: [], actores: Object.fromEntries(conOjos.map((i) => [String(i), { parpadeo: true }])), semilla: D.semillaParp };
+  try {
+    const [nuevo, resumen] = capas.aplicar(E.film, plan, { audio: () => ({ sr: 1, d: [] }), posesOjos: (m) => cache[m] || {}, bocas: TABLA_BOCAS });
+    E.film = api.adoptar(nuevo, true);
+    const n = Object.values(resumen).reduce((s, r) => s + (r.parpadeos || 0), 0);
+    await api.refrescar({ rearmar: true });
+    api.aviso(`Parpadeos puestos: ${n} en ${conOjos.length} actor(es).`);
+  } catch (e) { api.aviso('No se pudo: ' + (e.message || e), true, 6000); }
+}
+
+async function decodificar(archivo) {
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  const c = new Ctx();
+  try { const b = await c.decodeAudioData(await archivo.arrayBuffer()); return { sr: b.sampleRate, d: b.getChannelData(0) }; } finally { c.close && c.close(); }
+}
+async function bocaConAudio(api, i, tickIni) {
+  const { E } = api, archivo = api.audioArchivo();
+  if (!archivo) return api.aviso('Primero cargá un audio: pestaña 📁 Film → Audio de referencia.', true, 5000);
+  const rep = E.film.replays[i], pb = rep && capas.parteBoca(rep, TABLA_BOCAS);
+  if (!pb) return api.aviso('Ese actor no tiene una boca conocida (boca_Man o boca_Woman) como parte del modelo.', true, 6000);
+  try {
+    const au = await decodificar(archivo), seg = au.d.length / au.sr;
+    const cues = bocaSimple(au, 0, seg);
+    if (!cues.length) return api.aviso('No encontré voz en ese audio.', true);
+    api.guardarDeshacer();
+    const [pistas, total] = capas.bocaVarios(pb, [[{ tick: tickIni * 20, offset: 0 }, 0, seg, cues]]);
+    const an = (rep.animation ??= {});
+    for (const k of Object.keys(an)) if (k.startsWith(`${pb.idx}/pose/`)) delete an[k];
+    Object.assign(an, pistas);
+    await api.refrescar({ rearmar: true });
+    api.aviso(`Boca puesta: ${total} formas siguiendo la voz (${seg.toFixed(1)} s).`);
+  } catch (e) { api.aviso('No se pudo leer ese audio: ' + (e.message || e), true, 6000); }
 }
 
 const quitarAuto = (film) => { film.camera = (film.camera || []).filter((c) => !String(c.title || '').startsWith('Auto:')); };
@@ -154,6 +205,19 @@ export async function panelDirector(frag, api) {
     boton('📌 Dejar lo de ahora como base', () => { D.base = null; D.plan = []; api.aviso('Lo que hay ahora queda como punto de partida: el próximo guion se arma encima.'); api.dibujarPanel(); }, { disabled: !D.base })));
   if (D.base) frag.append(el('div', { class: 'nota' }, 'Ya hay una escena generada. «Volver a generar» la arma otra vez desde cómo estaba antes del guion (los retoques de después se pierden; ↶ los recupera).'));
   for (const a of D.avisos) frag.append(el('div', { class: 'aviso-guion' }, '• ' + a));
+
+  frag.append(titulo('Capas automáticas'));
+  frag.append(el('div', { class: 'nota' }, 'Parpadeos solos y boca que sigue la voz de un audio (como el Director de la PC, sin Rhubarb). Quedan como animación normal del actor para retocarla.'));
+  frag.append(el('div', { class: 'fila' },
+    boton('👁 Parpadeos automáticos', () => parpadeos(api), { title: 'A todos los actores que tengan ojos (player/eyes o eyes_1px)' }),
+    boton('🎲 Otros parpadeos', () => { D.semillaParp = (D.semillaParp % 9999) + 1; parpadeos(api); })));
+  const conBoca = E.film.replays.map((r, i) => ({ r, i, pb: capas.parteBoca(r, TABLA_BOCAS) })).filter((x) => x.pb);
+  const selA = el('select', { 'aria-label': 'Actor que habla' }, ...(conBoca.length ? conBoca : actores.map(({ r, i }) => ({ r, i }))).map(({ r, i }) => el('option', { value: i }, FM.nombre(r, i))));
+  if (E.i >= 0) selA.value = String(E.i);
+  const ini = el('input', { type: 'number', min: 0, step: 0.5, value: 0, style: 'width:5em', 'aria-label': 'Segundo del film donde empieza el audio' });
+  frag.append(el('div', { class: 'fila' }, selA, el('span', { class: 'nota' }, 'empieza en (s)'), ini));
+  frag.append(el('div', { class: 'fila' }, boton(api.audioArchivo() ? '🗣 Boca con el audio cargado' : '🗣 Boca con un audio…', () => bocaConAudio(api, Number(selA.value), Number(ini.value) || 0)),
+    el('span', { class: 'nota' }, api.audioArchivo() ? api.audioArchivo().name : 'Cargá un audio en 📁 Film → Audio de referencia')));
 
   frag.append(titulo('Cámaras automáticas'));
   frag.append(el('div', { class: 'nota' }, 'Arma tomas siguiendo reglas de composición: sujeto en los tercios con aire hacia donde mira, ojos en el tercio de arriba, cortes de 2,5 a 8 s, ángulo distinto entre cortes (regla de los 30°) y del mismo lado en las charlas (regla de los 180°). Quedan como cámaras normales para retocarlas.'));

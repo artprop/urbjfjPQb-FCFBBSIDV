@@ -65,6 +65,14 @@ function pintar() {
     });
   }
   dibujarFigura();
+  guiaPaso();
+}
+// guía de 4 pasos con tildes: ¿conectados? ¿calibrados? ¿tildado «usar Move»?
+function guiaPaso() {
+  const g = $('#psm-guia'); if (!g) return;
+  const cs = moveHub.controles, calib = cs.length > 0 && cs.every((e) => e.mapa.listo);
+  const marca = { conectar: cs.length > 0, calibrar: calib, usar: !!($('#usar_move') && $('#usar_move').checked), grabar: false };
+  g.querySelectorAll('li').forEach((li) => li.classList.toggle('ok', !!marca[li.dataset.p]));
 }
 
 export function iniciarMoveUI({ grabar }) {
@@ -100,6 +108,7 @@ export function iniciarMoveUI({ grabar }) {
     if (ev.target.classList.contains('psm-mano')) moveHub.ponerMano(e, ev.target.value);
     if (ev.target.classList.contains('psm-color')) { const h = ev.target.value; await e.ctl.poner({ color: [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16)) }); pintar(); }
   });
+  $('#usar_move').addEventListener('change', guiaPaso);
   moveHub.reconectar().catch(() => {});   // los controles que ya se habian permitido
   pintar();
 }

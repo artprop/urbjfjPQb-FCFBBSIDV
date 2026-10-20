@@ -61,6 +61,24 @@
         <p class="nota" id="cam-error"></p>
       </div>
     </div>
+    <div class="sim-lado solo-cuerpo" id="sim-lado">
+      <div class="sim-barra">
+        <select id="sim-modelo" aria-label="Qué se dibuja">
+          <option value="steve_bends">Muñeco (steve_bends)</option>
+          <option value="emoticons_steve">Muñeco (emoticons/steve)</option>
+          <option value="esqueleto">Solo el esqueleto</option>
+          <option value="ambos">Muñeco + esqueleto</option>
+        </select>
+        <select id="sim-fuente" aria-label="De dónde se mueve">
+          <option value="auto">Se mueve con: lo que haya</option>
+          <option value="move">Solo controles Move</option>
+          <option value="camara">Solo mi cuerpo (cámara)</option>
+        </select>
+        <button type="button" class="btn btn-chico" id="sim-vista" title="Cambiar el ángulo desde donde se ve (también se puede arrastrar y usar la rueda)">↻ Ángulo</button>
+      </div>
+      <div id="sim-escena" aria-label="Simulación en vivo"></div>
+      <p class="sim-estado" id="sim-estado" role="status"></p>
+    </div>
     <div class="vivo-lado solo-cara" id="vivo-lado" hidden>
       <canvas id="vivo-lienzo" class="espejo" width="256" height="256" aria-label="Tu cara en BBS, en vivo"></canvas>
     </div>
@@ -81,8 +99,13 @@
         <button type="button" class="btn btn-chico" id="psm-conectar">Conectar controles…</button>
       </div>
       <p class="ayuda" id="psm-aviso"></p>
+      <ol class="psm-guia" id="psm-guia" aria-label="Cómo va la conexión de los controles">
+        <li data-p="conectar"><b>1.</b> Conectá los controles (botón de arriba)</li>
+        <li data-p="calibrar"><b>2.</b> Calibrá cada brazo: brazo ABAJO + botón PS, después brazo ADELANTE + botón PS</li>
+        <li data-p="usar"><b>3.</b> Tildá «Usar los controles Move…» (se ve cómo se mueve el muñeco al lado de la cámara)</li>
+        <li data-p="grabar"><b>4.</b> Grabá (botón rojo, o el botón de grabar del control)</li>
+      </ol>
       <div id="psm-lista"></div>
-      <canvas id="psm-figura" width="300" height="190" aria-label="Los brazos, de frente y de costado"></canvas>
       <details class="psm-botones-cfg">
         <summary>¿Qué hace cada botón?</summary>
         <div id="psm-acciones"></div>
@@ -165,7 +188,12 @@
 
   <!-- PASOS -->
   <section class="pasos">
-    <div class="paso" data-panel="tomas">
+    <nav class="pestanas-pc" id="pestanas-pc" aria-label="Secciones">
+      <button data-pt="toma" aria-selected="true">🎞 Toma</button>
+      <button data-pt="ajustes" aria-selected="false">⚙ Ajustes</button>
+      <button data-pt="guardar" aria-selected="false">💾 Guardar</button>
+    </nav>
+    <div class="paso" data-panel="tomas" data-ptab="toma">
       <div class="paso-cab">
         <h2><span class="num">1</span>Toma</h2>
         <div class="paso-acciones">
@@ -190,7 +218,7 @@
       </div>
     </div>
 
-    <div class="paso solo-cuerpo" data-panel="ajustes">
+    <div class="paso solo-cuerpo" data-panel="ajustes" data-ptab="ajustes">
       <div id="estilo-lugar"></div>
       <div class="paso-cab"><h2><span class="num">2</span>Ajustes del estilo</h2></div>
       <div class="campo">
@@ -219,6 +247,8 @@
         <input type="range" id="torso" min="0" max="1" step="0.05">
         <p class="ayuda">La cámara no mide bien si te inclinás hacia adelante o atrás. Con menos, el torso queda más derecho; si el personaje se ve jorobado o se va para atrás al gesticular, bajalo.</p>
       </div>
+      <details class="mas" id="detalle-estilo">
+        <summary>Detalle del estilo (transiciones, suavizado…)</summary>
       <div id="ajustes-minecraft" class="ajustes">
         <div class="campo">
           <div class="campo-cab"><label for="transicion_max">Duración de las transiciones</label><output id="out-trans"></output></div>
@@ -279,6 +309,8 @@
         </div>
       </div>
 
+      </details>
+
       <details class="mas" id="poses-fijas">
         <summary>Poses prefabricadas (brazos cruzados, atrás, etc.)</summary>
         <p class="ayuda">Para gestos que la cámara no ve bien. En el tramo que indiques se usa una pose armada de antemano en vez de lo que detecta el programa. Los tiempos son segundos del video. Si no ponés nada, no cambia nada.</p>
@@ -310,7 +342,7 @@
       </details>
     </div>
 
-    <div class="paso solo-cara" id="paso-ojos" data-panel="ajustes">
+    <div class="paso solo-cara" id="paso-ojos" data-panel="ajustes" data-ptab="ajustes">
       <div class="paso-cab"><h2><span class="num">2</span>Ojos y boca con tu cara</h2></div>
       <p class="ayuda">Se animan los ojos y la boca con tu cara. Se agregan al film y al actor del paso 3, que tienen que tener ya puestos los ojos (eyes o eyes_1px) y/o la boca (boca_Man o boca_Woman); el cuerpo del film no se toca. Grabá la cara de frente, cerca de la cámara y con buena luz.</p>
       <label class="check"><input type="checkbox" id="cara_ojos"> Animar los ojos</label>
@@ -371,7 +403,7 @@
       </div>
     </div>
 
-    <div class="paso solo-cara" id="paso-muecas" data-panel="ajustes">
+    <div class="paso solo-cara" id="paso-muecas" data-panel="ajustes" data-ptab="ajustes">
       <div class="paso-cab"><h2>Muecas y bocas de referencia</h2></div>
       <p class="ayuda">Cada gesto de la boca tiene su dibujo de referencia y la boca de píxeles que se usa para esa mueca. Elegí «Muecas (referencias)» en la boca de la vista en vivo (🙂) y la cara usa la mueca que más se parece a tu gesto; la que se reconoce se marca en verde. Podés editar cada boca, agregar muecas y guardar tus propios presets.</p>
       <div class="vivo-cab">
@@ -400,7 +432,7 @@
       </dialog>
     </div>
 
-    <div class="paso" data-panel="guardar">
+    <div class="paso" data-panel="guardar" data-ptab="guardar">
       <div class="paso-cab"><h2><span class="num">3</span>Dónde guardarla</h2></div>
       <div class="carpeta" id="carpeta-box">
         <div class="fila solo-pc" hidden>
