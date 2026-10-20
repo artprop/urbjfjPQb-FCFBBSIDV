@@ -7,6 +7,7 @@ import * as M from './mat.js';
 
 export const NOSE = 0, L_EAR = 7, R_EAR = 8;
 export const L_SH = 11, R_SH = 12, L_EL = 13, R_EL = 14, L_WR = 15, R_WR = 16;
+export const L_PINKY = 17, R_PINKY = 18, L_INDEX = 19, R_INDEX = 20;
 export const L_HIP = 23, R_HIP = 24, L_KN = 25, R_KN = 26, L_AN = 27, R_AN = 28;
 
 export const NEEDS = {
@@ -23,6 +24,13 @@ export const NEEDS = {
   left_knee: [L_HIP, L_KN, L_AN],
 };
 export const BONES = Object.keys(NEEDS);
+// La mano (solo emoticons/steve: su brazo tiene un tercer hueso, la punta "low_*_arm.end"): se mide con el meñique y el índice de MediaPipe.
+export const NEEDS_MANOS = {
+  right_hand: [R_SH, R_EL, R_WR, L_SH, R_PINKY, R_INDEX],
+  left_hand: [L_SH, L_EL, L_WR, R_SH, L_PINKY, L_INDEX],
+};
+export const MANOS = Object.keys(NEEDS_MANOS);
+const GIRO_MAX_MUNECA = 1.3;   // radianes (~75 grados): la muñeca no dobla más
 
 const UP = [0, 1, 0], DOWN = [0, -1, 0], BACK = [0, 0, 1];
 
@@ -86,6 +94,7 @@ export function solveFrame(P, torsoW = null) {
     const [R, bend] = limb(M.mv(tT, M.sub(P[el], P[sh])), M.mv(tT, M.sub(P[wr], P[el])), -1);
     out[side + '_arm'] = R;
     out[side + '_elbow'] = M.fromRotvec([bend, 0, 0]);
+    out[side + '_hand'] = mano(R, bend, M.mv(tT, M.sub(P[side === 'right' ? R_INDEX : L_INDEX], P[wr])), M.mv(tT, M.sub(P[side === 'right' ? R_PINKY : L_PINKY], P[wr])));
   }
   for (const [side, hp, kn, an] of [['right', R_HIP, R_KN, R_AN], ['left', L_HIP, L_KN, L_AN]]) {
     const [R, bend] = limb(M.mv(pT, M.sub(P[kn], P[hp])), M.mv(pT, M.sub(P[an], P[kn])), +1);
@@ -93,6 +102,20 @@ export function solveFrame(P, torsoW = null) {
     out[side + '_knee'] = M.fromRotvec([-bend, 0, 0]);
   }
   return out;
+}
+
+// Giro de la mano respecto del antebrazo: del antebrazo (que en reposo apunta hacia abajo, -Y) hacia la mano (muñeca -> medio entre meñique e índice).
+// Es un giro mínimo (sin torsión), con tope. dedoI / dedoM: vectores muñeca -> índice y muñeca -> meñique en el marco del torso.
+function mano(Rbrazo, bend, dedoI, dedoM) {
+  const hacia = M.mul(M.add(dedoI, dedoM), 0.5);
+  if (M.norm(hacia) < 1e-6) return M.eye();
+  const antebrazo = M.mm(Rbrazo, M.fromRotvec([bend, 0, 0]));
+  const d = M.unit(M.mv(M.T(antebrazo), hacia));
+  const c = M.clip(M.dot(DOWN, d), -1, 1), ang = Math.acos(c);
+  if (ang < 1e-6) return M.eye();
+  let eje = M.cross(DOWN, d);
+  if (M.norm(eje) < 1e-9) return M.eye();
+  return M.fromRotvec(M.mul(M.unit(eje), Math.min(ang, GIRO_MAX_MUNECA)));
 }
 
 export const toEuler = M.toEuler;
@@ -181,7 +204,7 @@ export function compute(world, vis, times, o = {}) {
 
   const result = {};
   for (const b of bones) {
-    const ok = Array.from({ length: N }, (_, i) => visOk(vis, i, NEEDS[b], visMin));
+    const ok = Array.from({ length: N }, (_, i) => visOk(vis, i, NEEDS[b] || NEEDS_MANOS[b], visMin));
     const cov = ok.filter(Boolean).length / N;
     if (cov < minCoverage) { report.push(`  ${b.padEnd(12)} omitido (visible solo ${Math.round(cov * 100)}% del tiempo)`); continue; }
     let Ms = mats[b];

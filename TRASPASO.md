@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.023)
+# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.024)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,7 +9,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.023**; la próxima es **v.024**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.024**; la próxima es **v.025**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
@@ -45,6 +45,9 @@ v.017: **muecas de referencia** (25 gestos, editor de píxeles, presets, «Mi ge
 v.018: Editor con pestaña Director + cámaras automáticas.
 v.019: arrugas dentro del segmento de la boca (escala propia x2/x4, nunca x1) en vivo y al convertir; **paquete de modelos de la cara** (`boca_pixel_*`, `arrugas_*`) descargable; **proyecto por defecto** (steve_bends + skin de la plantilla + ojos/boca/arrugas) para animar la cara sin film propio (celular); retoques en la Vista 3D; selectores de archivo sin filtro de extensión (celu).
 v.020: interfaz de Mocap en PC con pestañas Toma/Ajustes/Guardar; **simulación en vivo** al lado de la cámara (muñeco steve_bends/emoticons o esqueleto, con los Move en las manos); guía de Move; Editor: parpadeos y boca con audio.
+v.022: Convertidor «Armourer's → BBS» (modo nuevo).
+v.023: tarjeta del convertidor en el menú (faltaba).
+v.024: **mano de emoticons** (punta del brazo `low_*_arm.end`): el lector `.bobj` del Visor/Editor ahora conserva huesos y pesos de piel (malla con esqueleto), el Editor deja posar brazo, antebrazo y mano (también tocándola en la escena), y el Mocap anima la mano con el meñique y el índice de MediaPipe (solo con emoticons; giro mínimo con tope de ~75°, sin torsión).
 v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animación de referencia del usuario) y arrugas de trompa.
 
 ## 6. Cosas que hay que saber (decisiones y trampas)
@@ -52,7 +55,7 @@ v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animació
 - **Boca de píxeles:** grilla de `6·k` columnas × `filas·k` filas (hombre 2 filas, mujer 1); `k` = x1/x2/x4. La base de las muecas es x4 y se baja a x2/x1. Las arrugas tienen **escala propia** (2 o 4), independiente de la de la boca, y viven solo en los 6×2 (o 6×1) píxeles de la boca.
 - **Modelos de BBS que hay que instalar a mano:** `boca_pixel_*` y `arrugas_*` (botón «⬇ Modelos de la cara para BBS (.zip)»). Las arrugas son un negro translúcido por `color` del hueso. **Nunca probado dentro de BBS.**
 - **Skin del proyecto por defecto:** la de `mocap/datos/plantilla.dat` = `assets:models/player/_LosSaucera/001FranSauce.png`.
-- **emoticons/steve:** el cuerpo (cámara y Move) se convierte a su rig (`nucleo/emoticons.js` + `datos/emoticons_steve.armadura.json`). **La mano es el hueso `low_*_arm.end`** (punta del antebrazo, con vértices propios): existe en el modelo, pero el Editor lee los `.bobj` sin huesos ni pesos (`parseBOBJ` en `visor/bbs.js`) y no deja posarlo, y la conversión de Mocap no lo anima. Pendiente. Para otro modelo de la línea emoticons hace falta su armadura (huesos/ejes): hoy está fija para `emoticons/steve`.
+- **emoticons/steve:** el cuerpo (cámara y Move) se convierte a su rig (`nucleo/emoticons.js` + `datos/emoticons_steve.armadura.json`). **La mano es el hueso `low_*_arm.end`** (punta del antebrazo, con vértices propios). Resuelto en v.024 (Editor y Mocap). El Editor solo usa el giro de cada hueso del `.bobj` (no mueve ni escala partes). Nada probado dentro de BBS ni con la cámara real. Para otro modelo de la línea emoticons hace falta su armadura (huesos/ejes): hoy está fija para `emoticons/steve`.
 - **Nutria de dedsafio:** se convirtió el modelo del `.jar` a `.bbs.json` y se le entregó al usuario (zip). No está en la app (pidió dejarla así).
 - **No publicar fotos con copyright** (se descartó la foto stock de muecas; los dibujos de referencia son propios).
 - La Vista 3D del Mocap **no dibuja** arrugas ni los ojos de emoticons; solo la vista en vivo y el film lo hacen.
@@ -69,7 +72,7 @@ v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animació
 **Por confirmar por el usuario:** ojos mirando hacia abajo (v.017, ajustes sin reproducir el caso); que el selector de archivos del celu ya muestre el `.bvh` (v.019); `servir.py` nuevo en su PC; arrugas, modelos y partes de cara dentro de BBS; muecas con su cara real; Move reales (calibrar y ver la simulación).
 **Pendiente de hacer:**
 - **Preset de muecas con los dibujos del usuario** (formas de «P», «U», «T», «O» de su animación de referencia) para que la conversión use exactamente sus bocas. Propuesto, aún no pedido.
-- Editor: que el lector `.bobj` conserve huesos y pesos para poder posar emoticons (brazo, antebrazo y punta/mano). Mocap: animar `low_*_arm.end`. Anotado, aún no pedido hacerlo.
+- Editor: mover/escalar partes de un `.bobj` (hoy solo gira); las partes pegadas a un hueso de un `.bobj` (ítems en la mano) no siguen al hueso.
 - Otro modelo de la línea emoticons: pedir el archivo y adaptar la armadura.
 - Cámaras automáticas **con el mapa del mundo** (hoy pueden quedar tapadas por bloques).
 - Retocar la grabación en la Vista 3D con más opciones (hoy: muecas, arrugas, labios, cejas).

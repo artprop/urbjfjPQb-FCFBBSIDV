@@ -251,13 +251,29 @@ export class Modelos {
       // la malla de BOBJ ya mira hacia +Z (BBS la gira 180° y el form la gira otros 180°)
       // como BBS: con un solo material manda la textura del form; con varios, cada material la suya
       const varios = d.bobj.mallas.length > 1;
+      const mallasPiel = [];
+      const esqueleto = d.bobj.huesos.length ? armarEsqueleto(d.bobj.huesos, raiz) : null;
       for (const m of d.bobj.mallas) {
         const tval = varios ? (materiales && materiales[m.nombre]) || d.materiales[m.nombre] || d.texDefault : texPrincipal;
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.Float32BufferAttribute(m.pos, 3));
         geo.setAttribute('uv', new THREE.Float32BufferAttribute(m.uv, 2));
         if (m.nor.some((x) => x)) geo.setAttribute('normal', new THREE.Float32BufferAttribute(m.nor, 3)); else geo.computeVertexNormals();
-        raiz.add(new THREE.Mesh(geo, await hacerMat(tval, !culling)));
+        const mat = await hacerMat(tval, !culling);
+        if (esqueleto && m.si) {
+          geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(m.si, 4));
+          geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(m.sw, 4));
+          const malla = new THREE.SkinnedMesh(geo, mat); malla.frustumCulled = false;
+          malla.userData.bobj = true;
+          raiz.add(malla); mallasPiel.push(malla);
+        } else raiz.add(new THREE.Mesh(geo, mat));
+      }
+      if (esqueleto) {
+        raiz.updateMatrixWorld(true);
+        const sk = new THREE.Skeleton(esqueleto.lista);
+        for (const mm of mallasPiel) mm.bind(sk, mm.matrixWorld);
+        raiz.userData.bones = esqueleto.mapa;       // nombre -> {b: Bone, reposo: Quaternion}
+        raiz.userData.padres = Object.fromEntries(d.bobj.huesos.map((h) => [h.n, h.p]));
       }
       return { obj: raiz, huesos, pivotes, datos: d };
     }
@@ -311,6 +327,29 @@ export class Modelos {
     raiz.updateMatrixWorld(true);
     return { obj: raiz, huesos, pivotes, datos: d };
   }
+}
+
+// Huesos de un BOBJ (armadura de Blender): cada hueso cuelga de su padre con la orientacion de reposo del archivo.
+// Pose de BBS = reposo * rotacion (ZYX); en reposo el modelo queda igual que sin huesos.
+function armarEsqueleto(hs, raiz) {
+  const bones = hs.map((h) => { const b = new THREE.Bone(); b.name = h.n; return b; });
+  const idx = new Map(hs.map((h, i) => [h.n, i]));
+  const qs = hs.map((h) => {
+    const r = h.rot;
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().set(r[0], r[1], r[2], 0, r[3], r[4], r[5], 0, r[6], r[7], r[8], 0, 0, 0, 0, 1));
+  });
+  const mapa = {};
+  hs.forEach((h, i) => {
+    const b = bones[i], pi = idx.get(h.p);
+    if (pi === undefined) { b.position.set(...h.cabeza); b.quaternion.copy(qs[i]); raiz.add(b); }
+    else {
+      const qp = qs[pi].clone().invert();
+      b.position.set(...h.cabeza).sub(new THREE.Vector3(...hs[pi].cabeza)).applyQuaternion(qp);
+      b.quaternion.copy(qp).multiply(qs[i]); bones[pi].add(b);
+    }
+    mapa[h.n] = { b, reposo: b.quaternion.clone() };
+  });
+  return { lista: bones, mapa };
 }
 
 function nuevoGrupo(id) { return { id, parent: '', origin: [0, 0, 0], rotate: [0, 0, 0], scale: [1, 1, 1], cubes: [], meshes: [], hijos: [] }; }
@@ -465,25 +504,49 @@ export function parseOBJ(texto, mtl) {
 export function parseBOBJ(texto) {
   const V = [], T = [], N = [];
   const mallas = [];
+  const huesos = [];      // armadura: {n, p, cabeza:[x,y,z], rot:[9 numeros por filas]}
+  const pesos = [];       // por vertice: [[hueso, peso], ...] (lineas "vw" que siguen a cada "v")
   let m = null;
   for (const raw of texto.split(/\r?\n/)) {
     const t = raw.trim().split(/\s+/); const f = t[0];
     if (f === 'o') { m = { nombre: t[1] || '', caras: [] }; mallas.push(m); }
-    else if (f === 'v') V.push(+t[1], +t[2], +t[3]);
+    else if (f === 'v') { V.push(+t[1], +t[2], +t[3]); pesos.push([]); }
+    else if (f === 'vw') { if (pesos.length) pesos[pesos.length - 1].push([t[1], +t[2]]); }
     else if (f === 'vt') T.push(+t[1], +t[2]);
     else if (f === 'vn') N.push(+t[1], +t[2], +t[3]);
     else if (f === 'f' && m) m.caras.push(t[1], t[2], t[3]);
+    else if (f === 'arm_bone') {
+      // arm_bone nombre [padre] cola(x y z) matriz 4x4 por filas (la ultima columna es la cabeza). Los huesos raiz no traen padre.
+      const sinPadre = !isNaN(+t[2]);
+      const k = sinPadre ? 5 : 6, mt = t.slice(k, k + 16).map(Number);
+      if (mt.length === 16 && mt.every(isFinite)) {
+        huesos.push({ n: t[1], p: sinPadre ? null : t[2], cabeza: [mt[3], mt[7], mt[11]], rot: [mt[0], mt[1], mt[2], mt[4], mt[5], mt[6], mt[8], mt[9], mt[10]] });
+      }
+    }
   }
+  // hasta 4 huesos por vertice (los de mas peso), normalizados
+  const indice = new Map(huesos.map((h, i) => [h.n, i]));
+  const infl = pesos.map((l) => {
+    const top = l.filter(([n, w]) => w > 0 && indice.has(n)).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const suma = top.reduce((a, [, w]) => a + w, 0);
+    return top.map(([n, w]) => [indice.get(n), suma ? w / suma : 0]);
+  });
+  const conPesos = huesos.length > 0 && infl.some((l) => l.length);
   return {
+    huesos: conPesos ? huesos : [],
     mallas: mallas.map((x) => {
-      const pos = [], uv = [], nor = [];
+      const pos = [], uv = [], nor = [], si = [], sw = [];
       for (const s of x.caras) {
         const p = s.split('/').map((q) => parseInt(q, 10) - 1);
         pos.push(V[p[0] * 3] || 0, V[p[0] * 3 + 1] || 0, V[p[0] * 3 + 2] || 0);
         if (p[1] >= 0) uv.push(T[p[1] * 2] || 0, 1 - (T[p[1] * 2 + 1] || 0)); else uv.push(0, 0);
         if (p[2] >= 0) nor.push(N[p[2] * 3] || 0, N[p[2] * 3 + 1] || 0, N[p[2] * 3 + 2] || 0); else nor.push(0, 0, 0);
+        if (conPesos) {
+          const l = infl[p[0]] || [];
+          for (let k = 0; k < 4; k++) { si.push(l[k] ? l[k][0] : 0); sw.push(l[k] ? l[k][1] : 0); }
+        }
       }
-      return { nombre: x.nombre, pos, uv, nor };
+      return { nombre: x.nombre, pos, uv, nor, ...(conPesos ? { si, sw } : {}) };
     }),
   };
 }

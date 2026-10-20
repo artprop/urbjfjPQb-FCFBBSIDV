@@ -88,7 +88,7 @@ export class Vista {
       const nodo = new THREE.Group();
       const form = await this.rec.forms.construir(r.form || {});
       nodo.add(form);
-      const info = { nodo, clave, i, huesos: new Map(), config: {}, form };
+      const info = { nodo, clave, i, huesos: new Map(), bones: null, config: {}, form };
       if (r.form && r.form.id === 'bbs:model') {
         const d = await this.rec.modelos.datos(r.form.model || '');
         info.config = (d && d.config) || {};
@@ -104,6 +104,10 @@ export class Vista {
             }
           };
           if (raiz) recorrer(raiz);
+        } else if (d && d.bobj && d.bobj.huesos.length) {
+          // modelo con armadura (emoticons): los huesos reales de la malla con piel
+          const raiz = form.children.find((o) => o.name && o.name.startsWith('modelo:'));
+          if (raiz && raiz.userData.bones) info.bones = { mapa: raiz.userData.bones, padres: raiz.userData.padres };
         }
       }
       nodo.userData.rep = r;
@@ -125,6 +129,7 @@ export class Vista {
       x.nodo.rotation.y = -e.cuerpo * D2R;
       x.nodo.visible = e.visible || this.mostrarOcultos;
       x.form.traverse((o) => { if (o.material) { o.material.transparent = !e.visible || o.material.userData.transp; o.material.opacity = e.visible ? 1 : 0.3; } });
+      if (x.bones) { this._posarArmadura(x, r, t); x.nodo.updateMatrixWorld(true); continue; }
       if (!x.huesos.size) continue;
       const cfg = x.config || {};
       const cabeza = cfg.look_at && cfg.look_at.head;
@@ -156,6 +161,15 @@ export class Vista {
     }
     this._marcarElegido();
   }
+  // Armadura (emoticons): cada hueso = reposo * giro de la pose (ZYX, en radianes como en BBS). Del tamaño y el movimiento de la pose solo se usa el giro.
+  _posarArmadura(x, r, t) {
+    const q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'ZYX');
+    for (const [id, h] of Object.entries(x.bones.mapa)) {
+      const pt = FM.pose(r, id, t);
+      if (pt && pt.r) { e.set(pt.r[0], pt.r[1], pt.r[2], 'ZYX'); h.b.quaternion.copy(h.reposo).multiply(q.setFromEuler(e)); }
+      else h.b.quaternion.copy(h.reposo);
+    }
+  }
   pasosViejos() { this._pasos = null; }
 
   // ---------------------------------------------------------------- elegir
@@ -166,6 +180,25 @@ export class Vista {
     if (!x) return;
     const aro = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.58, 40), new THREE.MeshBasicMaterial({ color: 0xffd640, side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
     aro.rotation.x = -Math.PI / 2; aro.position.copy(x.nodo.position); aro.position.y += 0.02; this.extras.add(aro);
+    const hb = this.huesoElegido && x.bones && x.bones.mapa[this.huesoElegido];
+    if (hb) {
+      // la parte de la malla que mueve ese hueso (vértices donde manda) + la bolita en su articulación
+      const caja = new THREE.Box3(), p = new THREE.Vector3();
+      x.nodo.traverse((m) => {
+        if (!m.isSkinnedMesh) return;
+        const si = m.geometry.attributes.skinIndex, sw = m.geometry.attributes.skinWeight;
+        const nombres = m.skeleton.bones.map((b) => b.name), k = nombres.indexOf(this.huesoElegido);
+        for (let i = 0; i < si.count; i++) {
+          let mejor = 0; for (let j = 1; j < 4; j++) if (sw.getComponent(i, j) > sw.getComponent(i, mejor)) mejor = j;
+          if (si.getComponent(i, mejor) === k && sw.getComponent(i, mejor) > 0.5) { p.fromBufferAttribute(m.geometry.attributes.position, i); m.applyBoneTransform(i, p); caja.expandByPoint(p.applyMatrix4(m.matrixWorld)); }
+        }
+      });
+      if (!caja.isEmpty()) this.extras.add(new THREE.Box3Helper(caja, 0xff5a36));
+      const bp = new THREE.Vector3().setFromMatrixPosition(hb.b.matrixWorld);
+      const bola = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff5a36, depthTest: false }));
+      bola.position.copy(bp); bola.renderOrder = 20; this.extras.add(bola);
+      return;
+    }
     const h = this.huesoElegido && x.huesos.get(this.huesoElegido);
     if (h) {
       const caja = new THREE.Box3();
@@ -192,6 +225,7 @@ export class Vista {
         if (!hueso && o.isGroup && o.name && !o.name.startsWith('form:') && !o.name.startsWith('modelo:') && o.name !== 'giro') {
           const x = this.inst.get(raizRep(o)); if (x && x.huesos.has(o.name)) hueso = o.name;
         }
+        if (!hueso && h.object.isSkinnedMesh && h.face) hueso = this._huesoDeCara(h);
         if (o.userData.rep) { rep = o.userData.rep; break; }
         if (o.userData.toma) { toma = o.userData.toma; break; }
         o = o.parent;
@@ -200,6 +234,20 @@ export class Vista {
       if (toma) return { toma };
     }
     return null;
+  }
+  // hueso que más manda en el punto tocado de una malla con piel
+  _huesoDeCara(h) {
+    const g = h.object.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+    if (!si) return null;
+    const acum = new Map(), bar = h.barycoord;
+    [h.face.a, h.face.b, h.face.c].forEach((v, n) => {
+      const w0 = bar ? [bar.x, bar.y, bar.z][n] : 1 / 3;
+      for (let j = 0; j < 4; j++) acum.set(si.getComponent(v, j), (acum.get(si.getComponent(v, j)) || 0) + w0 * sw.getComponent(v, j));
+    });
+    let mejor = null, mw = 0;
+    for (const [k, w] of acum) if (w > mw) { mw = w; mejor = k; }
+    const b = mejor === null ? null : h.object.skeleton.bones[mejor];
+    return b ? b.name : null;
   }
   puntoEnPlano(e, y) { const p = new THREE.Vector3(); return this._rayo(e).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), p) ? p : null; }
   puntoEnPiso(e) { const h = this._rayo(e).intersectObjects(this.piso.children, true)[0]; return h ? h.point : null; }

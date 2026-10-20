@@ -154,7 +154,7 @@ async function actores(nombre) {
 }
 
 const HUESOS_3D = ['anchor', 'low_body', 'head', 'right_arm', 'right_elbow', 'left_arm', 'left_elbow',
-  'right_leg', 'right_knee', 'left_leg', 'left_knee', 'body', 'low_right_arm', 'low_left_arm', 'low_leg_right', 'low_left_leg'];
+  'right_leg', 'right_knee', 'left_leg', 'left_knee', 'body', 'low_right_arm', 'low_left_arm', 'low_leg_right', 'low_left_leg', 'low_right_arm.end', 'low_left_arm.end'];
 const HUESOS_OJOS = ['anchor', 'eye_l', 'eye_r', 'pupil_l', 'pupil_r', 'eyelid_lt', 'eyelid_lb', 'eyelid_rt', 'eyelid_rb',
   'eyebrow_l', 'eyebrow_r', 'eyebrow_el', 'eyebrow_er'];
 const tr = (v, d) => (v ? v.map(bbs.num) : d.slice());
