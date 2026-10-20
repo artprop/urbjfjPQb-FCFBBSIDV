@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.027)
+# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.028)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,7 +9,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.027**; la próxima es **v.028**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.028**; la próxima es **v.029**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
@@ -50,6 +50,7 @@ v.022: Convertidor «Armourer's → BBS» (modo nuevo).
 v.023: tarjeta del convertidor en el menú (faltaba).
 v.024: **mano de emoticons** (punta del brazo `low_*_arm.end`): el lector `.bobj` del Visor/Editor ahora conserva huesos y pesos de piel (malla con esqueleto), el Editor deja posar brazo, antebrazo y mano (también tocándola en la escena), y el Mocap anima la mano con el meñique y el índice de MediaPipe (solo con emoticons; giro mínimo con tope de ~75°, sin torsión).
 v.025: modo **Ojos** (ver arriba).
+v.028: **interfaz de una sola pantalla** (pedido del usuario: acceder a todo sin scrollear ni deslizar; sobre todo en celu): menú con los 7 modos juntos (2 columnas); Ojos rehecho (cara editable + vista + controles + 20 poses a la vez, ajustes en una hoja con un toque); Editor en celu vertical (pestañas con solo íconos, modos en fila, sliders en 2 columnas, línea de tiempo más baja); Mocap en celu (cámara más baja para que entre el botón de grabar, Vista 3D con las opciones en un desplegable, Ajustes en acordeón). **Pendiente de esa tarea:** Director (formulario largo), Randomizer (paneles largos), Visor y Convertidor, y los paneles largos del Editor (Director 1100 px, Film, Presets, Actores) que todavía scrollean en el celu. Medido con Playwright en 390×760 y 360×640.
 v.027: Ojos revisado con lo que pidió el usuario: se corrige **dibujando sobre la cara** (elegir Ojo/Pupila/Ceja de cada lado y arrastrar; flechas para subir/bajar/mover los ojos; espejo opcional; los números quedaron en «avanzado»); la vista es como la ve BBS (**hueco de borrado** sobre cada ojo: la piel en z=-4 tapa lo que está atrás, párpados y pupila asoman solo por el hueco, las cejas van por delante); pupilas de cualquier tamaño (1×2, 2×2…) y de varios colores (el iris copia los píxeles de la skin, y un píxel de otro color pegado a la pupila se suma a ella); **exportar**: `.png` de la textura, o carpeta del modelo (PC: `Salida\ojos\<nombre>\`; navegador con selector: eligiendo dónde; celu: 4 archivos sueltos). Ya no hay `.zip`.
 v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animación de referencia del usuario) y arrugas de trompa.
 

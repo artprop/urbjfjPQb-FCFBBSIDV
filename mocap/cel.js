@@ -31,6 +31,18 @@ function aplicar() {
   }
   const d = $('#vivo-panel');
   if (d && cel && !d.dataset.visto) { d.open = false; d.dataset.visto = '1'; }   // en el celu las opciones arrancan cerradas
+  const o = $('.v3-opc');
+  if (o && cel && !o.dataset.visto) { o.open = false; o.dataset.visto = '1'; }   // las opciones de la vista 3D también
+  // ajustes en el celu: cada bloque se abre y se cierra con un toque en su título (así no hay una página larguísima)
+  for (const p of document.querySelectorAll('.paso[data-panel="ajustes"]')) {
+    const cab = p.querySelector('.paso-cab');
+    if (cab && !cab.dataset.acordeon) {
+      cab.dataset.acordeon = '1';
+      cab.addEventListener('click', () => { if (mq.matches) p.classList.toggle('cerrado'); });
+      if (p.id === 'paso-muecas') p.dataset.cerrarAlInicio = '1';
+    }
+    if (p.dataset.cerrarAlInicio && !p.dataset.visto) { p.classList.add('cerrado'); p.dataset.visto = '1'; }
+  }
   if (cel) ponerTab(tab, false); else delete document.body.dataset.tab;
 }
 
