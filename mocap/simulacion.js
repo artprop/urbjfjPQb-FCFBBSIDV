@@ -107,7 +107,7 @@ function cuadro(ahora) {
     try { R = rt.solveFrame(P); } catch { R = null; }
     if (R) {
       const eul = {};
-      for (const h of HUESOS) if (R[h]) eul[h] = eulerDe(R[h], h);
+      for (const h of modo() === 'emoticons_steve' ? [...HUESOS, 'right_hand', 'left_hand'] : HUESOS) if (R[h]) eul[h] = eulerDe(R[h], h);
       let pose = eul;
       if (modo() === 'emoticons_steve') { if (!armaduraCargada) { pintarMarcas(P, f); escena.dibujar(); return; } try { pose = emoticons.poseUnica(eul); } catch { pose = eul; } }
       escena.verPose(pose);

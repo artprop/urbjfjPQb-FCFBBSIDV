@@ -210,13 +210,16 @@ function tocarFila(id) {
   }
 }
 
-// huesos que se muestran para posar (los ocultos de BBS, los de IK y los "puntas" no)
+// huesos que se muestran para posar (los ocultos de BBS y los de IK no; la punta "x.end" de los brazos de emoticons sí: es la mano)
 async function huesosDe(r) {
   if (!r || !r.form || r.form.id !== 'bbs:model') return [];
   const d = await modelos.datos(r.form.model || '');
-  if (!d || !d.modelo) return [];
+  if (!d) return [];
   const ocultos = (d.config && d.config.bones) || {};
-  return [...d.modelo.grupos.keys()].filter((h) => !(ocultos[h] && ocultos[h].hidden) && !/^(controller_|pole_|ik_|armor_)|(_item|_end)$|^anchor/.test(h));
+  const sirve = (h) => !(ocultos[h] && ocultos[h].hidden) && !/^(controller_|pole_|ik_|armor_|misc_)|(_item|_end)$|^anchor/.test(h);
+  if (d.bobj && d.bobj.huesos.length) return d.bobj.huesos.map((h) => h.n).filter(sirve);   // modelos con armadura (emoticons): brazo, antebrazo y punta (la mano)
+  if (!d.modelo) return [];
+  return [...d.modelo.grupos.keys()].filter(sirve);
 }
 async function huesoTocable(r, h) {
   if (!h) return null;
@@ -225,8 +228,11 @@ async function huesoTocable(r, h) {
   if (cfg && cfg.picking) return cfg.picking;
   const lista = await huesosDe(r);
   // subir hasta un hueso que se pueda posar
+  const padre = d && d.bobj && d.bobj.huesos.length
+    ? (x) => { const q = d.bobj.huesos.find((b) => b.n === x); return q && q.p; }
+    : (x) => { const g = d.modelo.grupos.get(x); return g && g.parent; };
   let x = h;
-  while (x && !lista.includes(x)) { const g = d.modelo.grupos.get(x); x = g && g.parent; }
+  while (x && !lista.includes(x)) x = padre(x);
   return x || null;
 }
 
@@ -441,7 +447,7 @@ async function panelPose(frag) {
   if (!huesos.length) { frag.append(el('div', { class: 'ayuda' }, 'Este personaje no tiene partes para posar.')); return; }
   frag.append(titulo('Partes del cuerpo'));
   const anim = new Set(FM.huesosAnimados(r));
-  const orden = ['head', 'body', 'low_body', 'torso_lower', 'left_arm', 'left_elbow', 'right_arm', 'right_elbow', 'left_leg', 'left_knee', 'right_leg', 'right_knee'];
+  const orden = ['head', 'body', 'low_body', 'torso_lower', 'left_arm', 'left_elbow', 'low_left_arm', 'low_left_arm.end', 'right_arm', 'right_elbow', 'low_right_arm', 'low_right_arm.end', 'left_leg', 'left_knee', 'low_left_leg', 'right_leg', 'right_knee', 'low_leg_right'];
   huesos.sort((a, b) => ((orden.indexOf(a) + 1 || 99) - (orden.indexOf(b) + 1 || 99)) || cmp(a, b));
   const chips = el('div', { class: 'chips' });
   for (const h of huesos) chips.append(boton(nombreHueso(h), () => elegirActor(E.i, h === E.hueso ? null : h), { class: (h === E.hueso ? 'elegido' : '') + (anim.has(h) ? ' anim' : '') }));
@@ -475,7 +481,7 @@ async function panelPose(frag) {
     boton('⭐ Guardar pose', () => guardarPose(r))));
 }
 let portapapeles = null;
-const NOMBRES_HUESO = { head: 'Cabeza', body: 'Pecho', low_body: 'Cintura', torso_lower: 'Panza', left_arm: 'Brazo izq.', left_elbow: 'Codo izq.', right_arm: 'Brazo der.', right_elbow: 'Codo der.', left_leg: 'Pierna izq.', left_knee: 'Rodilla izq.', right_leg: 'Pierna der.', right_knee: 'Rodilla der.', headwear: 'Capucha/pelo', torso: 'Torso' };
+const NOMBRES_HUESO = { head: 'Cabeza', body: 'Pecho', low_body: 'Cintura', torso_lower: 'Panza', left_arm: 'Brazo izq.', left_elbow: 'Codo izq.', right_arm: 'Brazo der.', right_elbow: 'Codo der.', left_leg: 'Pierna izq.', left_knee: 'Rodilla izq.', right_leg: 'Pierna der.', right_knee: 'Rodilla der.', low_left_arm: 'Antebrazo izq.', 'low_left_arm.end': 'Mano izq.', low_right_arm: 'Antebrazo der.', 'low_right_arm.end': 'Mano der.', low_left_leg: 'Rodilla izq.', low_leg_right: 'Rodilla der.', headwear: 'Capucha/pelo', torso: 'Torso' };
 const nombreHueso = (h) => NOMBRES_HUESO[h] || h;
 
 // pone una pose entera en el tick (las partes que no nombra vuelven a neutras)

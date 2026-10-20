@@ -55,11 +55,16 @@ export function procesarCuerpo(opIn, datos, log = () => {}) {
 
   const elegidas = new Set(op.partes.split(',').map((p) => p.trim()).filter((p) => p in PARTES));
   if (!elegidas.size) throw new Error('No elegiste ninguna parte del cuerpo para animar. Marcá al menos una en "Qué animar".');
+  let modeloFilm = '';
+  if (hayFilm && op.actor >= 0 && op.actor < datos.film.replays.length) modeloFilm = String(datos.film.replays[op.actor].form?.model || '');
+  const usaEmot = op.modelo === 'emoticons_steve' || (op.modelo === 'auto' && emoticons.esEmoticons(modeloFilm));
   const permitidos = new Set([...elegidas].flatMap((p) => PARTES[p]));
   const bones = rt.BONES.filter((b) =>
     (permitidos.has(b) || (b === 'anchor' && elegidas.has('torso')))
     && !(op.sin_piernas && (b.includes('leg') || b.includes('knee')))
     && !((op.sin_giro || (hayFilm && !op.con_giro)) && b === 'anchor'));
+  // emoticons/steve: la punta del brazo (la mano) también se anima, con el meñique y el índice de la cámara
+  if (usaEmot) for (const lado of ['left', 'right']) if (permitidos.has(lado + '_arm')) bones.push(lado + '_hand');
   const neutral = op.neutral > 0 ? ['head', 'low_body', 'anchor'] : [];
   const smooth = ['realista', 'manual'].includes(op.estilo) ? op.suavizado : Math.max(op.suavizado, 0.08);
   let { result, report } = rt.compute(world, vis, times, {
@@ -77,10 +82,7 @@ export function procesarCuerpo(opIn, datos, log = () => {}) {
   }
 
   const filmPrevio = hayFilm ? datos.film : null;
-  let modeloFilm = '';
-  if (filmPrevio && op.actor >= 0 && op.actor < filmPrevio.replays.length) modeloFilm = String(filmPrevio.replays[op.actor].form?.model || '');
-  const usaEmot = op.modelo === 'emoticons_steve' || (op.modelo === 'auto' && emoticons.esEmoticons(modeloFilm));
-  if (usaEmot) { result = emoticons.convertir(result); log('  Modelo: emoticons/steve'); }
+  if (usaEmot) { result = emoticons.convertir(result); log('  Modelo: emoticons/steve' + (result['low_left_arm.end'] || result['low_right_arm.end'] ? ' (con la punta del brazo = mano, medida con el meñique y el índice de la cámara)' : '')); }
 
   let tracks, stats, nPoses = null;
   if (op.estilo === 'minecraft') {

@@ -7,9 +7,9 @@ import { eulerNear, fromEuler } from './retarget.js';
 const P = [[-1, 0, 0], [0, 1, 0], [0, 0, -1]];
 let ARM = null;
 
-export const NOMBRES = { right_elbow: 'low_right_arm', left_elbow: 'low_left_arm', right_knee: 'low_leg_right', left_knee: 'low_left_leg' };
+export const NOMBRES = { right_elbow: 'low_right_arm', left_elbow: 'low_left_arm', right_hand: 'low_right_arm.end', left_hand: 'low_left_arm.end', right_knee: 'low_leg_right', left_knee: 'low_left_leg' };
 export const HUESOS = ['anchor', 'body', 'low_body', 'head', 'right_arm', 'low_right_arm', 'left_arm', 'low_left_arm',
-  'right_leg', 'low_leg_right', 'left_leg', 'low_left_leg'];
+  'right_leg', 'low_leg_right', 'left_leg', 'low_left_leg', 'low_right_arm.end', 'low_left_arm.end'];
 export const IK_CADENAS = {
   right_arm_end: ['right_arm', 'low_right_arm'], left_arm_end: ['left_arm', 'low_left_arm'],
   right_leg_end: ['right_leg', 'low_leg_right'], left_leg_end: ['left_leg', 'low_left_leg'],
@@ -38,18 +38,18 @@ export function convertir(result) {
   const N = vals[0].t.length, t = vals[0].t;
   const mats = (h) => (result[h] ? result[h].eul.map((e) => fromEuler(e)) : Array.from({ length: N }, () => M.eye()));
   const R = {};
-  for (const h of ['anchor', 'low_body', 'head', 'right_arm', 'left_arm', 'right_elbow', 'left_elbow', 'right_leg', 'left_leg', 'right_knee', 'left_knee']) R[h] = mats(h);
+  for (const h of ['anchor', 'low_body', 'head', 'right_arm', 'left_arm', 'right_elbow', 'left_elbow', 'right_hand', 'left_hand', 'right_leg', 'left_leg', 'right_knee', 'left_knee']) R[h] = mats(h);
   const mitad = R.low_body.map((m) => M.fromRotvec(M.mul(M.rotvecFromMatrix(m), 0.5)));
   const pierna = {};
   for (const l of ['right_leg', 'left_leg']) pierna[l] = R[l].map((m, i) => M.mm(M.T(mitad[i]), m));
   const sal = {
     anchor: R.anchor, body: mitad, low_body: mitad, head: R.head, right_arm: R.right_arm, left_arm: R.left_arm,
-    low_right_arm: R.right_elbow, low_left_arm: R.left_elbow, right_leg: pierna.right_leg, left_leg: pierna.left_leg,
+    low_right_arm: R.right_elbow, low_left_arm: R.left_elbow, 'low_right_arm.end': R.right_hand, 'low_left_arm.end': R.left_hand, right_leg: pierna.right_leg, left_leg: pierna.left_leg,
     low_leg_right: R.right_knee, low_left_leg: R.left_knee,
   };
   const fuente = {
     anchor: 'anchor', body: 'low_body', low_body: 'low_body', head: 'head', right_arm: 'right_arm', left_arm: 'left_arm',
-    low_right_arm: 'right_elbow', low_left_arm: 'left_elbow', right_leg: 'right_leg', left_leg: 'left_leg',
+    low_right_arm: 'right_elbow', low_left_arm: 'left_elbow', 'low_right_arm.end': 'right_hand', 'low_left_arm.end': 'left_hand', right_leg: 'right_leg', left_leg: 'left_leg',
     low_leg_right: 'right_knee', low_left_leg: 'left_knee',
   };
   const out = {};

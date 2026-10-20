@@ -75,7 +75,7 @@ function crearEmoticons() {
   raiz.add(malla); raiz.updateMatrixWorld(true);
   malla.bind(new THREE.Skeleton(bones), malla.matrixWorld);
   const animables = ['anchor', 'body', 'low_body', 'head', 'right_arm', 'low_right_arm', 'left_arm', 'low_left_arm',
-    'right_leg', 'low_leg_right', 'left_leg', 'low_left_leg'];
+    'right_leg', 'low_leg_right', 'left_leg', 'low_left_leg', 'low_right_arm.end', 'low_left_arm.end'];
   const hs = {};
   animables.forEach((n) => (hs[n] = bones[idx[n]]));
   Object.defineProperty(hs, 'pielCabeza', { value: null, enumerable: false });
