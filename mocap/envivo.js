@@ -106,7 +106,7 @@ function pintarBase() {
   const f = forma(), n = f.k, C = BP.COLS * n, e = u / n, fila0 = (f.filas === 2 ? 6 : 7) * n;
   for (let r = 0; r < f.filas * n; r++) for (let c = 0; c < C; c++) {
     const x = g[r * C + c]; if (!x) continue;
-    ctx.fillStyle = `rgb(${BP.COLORES[x].join(',')})`; ctx.fillRect((n + c) * e, (fila0 + r) * e, e, e);
+    ctx.fillStyle = `rgb(${BP.colorDe(x).join(',')})`; ctx.fillRect((n + c) * e, (fila0 + r) * e, e, e);
   }
 }
 
@@ -146,7 +146,7 @@ function bucle(ts) {
       } else {
         const f = forma();
         const sens = Number($('#boca_sens')?.value || 1);
-        let g = BP.grillaVivo(base, labios, bs, { ...f, sens });
+        let g = BP.grillaVivo(base, labios, bs, { ...f, sens, fino: ($('#boca_estilo') || {}).value === 'fino' });
         // cada pedacito: mayoria de los ultimos 3 cuadros (igual que la conversion)
         historia.push(g); if (historia.length > 3) historia.shift();
         if (historia.length === 3 && historia.every((h) => h.length === g.length)) {
@@ -196,7 +196,7 @@ export async function prender(si) {
 
 const GUARDAR = ['vivo-ojos', 'vivo-boca', 'vivo-espejo', 'vivo-arrugas'];
 // el modo de los ojos y los labios son ajustes de la conversion (paso 2): los controles de aca arriba los copian y viceversa
-const PROXY = [['vivo-ojos-modo', 'ojos_modo', 'value'], ['vivo-labios', 'boca_labios', 'checked'], ['vivo-arrugas-escala', 'arrugas_escala', 'value'], ['vivo-modelo', 'modelo_boca', 'value']];
+const PROXY = [['vivo-boca-estilo', 'boca_estilo', 'value'], ['vivo-ojos-modo', 'ojos_modo', 'value'], ['vivo-labios', 'boca_labios', 'checked'], ['vivo-arrugas-escala', 'arrugas_escala', 'value'], ['vivo-modelo', 'modelo_boca', 'value']];
 export function sincronizar() {
   for (const [vivo, paso2, prop] of PROXY) { const a = $('#' + paso2), b = $('#' + vivo); if (a && b) b[prop] = a[prop]; }
   $('#vivo-labios').disabled = modoBoca() === 'pre';
@@ -230,13 +230,13 @@ export function iniciarVivo() {
     lector.onload = async () => {
       try { await imagenSkin(lector.result); } catch (err) { return estado(err.message || 'No se pudo leer la skin.'); }
       try { localStorage.setItem('skin3d', lector.result); } catch { return estado('No se pudo guardar la skin en este navegador.'); }
-      await cargarSkin(true); pintar(); estado('Skin cambiada (también la usa la Vista 3D).');
+      await cargarSkin(true); dispatchEvent(new Event('skin-cambiada')); pintar(); estado('Skin cambiada (también la usa la Vista 3D).');
     };
     lector.readAsDataURL(f);
   });
   $('#vivo-skin-defecto').addEventListener('click', async () => {
     try { localStorage.removeItem('skin3d'); } catch { /* sin almacenamiento */ }
-    await cargarSkin(true); pintar(); estado('Skin por defecto.');
+    await cargarSkin(true); dispatchEvent(new Event('skin-cambiada')); pintar(); estado('Skin por defecto.');
   });
   $('#vivo-recalibrar').addEventListener('click', recalibrar);
   $('#vivo-modelo').addEventListener('change', () => { historia = []; ultBoca = null; pintar(); });

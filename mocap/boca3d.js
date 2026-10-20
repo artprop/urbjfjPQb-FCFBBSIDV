@@ -74,7 +74,7 @@ export class Boca3D {
     this.g.clearRect(0, 0, 32, 32);
     for (let r = 0; r < filas * n; r++) for (let c = 0; c < C; c++) {
       const v = g[r * C + c]; if (!v) continue;
-      this.g.fillStyle = `rgb(${BP.COLORES[v].join(',')})`;
+      this.g.fillStyle = `rgb(${BP.colorDe(v).join(',')})`;
       this.g.fillRect((n + c) * e, (fila0 + r) * e, e, e);
     }
     this.tex.needsUpdate = true;
