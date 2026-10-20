@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.025)
+# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.026)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,7 +9,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.025**; la próxima es **v.026**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.026**; la próxima es **v.027**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
@@ -22,7 +22,7 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
 
 ## 3. Cómo llega el programa al usuario
 - **Celular/web:** carga de GitHub Pages. El service worker `sw.js` (network-first) hace que se actualice solo.
-- **PC:** el usuario tiene `CLAUDIO\EstudioBBS\` con `servir.py` + carpeta `www`. `pc/actualizar.bat` trae `main` y lo copia a `www` (no borra nada). `pc/servir.py` (v.016) **se actualiza solo desde GitHub al abrir** (tecla = saltear, modo sin internet con `sin_internet.txt`, nunca deja copia a medias) y **cierra la caja negra al cerrar la ventana**. **Falta confirmar que el usuario reemplazó su `servir.py` viejo por el de `pc/servir.py`.**
+- **PC:** el usuario tiene `CLAUDIO\EstudioBBS\` con `servir.py` + carpeta `www`. **Ya no hace falta `actualizar.bat`:** el usuario confirmó (20/10/2026) que `abrir.bat` actualiza todo solo al abrir (lo hace `servir.py`). `pc/actualizar.bat` queda como respaldo viejo (trae `main` y lo copia a `www`); no se lo recomiende al usuario. `pc/servir.py` (v.016) **se actualiza solo desde GitHub al abrir** (tecla = saltear, modo sin internet con `sin_internet.txt`, nunca deja copia a medias) y **cierra la caja negra al cerrar la ventana**. **Falta confirmar que el usuario reemplazó su `servir.py` viejo por el de `pc/servir.py`.**
 - En la PC la app corre con `servir.py` (agrega `/pc/guardar`, `/pc/rhubarb`, `/pc/latido`, `/pc/adios`); en la PC el service worker se desregistra (se tragaba el aviso de cierre).
 
 ## 4. Estructura (JS puro con módulos ES, sin build)
@@ -36,7 +36,7 @@ Raíz `index.html` = menú + un `iframe` por modo (`visor`, `randomizer`, `mocap
 - `editor/` editor tipo BBS (actores, poses, cámaras, presets, film). **Pestaña «🎬 Director»** (`editor/director.js`): guion de escena armado directo sobre la escena + cámaras automáticas + capas automáticas (parpadeos, boca con audio).
 - `convertidor/` «Armourer's → BBS»: arregla los `.obj` de Armourer's Workshop (píxeles→bloques, comas→puntos, sin `.mtl`, centrado en el piso) y guarda `Salida\convertidor\<Nombre>\`. Usa `comun/plataforma.js`. Su tarjeta del menú faltaba; se agregó en v.023. No probado con un `.obj` real ni dentro de BBS.
 - `ojos/` **«Ojos para BBS»** (v.025): se suelta la skin y arma un paquete de ojos para BBS (modelo `.bbs.json` + `textura.png` + `poses.json` de 20 poses + `config.json`, en `assets/models/player/<nombre>/`). `nucleo.js` (puro, probable en node): `detectarOjos` (busca en la cara 8×8 de la skin cada ojo: caja del ojo, pupila/iris y ceja; sirve para ojos de 1 punto, saltones 3×3, con iris, etc.), `generar` (geometría paramétrica copiada de la lógica del modelo original, textura que copia los píxeles de la propia skin, animación de las pupilas y poses), `dibujarFrente` (vista previa 2D). Las poses salen de las 20 del modelo original `eyes` (2 px de alto) escaladas por reglas según el alto del ojo y el lugar de la pupila; `closed` se calcula exacto. Mapa: columna c de la cara -> x desde 3-c hasta 4-c; fila f -> y desde 7-f hasta 8-f (el ojo de la izquierda de la imagen es `eye_r`). Con el ojo de 1 px de alto reproduce la geometría de `eyes_1px` y 78 de 89 valores de pose coinciden (±0,3). La vista previa coincide píxel a píxel con el cargador 3D del Visor (probado en reposo). **No probado dentro de BBS.** No lo usa todavía el Mocap de la cara (que solo conoce `eyes` y `eyes_1px`).
-- `pc/` `servir.py` y `actualizar.bat`.
+- `pc/` `servir.py` (se actualiza solo al abrir con `abrir.bat`) y `actualizar.bat` (obsoleto).
 
 ## 5. Lo hecho (resumen por versión)
 v.005–v.014: sincronía PC↔GitHub, versión visible, actualización sin borrar caché, Mocap en vivo (ojos/boca/dientes/labios/skin), pestañas de celular, apagar cámara, botón de carpeta en celular, PS Move por Bluetooth.
