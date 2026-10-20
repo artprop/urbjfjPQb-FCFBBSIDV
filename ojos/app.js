@@ -1,7 +1,8 @@
-// Ojos para BBS: skin -> modelo de ojos (geometría + textura + poses) ajustado a esos ojos.
+// Crafteo de personajes (por ahora: ojos, cejas y máscaras de borrado): de la skin arma lo que le falta al personaje para animarlo.
 import { pngDeRGBA } from '../mocap/paquete_modelos.js';
 import { guardarSalida, esPC } from '../comun/plataforma.js';
 import * as N from './nucleo.js';
+import { crearVista3D } from './vista3d.js';
 
 const $ = (s) => document.querySelector(s);
 let tAviso = 0;
@@ -11,19 +12,23 @@ const deHex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const PIEZAS = [['ojo', 'Ojo', '#6fd16a'], ['pupila', 'Pupila', '#ffd23f'], ['ceja', 'Ceja', '#4fc3f7']];
-let skin = null;        // { nombre, w, h, rgba }
+const CAPAS = [['boca', 'Boca', '#ff6ad5'], ['pestanas', 'Pestañas', '#ff9f43']];
+let skin = null;        // { nombre, w, h, rgba, bytes }
 let cara = null;        // cara 8x8 con el sombrero encima (bytes RGBA)
 let caraCv = null;      // la misma cara en un lienzo de 8x8
-let cfg = null;         // { a, b, saliente, avisos }
+let cfg = null;         // { a, b, saliente, avisos, mascaras: { ojos, boca, pestanas: [celdas] } }
+let tocados = {};       // colores que el usuario cambió a mano (el resto sale de la skin)
 let res = null;         // lo último que se generó
 let poseActiva = null;  // nombre de la pose que se ve en grande (null = reposo)
 let activo = { lado: 'a', pieza: 'ojo' };
-let pendiente = 0;
+let pendiente = 0, t3d = 0;
+let vista3d = null;
 
 // ------------------------------------------------------------------ cargar la skin
 async function cargarSkin(archivo) {
   try {
-    const img = await createImageBitmap(archivo);
+    const bytes = new Uint8Array(await archivo.arrayBuffer());
+    const img = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
     const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
     const cx = cv.getContext('2d', { willReadFrequently: true }); cx.drawImage(img, 0, 0);
     const d = cx.getImageData(0, 0, img.width, img.height);
@@ -31,40 +36,45 @@ async function cargarSkin(archivo) {
       estado(`Esa imagen mide ${img.width}×${img.height}. Una skin de Minecraft mide 64×64 (o 64×32). Probá con otra.`, 'mal'); return;
     }
     const base = archivo.name.replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').toLowerCase() || 'personaje';
-    skin = { nombre: base, w: img.width, h: img.height, rgba: new Uint8Array(d.data.buffer) };
+    skin = { nombre: base, w: img.width, h: img.height, rgba: new Uint8Array(d.data.buffer), bytes };
     cara = N.caraDeSkin(skin.rgba, skin.w, skin.h);
     caraCv = lienzoDe(8, 8, cara);
     $('#inNombre').value = 'eyes_' + base;
+    $('#inCarpeta').value = 'player/' + base;
+    $('#selCuerpo').value = N.brazosFinos(skin.rgba, skin.w, skin.h) ? 'player/alex' : 'player/steve';
+    if (!vista3d) vista3d = crearVista3D($('#cv3d'));
     buscar();
     $('#panelOjos').hidden = false; $('#vacio').hidden = true;
-    for (const id of ['#btnPng', '#btnModelo', '#btnAjustes']) $(id).disabled = false;
+    for (const id of ['#btnPng', '#btnModelo', '#btnPersonaje', '#btnAjustes']) $(id).disabled = false;
     estado('');
   } catch (e) { estado('No pude leer esa imagen: ' + (e.message || e), 'mal'); }
 }
 
 function buscar() {
   const o = N.detectarOjos(cara);
-  const colores = N.coloresDeCara(cara, o);
-  cfg = { a: o.a, b: o.b, saliente: 0, avisos: o.avisos };
+  cfg = { a: o.a, b: o.b, saliente: 0, avisos: o.avisos, mascaras: { ojos: true, boca: N.detectarBoca(cara, o), pestanas: [] } };
+  tocados = {};
   $('#rgSaliente').value = 0; $('#txSaliente').textContent = '0 px';
-  $('#chkColores').checked = false; $('#chkLisos').checked = false;
-  $('#colPiel').value = hex(colores.piel); $('#colBlanco').value = hex(colores.blanco); $('#colCeja').value = hex(colores.ceja);
-  armarPiezas(); armarGrilla('a'); armarGrilla('b');
+  $('#chkLisos').checked = false;
+  armarPiezas(); armarGrilla('a'); armarGrilla('b'); sincronizarMascaras();
   refrescar();
 }
 
 // ------------------------------------------------------------------ elegir qué corregir
 function armarPiezas() {
   const g = $('#piezas'); g.textContent = '';
+  const boton = (lado, pieza, nombre, color, titulo) => {
+    const b = document.createElement('button'); b.dataset.lado = lado; b.dataset.pieza = pieza;
+    b.innerHTML = `<i style="background:${color}"></i>${nombre}`; b.title = titulo;
+    b.onclick = () => { activo = { lado, pieza }; marcarActivo(); dibujarEditor(); };
+    g.append(b);
+  };
   for (const lado of ['a', 'b']) {
     const t = document.createElement('span'); t.textContent = lado === 'a' ? 'Izq' : 'Der'; g.append(t);
-    for (const [pieza, nombre, color] of PIEZAS) {
-      const b = document.createElement('button'); b.dataset.lado = lado; b.dataset.pieza = pieza;
-      b.innerHTML = `<i style="background:${color}"></i>${nombre}`; b.title = `${nombre} del ojo de la ${lado === 'a' ? 'izquierda' : 'derecha'} de la imagen`;
-      b.onclick = () => { activo = { lado, pieza }; marcarActivo(); dibujarEditor(); };
-      g.append(b);
-    }
+    for (const [pieza, nombre, color] of PIEZAS) boton(lado, pieza, nombre, color, `${nombre} del ojo de la ${lado === 'a' ? 'izquierda' : 'derecha'} de la imagen`);
   }
+  const t = document.createElement('span'); t.textContent = 'Borrar'; g.append(t);
+  for (const [pieza, nombre, color] of CAPAS) boton('x', pieza, nombre, color, pieza === 'boca' ? 'Máscara de borrado de la boca: arrastrá un rectángulo' : 'Máscara de borrado de las pestañas: pintá los píxeles (tocar de nuevo los saca)');
   marcarActivo();
 }
 function marcarActivo() {
@@ -74,6 +84,7 @@ function marcarActivo() {
 // ------------------------------------------------------------------ editar dibujando sobre la cara
 const espejoCaja = (b) => ({ c0: 7 - b.c1, c1: 7 - b.c0, r0: b.r0, r1: b.r1 });
 const otro = (lado) => (lado === 'a' ? 'b' : 'a');
+const esCapa = () => activo.lado === 'x';
 
 // que la pupila quede adentro del ojo
 function encajar(o) {
@@ -91,12 +102,23 @@ function poner(lado, pieza, c0, c1, f0, f1) {
 }
 function aplicarRect(c0, f0, c1, f1) {
   const a = Math.min(c0, c1), b = Math.max(c0, c1), t = Math.min(f0, f1), u = Math.max(f0, f1);
+  if (activo.pieza === 'boca') { cfg.mascaras.boca = { c0: a, c1: b, r0: t, r1: u }; $('#chkMBoca').checked = true; cambio(); return; }
   poner(activo.lado, activo.pieza, a, b, t, u);
   if ($('#chkEspejo').checked) { const m = espejoCaja({ c0: a, c1: b, r0: t, r1: u }); poner(otro(activo.lado), activo.pieza, m.c0, m.c1, m.r0, m.r1); }
   cambio();
 }
 
 function mover(dx, dy) {
+  if (esCapa()) {
+    if (activo.pieza === 'boca' && cfg.mascaras.boca) {
+      const m = cfg.mascaras.boca;
+      if (m.c0 + dx >= 0 && m.c1 + dx <= 7 && m.r0 + dy >= 0 && m.r1 + dy <= 7) { m.c0 += dx; m.c1 += dx; m.r0 += dy; m.r1 += dy; }
+    } else if (activo.pieza === 'pestanas') {
+      const celdas = cfg.mascaras.pestanas.map((k) => [(k >> 3) + dy, (k & 7) + dx]);
+      if (celdas.every(([f, c]) => f >= 0 && f <= 7 && c >= 0 && c <= 7)) cfg.mascaras.pestanas = celdas.map(([f, c]) => f * 8 + c);
+    }
+    cambio(); return;
+  }
   const lados = $('#chkAmbos').checked ? ['a', 'b'] : [activo.lado];
   for (const lado of lados) {
     const o = cfg[lado];
@@ -115,19 +137,37 @@ function mover(dx, dy) {
   cambio();
 }
 
-let arrastre = null;   // { c, f } celda donde empezó el dibujo
+let arrastre = null;   // { c, f, poner } celda donde empezó el dibujo
 const lienzoEd = $('#cvEditor');
 const celdaDe = (e) => {
   const r = lienzoEd.getBoundingClientRect();
   return { c: clamp(Math.floor(((e.clientX - r.left) / r.width) * 8), 0, 7), f: clamp(Math.floor(((e.clientY - r.top) / r.height) * 8), 0, 7) };
 };
+function pintarPestana(c, f, poner) {
+  const k = f * 8 + c, lista = cfg.mascaras.pestanas, i = lista.indexOf(k);
+  if (poner && i < 0) lista.push(k); else if (!poner && i >= 0) lista.splice(i, 1);
+  $('#chkMPest').checked = lista.length > 0;
+  cambio();
+}
 lienzoEd.addEventListener('pointerdown', (e) => {
   if (!cfg) return;
   lienzoEd.setPointerCapture(e.pointerId);
-  const c = celdaDe(e); arrastre = c; aplicarRect(c.c, c.f, c.c, c.f);
+  const c = celdaDe(e);
+  if (activo.pieza === 'pestanas') { const poner = !cfg.mascaras.pestanas.includes(c.f * 8 + c.c); arrastre = { ...c, poner }; pintarPestana(c.c, c.f, poner); return; }
+  arrastre = c; aplicarRect(c.c, c.f, c.c, c.f);
 });
-lienzoEd.addEventListener('pointermove', (e) => { if (arrastre) { const c = celdaDe(e); aplicarRect(arrastre.c, arrastre.f, c.c, c.f); } });
+lienzoEd.addEventListener('pointermove', (e) => {
+  if (!arrastre) return;
+  const c = celdaDe(e);
+  if (activo.pieza === 'pestanas') pintarPestana(c.c, c.f, arrastre.poner); else aplicarRect(arrastre.c, arrastre.f, c.c, c.f);
+});
 for (const ev of ['pointerup', 'pointercancel']) lienzoEd.addEventListener(ev, () => { arrastre = null; });
+
+function sincronizarMascaras() {
+  $('#chkMBoca').checked = !!cfg.mascaras.boca;
+  $('#chkMPest').checked = cfg.mascaras.pestanas.length > 0;
+  $('#chkMOjos').checked = cfg.mascaras.ojos;
+}
 
 function dibujarEditor() {
   if (!cfg) return;
@@ -136,19 +176,22 @@ function dibujarEditor() {
   cx.imageSmoothingEnabled = false; cx.drawImage(caraCv, 0, 0, 8 * E, 8 * E);
   cx.strokeStyle = 'rgba(255,255,255,.14)'; cx.lineWidth = 1;
   for (let i = 1; i < 8; i++) { cx.beginPath(); cx.moveTo(i * E + .5, 0); cx.lineTo(i * E + .5, 8 * E); cx.moveTo(0, i * E + .5); cx.lineTo(8 * E, i * E + .5); cx.stroke(); }
+  const marco = (b, color, inset, sel) => {
+    const x = b.c0 * E + inset, y = b.r0 * E + inset, w = (b.c1 - b.c0 + 1) * E - 2 * inset, h = (b.r1 - b.r0 + 1) * E - 2 * inset;
+    cx.lineWidth = sel ? 3 : 2; cx.strokeStyle = color; cx.setLineDash(sel ? [] : [5, 3]); cx.strokeRect(x, y, w, h);
+    if (sel) { cx.fillStyle = color + '1c'; cx.fillRect(x, y, w, h); }
+  };
   for (const lado of ['a', 'b']) {
     const o = cfg[lado];
     const cajas = { ojo: o, pupila: o.p, ceja: o.ceja ? { c0: o.ceja.c0, c1: o.ceja.c1, r0: o.ceja.r, r1: o.ceja.r } : null };
     for (const [pieza, , color] of PIEZAS) {
       const b = cajas[pieza]; if (!b) continue;
-      const sel = lado === activo.lado && pieza === activo.pieza;
-      const inset = pieza === 'ojo' ? 1 : pieza === 'pupila' ? 4 : 7;
-      cx.lineWidth = sel ? 3 : 2; cx.strokeStyle = color; cx.setLineDash(sel ? [] : [5, 3]);
-      cx.strokeRect(b.c0 * E + inset, b.r0 * E + inset, (b.c1 - b.c0 + 1) * E - 2 * inset, (b.r1 - b.r0 + 1) * E - 2 * inset);
-      if (sel) { cx.fillStyle = color + '1c'; cx.fillRect(b.c0 * E + inset, b.r0 * E + inset, (b.c1 - b.c0 + 1) * E - 2 * inset, (b.r1 - b.r0 + 1) * E - 2 * inset); }
+      marco(b, color, pieza === 'ojo' ? 1 : pieza === 'pupila' ? 4 : 7, lado === activo.lado && pieza === activo.pieza);
     }
   }
+  if (cfg.mascaras.boca) marco(cfg.mascaras.boca, '#ff6ad5', 2, activo.pieza === 'boca');
   cx.setLineDash([]);
+  for (const k of cfg.mascaras.pestanas) { cx.fillStyle = '#ff9f4366'; cx.fillRect((k & 7) * E + 3, (k >> 3) * E + 3, E - 6, E - 6); cx.strokeStyle = '#ff9f43'; cx.lineWidth = 2; cx.strokeRect((k & 7) * E + 3, (k >> 3) * E + 3, E - 6, E - 6); }
 }
 
 // ------------------------------------------------------------------ números (avanzado)
@@ -196,15 +239,26 @@ function recalcular() {
 }
 
 function nombreModelo() { return ($('#inNombre').value || 'eyes_nuevo').replace(/[^A-Za-z0-9_]+/g, '_'); }
+const personaje = () => nombreModelo().replace(/^eyes_/, '') || 'personaje';
+
+/** Las celdas que se borran (huecos), según las máscaras que están prendidas. */
+function celdasBorradas() {
+  const c = N.celdasDeMascaras(cfg), todas = new Set();
+  if ($('#chkMOjos').checked) c.ojos.forEach((k) => todas.add(k));
+  if ($('#chkMBoca').checked) c.boca.forEach((k) => todas.add(k));
+  if ($('#chkMPest').checked) c.pestanas.forEach((k) => todas.add(k));
+  return todas;
+}
 
 function hacer() {
   if (!cara || !cfg) return;
-  const colores = $('#chkColores').checked ? { piel: deHex($('#colPiel').value), blanco: deHex($('#colBlanco').value), ceja: deHex($('#colCeja').value) } : null;
-  try { res = N.generar(cara, { a: cfg.a, b: cfg.b, saliente: cfg.saliente, colores, parpadosLisos: $('#chkLisos').checked, nombre: nombreModelo() }); }
-  catch (e) { estado('No pude armar los ojos con esos números: ' + (e.message || e), 'mal'); return; }
+  const colores = Object.keys(tocados).length ? { ...tocados } : null;
+  try {
+    res = N.generar(cara, { a: cfg.a, b: cfg.b, saliente: cfg.saliente, colores, parpadosLisos: $('#chkLisos').checked, pestanas: $('#chkMPest').checked ? cfg.mascaras.pestanas : [], nombre: nombreModelo() });
+  } catch (e) { estado('No pude armar los ojos con esos números: ' + (e.message || e), 'mal'); return; }
   const av = cfg.avisos.length ? '\n⚠ ' + cfg.avisos.join('\n⚠ ') : '';
   $('#detectado').textContent = `Izq: ${res.info.ojoA} · Der: ${res.info.ojoB} · textura ${res.info.textura}` + av;
-  if (!$('#chkColores').checked) { $('#colPiel').value = hex(res.colores.piel); $('#colBlanco').value = hex(res.colores.blanco); $('#colCeja').value = hex(res.colores.ceja); }
+  for (const [k, id] of [['piel', '#colPiel'], ['blanco', '#colBlanco'], ['ceja', '#colCeja']]) if (!tocados[k]) $(id).value = hex(res.colores[k]);
   dibujar();
 }
 
@@ -213,7 +267,7 @@ const lienzoDe = (w, h, rgba) => { const c = document.createElement('canvas'); c
 function dibujar() {
   if (!res) return;
   const tex = lienzoDe(res.textura.w, res.textura.h, res.textura.rgba);
-  const huecos = [cfg.a, cfg.b];
+  const huecos = [...celdasBorradas()].map((k) => ({ c0: k & 7, c1: k & 7, r0: k >> 3, r1: k >> 3 }));
   const pose = (n) => (n && res.poses[n] ? res.poses[n].pose : null);
   const pintar = (cv, E, n) => {
     const cx = cv.getContext('2d'); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height);
@@ -232,6 +286,9 @@ function dibujar() {
     }
   }
   for (const d of gal.children) { d.classList.toggle('activa', (d.dataset.pose || null) === poseActiva); pintar(d.querySelector('canvas'), 12, d.dataset.pose || null); }
+  // los ojos solos en 3D (un poco más tarde, así no se traba mientras dibujás)
+  clearTimeout(t3d);
+  t3d = setTimeout(() => { if (vista3d && res) vista3d.mostrar(res, nombreModelo(), poseActiva).catch((e) => console.warn('vista 3D', e)); }, 150);
 }
 
 // ------------------------------------------------------------------ exportar
@@ -240,10 +297,35 @@ const tipoDe = (n) => MIME[n.split('.').pop()] || 'application/octet-stream';
 const texto = (o) => new TextEncoder().encode(JSON.stringify(o, null, '\t'));
 const pngBytes = () => pngDeRGBA(res.textura.w, res.textura.h, res.textura.rgba);
 
-/** Los archivos de la carpeta del modelo. */
+/** Los archivos de la carpeta del modelo de ojos. */
 function archivosModelo() {
   const nombre = nombreModelo();
   return [['config.json', texto(res.config)], [nombre + '.bbs.json', texto(res.modelo)], ['poses.json', texto(res.poses)], ['textura.png', pngBytes()]];
+}
+
+/** Las máscaras de borrado prendidas: [{ archivo, bytes }] */
+function archivosMascaras() {
+  const c = N.celdasDeMascaras(cfg), sombrero = $('#chkMSombrero').checked, lista = [];
+  const hacer = (archivo, celdas) => { if (celdas.size) lista.push({ archivo, bytes: pngDeRGBA(skin.w, skin.h, N.mascaraRGBA(skin.w, skin.h, skin.rgba, celdas, sombrero)) }); };
+  if ($('#chkMOjos').checked) hacer('Mascara_Ojos.png', c.ojos);
+  if ($('#chkMBoca').checked) hacer('Mascara_Boca.png', c.boca);
+  if ($('#chkMPest').checked) hacer('Mascara_Pestanas.png', c.pestanas);
+  return lista;
+}
+
+/** Todo el personaje: [{ ruta, bytes }] con rutas relativas a la carpeta del personaje. */
+function archivosPersonaje() {
+  const nombre = nombreModelo(), car = ($('#inCarpeta').value || 'player/' + personaje()).replace(/^\/+|\/+$/g, '').replace(/\\/g, '/');
+  const masc = archivosMascaras();
+  const ruta = (f) => `assets:models/${car}/${f}`;
+  const form = N.formPersonaje({
+    nombre: personaje(), modeloBase: $('#selCuerpo').value, rutaSkin: ruta('skin.png'), capas: masc.map((m) => ({ path: ruta(m.archivo) })),
+    modeloOjos: 'player/' + nombre, texturaOjos: `assets:models/player/${nombre}/textura.png`,
+  });
+  const out = [{ ruta: 'personaje.json', bytes: texto(form) }, { ruta: `assets/models/${car}/skin.png`, bytes: skin.bytes }];
+  for (const m of masc) out.push({ ruta: `assets/models/${car}/${m.archivo}`, bytes: m.bytes });
+  for (const [n, b] of archivosModelo()) out.push({ ruta: `assets/models/player/${nombre}/${n}`, bytes: b });
+  return out;
 }
 
 async function exportarPng() {
@@ -252,43 +334,51 @@ async function exportarPng() {
   catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
 
-async function exportarModelo() {
-  if (!res) return;
-  const nombre = nombreModelo(), arch = archivosModelo();
+// archivos: [{ ruta, bytes }] (rutas con subcarpetas); carpeta: nombre de la carpeta que se crea; ayuda: qué hacer después
+async function exportar(archivos, carpeta, ayuda, forzarSelector = false) {
   try {
-    if (await esPC()) {
-      let donde = '';
-      for (const [n, b] of arch) donde = await guardarSalida('ojos', n, new Blob([b], { type: tipoDe(n) }), tipoDe(n), nombre);
-      const carpeta = donde.replace(/^Guardado en /, '').replace(/[\\/][^\\/]+$/, '');
-      estado(`Listo: la carpeta quedó en ${carpeta}\nCopiala a config\\bbs\\assets\\models\\player.`, 'ok');
+    if (!forzarSelector && await esPC()) {
+      for (const a of archivos) {
+        const partes = a.ruta.split('/'), n = partes.pop();
+        await guardarSalida('ojos', n, new Blob([a.bytes], { type: tipoDe(n) }), tipoDe(n), [carpeta, ...partes].join('/'));
+      }
+      estado(`Listo: ${archivos.length} archivos en la carpeta Salida\\ojos\\${carpeta}\n${ayuda}`, 'ok');
       return;
     }
-    if (window.showDirectoryPicker) return elegirCarpeta();
+    if (window.showDirectoryPicker) return elegirCarpeta(archivos, carpeta, ayuda);
     // celu: no se pueden crear carpetas
-    const files = arch.map(([n, b]) => new File([b], n, { type: tipoDe(n) }));
+    const files = archivos.map((a) => new File([a.bytes], a.ruta.split('/').pop(), { type: tipoDe(a.ruta) }));
     if (navigator.canShare && navigator.canShare({ files })) {
-      try { await navigator.share({ files, title: nombre }); estado(`Compartidos los ${files.length} archivos. Ponelos juntos en una carpeta llamada ${nombre}.`, 'ok'); return; } catch (e) { if (e.name === 'AbortError') { estado('Cancelado.'); return; } }
+      try { await navigator.share({ files, title: carpeta }); estado(`Compartidos ${files.length} archivos. En el celu no se arman carpetas: ordenalos como dice la ayuda.`, 'ok'); return; } catch (e) { if (e.name === 'AbortError') { estado('Cancelado.'); return; } }
     }
     for (const f of files) {
       const a = document.createElement('a'); a.href = URL.createObjectURL(f); a.download = f.name; document.body.append(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 60000);
       await new Promise((r) => setTimeout(r, 400));
     }
-    estado(`Se bajaron ${files.length} archivos sueltos (en el celu no se pueden crear carpetas). Ponelos juntos en una carpeta llamada ${nombre}.`, 'ok');
+    estado(`Se bajaron ${files.length} archivos sueltos (en el celu no se pueden crear carpetas). Ordenalos como dice la ayuda.`, 'ok');
   } catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
 
-// Elegís la carpeta (por ejemplo config\bbs\assets\models\player) y adentro se crea la carpeta del modelo
-async function elegirCarpeta() {
-  if (!res) return;
+// Elegís una carpeta (por ejemplo tu config\bbs) y adentro se crea la del modelo/personaje
+async function elegirCarpeta(archivos, carpeta, ayuda) {
   let dir;
   try { dir = await window.showDirectoryPicker({ id: 'ojos-bbs', mode: 'readwrite' }); } catch (e) { if (e.name !== 'AbortError') estado('No se pudo abrir la carpeta: ' + e.message, 'mal'); return; }
   try {
-    const nombre = nombreModelo(), sub = await dir.getDirectoryHandle(nombre, { create: true });
-    for (const [n, b] of archivosModelo()) { const w = await (await sub.getFileHandle(n, { create: true })).createWritable(); await w.write(b); await w.close(); }
-    estado(`Listo: la carpeta "${nombre}" quedó adentro de "${dir.name}". Si BBS estaba abierto, recargá los modelos.`, 'ok');
+    const raiz = await dir.getDirectoryHandle(carpeta, { create: true });
+    for (const a of archivos) {
+      const partes = a.ruta.split('/'); let d = raiz;
+      for (const p of partes.slice(0, -1)) d = await d.getDirectoryHandle(p, { create: true });
+      const w = await (await d.getFileHandle(partes.at(-1), { create: true })).createWritable(); await w.write(a.bytes); await w.close();
+    }
+    estado(`Listo: la carpeta "${carpeta}" quedó adentro de "${dir.name}".\n${ayuda}`, 'ok');
   } catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
+
+const AYUDA_OJOS = 'Copiala a config\\bbs\\assets\\models\\player.';
+const AYUDA_PERSONAJE = 'Copiá «assets» adentro de tu carpeta bbs e importá personaje.json en BBS (forms).';
+const exportarModelo = () => { if (res) exportar(archivosModelo().map(([n, b]) => ({ ruta: n, bytes: b })), nombreModelo(), AYUDA_OJOS); };
+const exportarPersonaje = (forzar = false) => { if (res && skin) exportar(archivosPersonaje(), personaje(), AYUDA_PERSONAJE, forzar === true); };
 
 // ------------------------------------------------------------------ eventos
 $('#inSkin').onchange = (e) => { if (e.target.files[0]) cargarSkin(e.target.files[0]); e.target.value = ''; };
@@ -299,22 +389,43 @@ document.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTra
 $('#btnReanalizar').onclick = () => { if (cara) buscar(); };
 for (const b of $('#flechas').querySelectorAll('button')) b.onclick = () => { if (cfg) { const [dx, dy] = b.dataset.d.split(',').map(Number); mover(dx, dy); } };
 $('#btnSinCeja').onclick = () => {
-  if (!cfg) return;
+  if (!cfg || esCapa()) return;
   cfg[activo.lado].ceja = null; if ($('#chkEspejo').checked) cfg[otro(activo.lado)].ceja = null;
   cambio();
 };
+// asignar cejas a los dos ojos (aunque la skin no las tenga): arriba del ojo, del ancho del ojo
+$('#btnConCeja').onclick = () => {
+  if (!cfg) return;
+  for (const lado of ['a', 'b']) { const o = cfg[lado]; o.ceja = { c0: o.c0, c1: o.c1, r: Math.max(0, o.r0 - 1) }; }
+  activo = { lado: 'a', pieza: 'ceja' }; marcarActivo();
+  cambio();
+  estado('Cejas asignadas. Movelas con las flechas o dibujalas de nuevo sobre la cara; el color lo cambiás en ⚙ Ajustes.');
+};
 $('#rgSaliente').oninput = (e) => { cfg.saliente = +e.target.value; $('#txSaliente').textContent = cfg.saliente + ' px'; recalcular(); };
-$('#chkColores').onchange = () => recalcular();
 $('#chkLisos').onchange = () => recalcular();
-for (const id of ['#colPiel', '#colBlanco', '#colCeja']) $(id).oninput = () => { $('#chkColores').checked = true; recalcular(); };
+for (const [k, id] of [['piel', '#colPiel'], ['blanco', '#colBlanco'], ['ceja', '#colCeja']]) $(id).oninput = () => { tocados[k] = deHex($(id).value); recalcular(); };
+$('#btnColoresAuto').onclick = () => { tocados = {}; recalcular(); };
+$('#chkMOjos').onchange = () => { cfg.mascaras.ojos = $('#chkMOjos').checked; recalcular(); };
+$('#chkMBoca').onchange = () => {
+  if (!cfg.mascaras.boca && $('#chkMBoca').checked) cfg.mascaras.boca = { c0: 2, c1: 5, r0: 6, r1: 6 };   // 4 píxeles, como la que usás
+  if (!$('#chkMBoca').checked) cfg.mascaras.boca = null;
+  dibujarEditor(); recalcular();
+};
+$('#chkMPest').onchange = () => {
+  if (!$('#chkMPest').checked) cfg.mascaras.pestanas = [];
+  else if (!cfg.mascaras.pestanas.length) estado('Elegí «Pestañas» y pintá sobre la cara los píxeles de las pestañas de la skin.');
+  dibujarEditor(); recalcular();
+};
+$('#chkMSombrero').onchange = () => recalcular();
 $('#inNombre').oninput = () => recalcular();
 $('#btnPng').onclick = exportarPng;
 $('#btnModelo').onclick = exportarModelo;
-$('#btnOtra').onclick = elegirCarpeta;
+$('#btnPersonaje').onclick = () => exportarPersonaje(false);
+$('#btnOtra').onclick = () => exportarPersonaje(true);
 $('#btnOtra').hidden = !window.showDirectoryPicker;
 const hoja = $('#hoja');
 $('#btnAjustes').onclick = () => { hoja.hidden = false; };
 $('#btnCerrar').onclick = () => { hoja.hidden = true; };
 hoja.addEventListener('pointerdown', (e) => { if (e.target === hoja) hoja.hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hoja.hidden = true; });
-window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular };   // para las pruebas
+window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras };   // para las pruebas

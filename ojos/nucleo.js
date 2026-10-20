@@ -167,7 +167,7 @@ const cubo = (desde, tam, origen, caras) => ({ from: desde.map(r3), size: tam.ma
 /**
  * Arma todo: { modelo (.bbs.json), poses, config, textura: {w, h, rgba}, info }.
  * cfg: { a, b (ojos como los da detectarOjos), saliente (px hacia afuera), colores: {piel, blanco, ceja} | null (para pisar los de la cara),
- *        parpadosLisos (párpados de un solo color), nombre (del modelo) }.
+ *        parpadosLisos (párpados de un solo color), pestanas (celdas f*8+c con pestañas de la skin), nombre (del modelo) }.
  */
 export function generar(cara, cfg) {
   const sal = cfg.saliente || 0;
@@ -180,11 +180,14 @@ export function generar(cara, cfg) {
   const trozos = [];     // { id, w, h, rgba }
   const hacer = (id, w, h, f) => { const rgba = new Uint8Array(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) rgba.set(f(x, y), (y * w + x) * 4); trozos.push({ id, w, h, rgba }); };
   const opaco = (c) => [c[0], c[1], c[2], 255];
+  const pestanas = new Set(cfg.pestanas || []);     // celdas de la cara con pestañas de la skin: pasan a ser del párpado del modelo
   const dePiel = (f, c) => {
     if (f < 0 || f > 7 || c < 0 || c > 7) return opaco(col.piel);
-    const p = pix(cara, f, c); return clase[f * 8 + c] || p[3] < 128 ? opaco(col.piel) : p;
+    const p = pix(cara, f, c);
+    if (pestanas.has(f * 8 + c) && p[3] >= 128) return p;
+    return clase[f * 8 + c] || p[3] < 128 ? opaco(col.piel) : p;
   };
-  const ocultaPiel = !!(cfg.parpadosLisos || (cfg.colores && cfg.colores.piel));   // párpados de un solo color en vez de copiar la piel de al lado
+  const ocultaPiel = !!(cfg.parpadosLisos || (cfg.colores && cfg.colores.piel)) && !pestanas.size;   // párpados de un solo color en vez de copiar la piel de al lado
   for (const [lado, L] of Object.entries(LADOS)) {
     const o = cfg[lado], g = G[lado], w = o.c1 - o.c0 + 1, h = o.r1 - o.r0 + 1;
     const dentroPupila = (f, c) => f >= o.p.r0 && f <= o.p.r1 && c >= o.p.c0 && c <= o.p.c1;
@@ -398,4 +401,64 @@ export function dibujarEscena(ctx, { cara, textura, modelo, pose, E, huecos }) {
   ctx.restore();
   dibujarFrente(ctx, textura, modelo, pose, E, 0, 0, 'delante');
   ctx.restore();
+}
+
+// ------------------------------------------------------------------ máscaras de borrado (capas "erase" de BBS)
+/** Una sugerencia para la máscara de la boca: la caja de lo oscuro o de color fuerte entre las columnas 2 y 5, filas 5 a 7. null si no hay. */
+export function detectarBoca(cara, ojos = null) {
+  const { clase } = clasesDeCara(cara);
+  const enOjo = (f, c) => !!ojos && [ojos.a, ojos.b].some((o) => f >= o.r0 && f <= o.r1 && c >= o.c0 && c <= o.c1);
+  const pts = [];
+  for (let f = 5; f <= 7; f++) for (let c = 2; c <= 5; c++) if ((clase[f * 8 + c] === 'O' || clase[f * 8 + c] === 'C') && !enOjo(f, c)) pts.push({ f, c });
+  if (!pts.length) return null;
+  return { c0: Math.min(...pts.map((p) => p.c)), c1: Math.max(...pts.map((p) => p.c)), r0: Math.min(...pts.map((p) => p.f)), r1: Math.max(...pts.map((p) => p.f)) };
+}
+
+/** Celdas de la cara (f*8+c) de cada máscara: ojos (las cajas de los dos ojos), boca (una caja) y pestañas (celdas sueltas). */
+export function celdasDeMascaras(cfg) {
+  const caja = (b) => { const s = new Set(); if (b) for (let f = b.r0; f <= b.r1; f++) for (let c = b.c0; c <= b.c1; c++) s.add(f * 8 + c); return s; };
+  return { ojos: new Set([...caja(cfg.a), ...caja(cfg.b)]), boca: caja(cfg.mascaras && cfg.mascaras.boca), pestanas: new Set((cfg.mascaras && cfg.mascaras.pestanas) || []) };
+}
+
+/**
+ * PNG (RGBA) de una máscara de borrado del tamaño de la skin: píxeles opacos donde BBS tiene que borrar la textura de abajo.
+ * Cada celda de la cara (columna c, fila f) está en la skin en (8+c, 8+f); con `sombrero`, también en la capa de arriba (40+c, 8+f) si ahí hay algo.
+ */
+export function mascaraRGBA(w, h, skinRgba, celdas, sombrero = true) {
+  const out = new Uint8Array(w * h * 4);
+  const poner = (x, y) => { if (x < w && y < h) out.set([255, 255, 255, 255], (y * w + x) * 4); };
+  for (const k of celdas) {
+    const f = k >> 3, c = k & 7;
+    poner(8 + c, 8 + f);
+    if (sombrero && 40 + c < w && 8 + f < h && skinRgba[((8 + f) * w + 40 + c) * 4 + 3] > 0) poner(40 + c, 8 + f);
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ form de BBS del personaje
+import { FORM_BASE, PARTE_OJOS } from './plantilla_form.js';
+const clonar = (o) => JSON.parse(JSON.stringify(o));
+const uuid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); }));
+
+/**
+ * El form del personaje, en el formato que exporta BBS (lista de forms): el modelo del cuerpo con la skin y las capas de borrado
+ * ({ path, erase: true }) encima, y los ojos como parte de «head».
+ * opciones: { nombre, modeloBase ('player/steve'...), rutaSkin ('assets:models/...'), capas: [{path}], modeloOjos ('player/eyes_x'), texturaOjos }
+ */
+export function formPersonaje(o) {
+  const f = clonar(FORM_BASE);
+  f.name = o.nombre; f.model = o.modeloBase || 'player/steve';
+  f.texture = [{ path: o.rutaSkin }, ...(o.capas || []).map((c) => ({ path: c.path, erase: true }))];
+  const parte = clonar(PARTE_OJOS);
+  parte.form.model = o.modeloOjos; parte.form.texture = o.texturaOjos || ''; parte.bone = 'head';
+  f.parts = [parte];
+  return { id: uuid(), title: o.nombre, forms: [f] };
+}
+
+/** ¿Brazos finos (Alex)? En una skin de 64x64 con brazos de 3 píxeles, la última columna del brazo derecho está vacía. */
+export function brazosFinos(rgba, w, h) {
+  if (h < 64) return false;
+  let vacios = 0, total = 0;
+  for (let y = 20; y < 32; y++) for (const x of [54, 55]) { total++; if (rgba[(y * w + x) * 4 + 3] === 0) vacios++; }
+  return vacios >= total * 0.9;
 }
