@@ -6,6 +6,7 @@ import { landmarkerPose } from './local/deteccion.js';
 import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido, gestoActual } from './envivo.js';
 import { iniciarMuecas } from './muecas_ui.js';
 import { paqueteZip } from './paquete_modelos.js';
+import * as BP from './nucleo/boca_pixel.js';
 import { iniciarSimulacion, alPoseCamara } from './simulacion.js';
 import { iniciarCel } from './cel.js';
 import { iniciarMoveUI } from './psmove_ui.js';
@@ -69,6 +70,7 @@ function pintarAjustes() {
   $('#ojos_modo').value = cfg.ojos_modo || 'poses';
   $('#arrugas_escala').value = String(cfg.arrugas_escala || 2);
   $('#modelo_boca').value = cfg.modelo_boca || 'Man_2';
+  $('#boca_estilo').value = cfg.boca_estilo || 'clasico'; aplicarPaletaBoca();
   sincronizarVivo();
   $('#modelo').value = cfg.modelo || 'auto';
   const elegidas = (cfg.partes || '').split(',').map((s) => s.trim());
@@ -103,8 +105,9 @@ function enlazarAjustes() {
   $('#ojos_modo').addEventListener('change', (e) => { cfg.ojos_modo = e.target.value; guardar({ ojos_modo: cfg.ojos_modo }); });
   $('#arrugas_escala').addEventListener('change', (e) => { cfg.arrugas_escala = Number(e.target.value); guardar({ arrugas_escala: cfg.arrugas_escala }); });
   $('#modelo_boca').addEventListener('change', (e) => { cfg.modelo_boca = e.target.value; guardar({ modelo_boca: cfg.modelo_boca }); });
+  $('#boca_estilo').addEventListener('change', (e) => { cfg.boca_estilo = e.target.value; guardar({ boca_estilo: cfg.boca_estilo }); aplicarPaletaBoca(); });
   $('#paquete-modelos').addEventListener('click', () => {
-    const url = URL.createObjectURL(new Blob([paqueteZip()], { type: 'application/zip' }));
+    const url = URL.createObjectURL(new Blob([paqueteZip({ paleta: cfg.boca_estilo === 'fino' ? paletaActual : null })], { type: 'application/zip' }));
     const a = Object.assign(document.createElement('a'), { href: url, download: 'modelos_cara_bbs.zip' });
     document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
   });
@@ -541,6 +544,18 @@ for (const [id, k] of RETOQUES) {
   $('#' + k).addEventListener('change', pintarRetoques);
 }
 $('.vistas').addEventListener('click', pintarRetoques);
+// estilo de la boca: con «línea fina» los colores salen de la piel de tu skin (la de la vista en vivo / vista 3D)
+let paletaActual = null;
+async function aplicarPaletaBoca() {
+  if (cfg.boca_estilo !== 'fino') { paletaActual = null; BP.ponerPaleta(null); return; }
+  let url = null; try { url = localStorage.getItem('skin3d'); } catch { /* sin almacenamiento */ }
+  const im = new Image(); im.src = url || './skin_default.png';
+  try { await im.decode(); } catch { return; }
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64; const g = c.getContext('2d'); g.drawImage(im, 0, 0);
+  const p = g.getImageData(9, 13, 1, 1).data;   // la mejilla (pixel 1,5 de la cara)
+  paletaActual = BP.paletaPiel([p[0], p[1], p[2]]); BP.ponerPaleta(paletaActual);
+}
+addEventListener('skin-cambiada', () => aplicarPaletaBoca());
 // pestañas de la compu (Toma / Ajustes / Guardar): un solo panel a la vez en la columna de la derecha
 function iniciarPestanasPC() {
   const poner = (t) => {

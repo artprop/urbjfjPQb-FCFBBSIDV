@@ -158,6 +158,9 @@
           <select id="vivo-boca-modo"><option value="vivo" selected>En vivo (píxeles)</option><option value="muecas">Muecas (referencias)</option><option value="pre">Prediseñada</option></select>
         </label>
         <label class="check"><input type="checkbox" id="vivo-labios" checked> Labios</label>
+        <label class="campo-inline" title="Línea fina: como una animación a mano (líneas de la piel más oscura, adentro rosado). Clásico: labios gruesos y hueco negro.">Estilo
+          <select id="vivo-boca-estilo"><option value="clasico">Clásico</option><option value="fino">Línea fina (tono de piel)</option></select>
+        </label>
         <label class="campo-inline">Modelo
           <select id="vivo-modelo">
             <option value="Man_1">Hombre x1</option><option value="Man_2" selected>Hombre x2</option><option value="Man_4">Hombre x4</option>
@@ -386,6 +389,11 @@
       <div id="ajustes-boca">
         <p class="ayuda">La boca que se usa la decide el modelo del actor: con boca_Man o boca_Woman salen las formas prediseñadas; con boca_pixel, la forma exacta en vivo.</p>
         <label class="check"><input type="checkbox" id="boca_labios"> Dibujar los labios (boca_pixel de hombre)</label>
+        <div class="campo">
+          <div class="campo-cab"><label for="boca_estilo">Estilo de la boca de píxeles</label></div>
+          <select id="boca_estilo"><option value="clasico">Clásico (labios gruesos, hueco negro)</option><option value="fino">Línea fina, tono de piel (como una animación a mano)</option></select>
+          <p class="ayuda">Línea fina: los labios son una línea de un pedacito, del color de la piel más oscuro, y adentro se ve rosado; se ve mejor en x4 y con las arrugas. Para que en BBS salgan esos colores, bajá otra vez el paquete de modelos de la cara con este estilo elegido (la textura toma el color de tu skin).</p>
+        </div>
         <p class="ayuda">Sin labios queda solo el hueco y los dientes, sin el borde de color.</p>
         <label class="check"><input type="checkbox" id="boca_muecas"> Usar las muecas de referencia (boca_pixel)</label>
         <p class="ayuda">En vez de copiar la forma exacta de tu boca, en cada momento se usa la boca de la mueca que más se parece a tu gesto (las de «Muecas y bocas de referencia», con el preset elegido y tus ediciones). Sale más limpio y parejo.</p>

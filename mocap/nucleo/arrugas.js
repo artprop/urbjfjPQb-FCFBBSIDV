@@ -4,6 +4,7 @@
 //   boca hacia arriba   -> arruga por debajo (el mentón); boca hacia abajo -> se tensan los costados
 //   sonrisa             -> pliegue en la comisura de cada lado
 //   boca triste         -> mentón y costados
+//   trompa (u, beso)    -> puntitos a los costados del piquito
 // Viven SOLO dentro del segmento de la boca (6 x 2 pixeles de la cara en el hombre, 6 x 1 en la mujer), con su propia escala:
 // x2 o x4 pedacitos por pixel (nunca x1). La escala es independiente de la de la boca: puede ser una boca x1 con arrugas x4.
 // El color es la piel más oscura: un negro translúcido (en BBS, el color del hueso), así sirve con cualquier skin.
@@ -13,7 +14,7 @@ import * as MU from './muecas.js';
 import * as BP from './boca_pixel.js';
 
 export const TICKS = 20;
-export const NOMBRES = ['lado_i', 'lado_d', 'sonrisa_i', 'sonrisa_d', 'menton'];
+export const NOMBRES = ['lado_i', 'lado_d', 'sonrisa_i', 'sonrisa_d', 'menton', 'beso_i', 'beso_d'];
 export const COLS = 6;
 export const ESCALAS = [2, 4];
 const clip = (x, a, b) => Math.min(Math.max(x, a), b);
@@ -24,8 +25,8 @@ export const COLOR_ARRUGA = { 1: 0x24000000, 2: 0x40000000 };
 // ---------------------------------------------------------------- dónde van (celdas [columna, fila] de la grilla de la escala kw)
 // grilla de 6*kw columnas por (filas*kw) filas; la boca cerrada ocupa las columnas kw a 5*kw-1 de la primera fila de pixeles
 const BASE = {
-  2: { lado_i: [[0, 1], [0, 2]], sonrisa_i: [[0, 0], [1, 0]], menton: [[5, 3], [6, 3]] },
-  4: { lado_i: [[1, 3], [1, 4], [2, 5], [2, 6]], sonrisa_i: [[3, 0], [2, 0], [1, 1], [0, 2]], menton: [[10, 6], [11, 6], [12, 6], [13, 6]] },
+  2: { lado_i: [[0, 1], [0, 2]], sonrisa_i: [[0, 0], [1, 0]], menton: [[5, 3], [6, 3]], beso_i: [[2, 1]] },
+  4: { lado_i: [[1, 3], [1, 4], [2, 5], [2, 6]], sonrisa_i: [[3, 0], [2, 0], [1, 1], [0, 2]], menton: [[10, 6], [11, 6], [12, 6], [13, 6]], beso_i: [[6, 2], [7, 4]] },
 };
 /** Celdas de una arruga en la grilla de la escala kw (2 o 4) y las filas del modelo (2 hombre, 1 mujer). Siempre adentro del segmento. */
 export function celdas(nombre, kw, filas = 2) {
@@ -52,6 +53,8 @@ export function intensidades(r, dx = 0, dy = 0) {
     sonrisa_i: ramp(r.smileR, 0.3, 0.8),   // la mejilla derecha de la persona cae a la izquierda de la cara dibujada
     sonrisa_d: ramp(r.smileL, 0.3, 0.8),
     menton: ramp(Math.max(arriba, r.frown, r.press * 0.7, r.shrugL), 0.3, 0.8),
+    beso_i: ramp(Math.max(r.pucker, r.funnel * 0.8), 0.3, 0.7),   // trompa: puntitos a los costados del piquito (como en tu animación de referencia)
+    beso_d: ramp(Math.max(r.pucker, r.funnel * 0.8), 0.3, 0.7),
   };
 }
 export function deCuadro(bs, nombres, base, dx = 0, dy = 0) { return intensidades(MU.rasgos(bs, nombres, base), dx, dy); }

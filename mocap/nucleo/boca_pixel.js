@@ -18,6 +18,15 @@ const P = Object.fromEntries(PUNTOS_LABIOS.map((k, i) => [k, i]));
 
 export const HUECO = 1, DIENTE = 2, LENGUA = 3, LABIO = 4;
 export const COLORES = { 1: [0, 0, 0], 2: [196, 188, 172], 3: [200, 70, 90], 4: [204, 134, 67] };
+// Paleta "tono de piel" (como las animaciones a mano): las líneas son la piel más oscura, el adentro de la boca rosado y los dientes la piel más clara
+export function paletaPiel([r, g, b]) {
+  const m = (a, c, f) => a.map((x, i) => Math.round(x * (1 - f) + c[i] * f));
+  const osc = [r * 0.76, g * 0.74, b * 0.74];
+  return { 1: m(osc, [150, 60, 120], 0.55), 2: m([r, g, b], [250, 250, 252], 0.45), 3: [200, 90, 120], 4: osc.map(Math.round) };
+}
+let paleta = null;   // null = la clásica (COLORES)
+export function ponerPaleta(p) { paleta = p || null; }
+export const colorDe = (v) => (paleta || COLORES)[v];
 // piezas por fila: el hueco va atras (cubre tambien donde estan los dientes), los dientes adelante, el labio mas adelante
 export const PIEZAS = [
   { tipo: 'hueco', valores: [HUECO, DIENTE], cant: 2, z: 0.01, u: 0 },
@@ -119,7 +128,8 @@ export function reposo({ k, filas, labios }) {
 }
 
 /** Grilla de un cuadro: Uint8Array de (filas*k) x (COLS*k), fila por fila. 0 = piel. null si no se vio la cara. */
-export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {}) {
+// fino = true: estilo de línea fina (como las animaciones a mano): labios de un solo pedacito de grosor y la boca cerrada es una línea
+export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1, fino = false } = {}) {
   if (!cal.ok[i]) return null;
   const R = filas * k, C = COLS * k, g = new Uint8Array(R * C);
   const loc = cal.locs[i];
@@ -131,7 +141,7 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
   const sup = ordenar(SUP), inf = ordenar(INF);
   const ci = loc(61), cd = loc(291);
   const trompa = cal.PUCK[i] - cal.puck0 > 0.35 || cal.FUN[i] - cal.fun0 > 0.35;
-  const T = pv * (trompa ? 1.5 : 1);
+  const T = fino ? 2 * h : pv * (trompa ? 1.5 : 1);
   const xc = (c) => x0 + (c + 0.5) * w;
   // columnas con labio (de comisura a comisura); siempre al menos 2 pixeles de la cara
   const tramo = new Array(C).fill(false);
@@ -169,7 +179,7 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
   }
   // labios
   if (labios) {
-    const nb = Math.max(1, Math.round(T / 2 / h));
+    const nb = fino ? 1 : Math.max(1, Math.round(T / 2 / h));
     // el hueco no baja hasta la ultima fila: ahi va el labio de abajo (si no, la boca abierta queda cortada sin labio inferior)
     for (let c = 0; c < C; c++) for (let r = Math.max(0, R - 1 - nb) + 1; r < R; r++) if (g[r * C + c] === HUECO) g[r * C + c] = 0;
     for (let c = 0; c < C; c++) {
@@ -178,7 +188,8 @@ export function grilla(cal, i, { k = 2, filas = 2, labios = true, sens = 1 } = {
       for (let r = 0; r < R; r++) if (g[r * C + c] === HUECO) { if (rt < 0) rt = r; rb = r; }
       if (rt < 0) {
         const y0 = (alturaEn(sup, xc(c)) + alturaEn(inf, xc(c))) / 2;
-        for (let r = 0; r < R; r++) if (Math.abs(Y0 + (r + 0.5) * h - y0) < T / 2) g[r * C + c] = LABIO;
+        if (fino) { const r = Math.min(R - 1, Math.max(0, Math.floor((y0 - Y0) / h))); g[r * C + c] = LABIO; }
+        else for (let r = 0; r < R; r++) if (Math.abs(Y0 + (r + 0.5) * h - y0) < T / 2) g[r * C + c] = LABIO;
       } else {
         for (let r = rt - nb; r < rt; r++) if (r >= 0 && !g[r * C + c]) g[r * C + c] = LABIO;
         for (let r = rb + 1; r <= rb + nb; r++) if (r < R && !g[r * C + c]) g[r * C + c] = LABIO;
@@ -292,7 +303,7 @@ const valor = (t, k) => (t ? { t: [t[0] / k, 0, 0], s: [t[1], 1, 1] } : { t: [0,
  */
 export function construir(cara, parte, offset = 0, desde = 0, op = {}) {
   // boca_labios = false: no se dibujan labios (los de arriba y abajo quedan escondidos); parte.labios = si el modelo tiene piezas de labio
-  const forma = { k: parte.k, filas: parte.filas, labios: parte.labios && op.boca_labios !== false, sens: op.boca_sens ?? 1, gen: op.boca_gen || null };   // boca_gen: grilla de una mueca de referencia por cuadro (ver muecas.generador)
+  const forma = { k: parte.k, filas: parte.filas, labios: parte.labios && op.boca_labios !== false, sens: op.boca_sens ?? 1, gen: op.boca_gen || null, fino: op.boca_estilo === 'fino' };   // boca_gen: grilla de una mueca de referencia por cuadro (ver muecas.generador)
   const cal = calibrar(cara);
   const pasos = tramos(cara, cal, forma, { offset, minTicks: op.boca_min_ticks ?? 2 });
   const pistas = {}, ultimo = {};
@@ -351,10 +362,10 @@ export function modeloBBS({ k, filas, labios }) {
     poses: { cerrada: { pose } },
   };
 }
-export function texturaRGBA() {
+export function texturaRGBA(pal = COLORES) {
   const px = new Uint8Array(16 * 16 * 4);
-  for (const p of PIEZAS) { const c = COLORES[p.valores[0]]; px.set([...c, 255], p.u * 4); }
-  px.set([...COLORES[LENGUA], 255], 2 * 4);
+  for (const p of PIEZAS) { const c = pal[p.valores[0]]; px.set([...c, 255], p.u * 4); }
+  px.set([...pal[LENGUA], 255], 2 * 4);
   return px;
 }
 

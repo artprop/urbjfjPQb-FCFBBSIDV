@@ -281,7 +281,7 @@ export function crearVista(ctx) {
     const aviso = (t) => { $('#v3-aviso').textContent = t; };
     const leerSkin = (url, guardar) => {
       if (!escena) return Promise.resolve();
-      return escena.ponerSkin(url).then(() => { aviso(''); if (guardar !== undefined) { try { guardar ? localStorage.setItem('skin3d', url) : localStorage.removeItem('skin3d'); } catch (e) { /* sin memoria del navegador */ } } })
+      return escena.ponerSkin(url).then(() => { aviso(''); dispatchEvent(new Event('skin-cambiada')); if (guardar !== undefined) { try { guardar ? localStorage.setItem('skin3d', url) : localStorage.removeItem('skin3d'); } catch (e) { /* sin memoria del navegador */ } } })
         .catch((e) => aviso(e.message));
     };
     $('#v3-skin-elegir').addEventListener('click', () => $('#v3-skin-archivo').click());

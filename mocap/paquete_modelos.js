@@ -26,12 +26,12 @@ export function pngDeRGBA(w, h, rgba) {
 
 const json = (o) => strToU8(JSON.stringify(o, null, '\t'));
 /** Lista de modelos del paquete: [{nombre, modelo, poses, png}]. */
-export function modelos() {
+export function modelos({ paleta = null } = {}) {
   const lista = [];
   for (const mujer of [false, true]) {
     for (const k of [1, 2, 4]) {
       const filas = mujer ? 1 : 2, { modelo, poses } = BP.modeloBBS({ k, filas, labios: !mujer });
-      lista.push({ nombre: `boca_pixel_${mujer ? 'Woman' : 'Man'}_x${k}`, modelo, poses, png: pngDeRGBA(16, 16, BP.texturaRGBA()) });
+      lista.push({ nombre: `boca_pixel_${mujer ? 'Woman' : 'Man'}_x${k}`, modelo, poses, png: pngDeRGBA(16, 16, BP.texturaRGBA(paleta || BP.COLORES)) });
     }
     for (const kw of AR.ESCALAS) {
       const { modelo, poses } = AR.modeloBBS({ kw, filas: mujer ? 1 : 2 });
@@ -41,9 +41,9 @@ export function modelos() {
   return lista;
 }
 /** El .zip: assets/models/player/<nombre>/{config.json, <nombre>.bbs.json, poses.json, textura.png} + un LEEME. */
-export function paqueteZip() {
+export function paqueteZip({ paleta = null } = {}) {
   const archivos = {};
-  for (const m of modelos()) {
+  for (const m of modelos({ paleta })) {
     const base = `assets/models/player/${m.nombre}/`;
     archivos[base + 'config.json'] = json({ texture: `assets:models/player/${m.nombre}/textura.png` });
     archivos[base + m.nombre + '.bbs.json'] = json(m.modelo);
