@@ -14,6 +14,7 @@
   <nav id="pestanas" role="tablist" aria-label="Páginas del Director">
     <button role="tab" data-tab="capas" aria-selected="true">Capas automáticas</button>
     <button role="tab" data-tab="escena" aria-selected="false">Guion de escena</button>
+    <button role="tab" data-tab="camaras" aria-selected="false">Cámaras</button>
   </nav>
   <span id="modoBoca" class="etiqueta"></span>
 </header>
@@ -74,6 +75,44 @@
           <button id="btnSalidaCapas" hidden>Abrir carpeta Salida</button>
         </div>
         <div id="estadoCapas" class="estado"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- CÁMARAS -->
+  <div id="tabCamaras" class="pagina" hidden>
+    <div id="camTrabajo" hidden>
+      <section>
+        <h2>2. Cámaras automáticas <small>el Director propone varios planos por tramo; vos elegís</small></h2>
+        <div class="fila">
+          <label>Formato de cámara <select id="camFormato"></select></label>
+          <span class="suave">(se detecta solo al abrir el film)</span>
+        </div>
+        <div class="fila"><span>Filmar a:</span><span id="camActores" class="camActores"></span></div>
+        <div class="fila">
+          <span>Hasta</span><input type="number" id="camHasta" value="10" step="0.5" min="1" inputmode="decimal"><span>s · cortes de</span>
+          <input type="number" id="camMin" value="2.5" step="0.5" min="1" inputmode="decimal"><span>a</span>
+          <input type="number" id="camMax" value="8" step="0.5" min="2" inputmode="decimal"><span>s</span>
+          <label class="actor-chk"><input type="checkbox" id="camEmpuje" checked> ofrecer también con acercamiento</label>
+        </div>
+        <div class="fila">
+          <button class="primario" id="btnProponer">Proponer planos</button>
+          <button id="btnOtraTanda" title="Otra tanda de propuestas (cambia de qué lado de los actores se filma)">🎲 Otra tanda</button>
+        </div>
+      </section>
+      <section>
+        <h2>3. Elegí el plano de cada tramo <small>tocá una miniatura</small></h2>
+        <div id="camLista"></div>
+      </section>
+      <section>
+        <h2>4. Guardar</h2>
+        <div class="fila">
+          <span>Nombre del film nuevo</span><input type="text" id="camNombre" style="flex:1 1 220px">
+          <button class="primario grande" id="btnAplicarCam" disabled>Aplicar cámaras y guardar</button>
+          <button id="btnSalidaCam" hidden>Abrir carpeta Salida</button>
+        </div>
+        <div id="estadoCam" class="estado"></div>
+        <p class="suave nota">Las cámaras quedan en una capa nueva (las que ya tenía el film no se tocan). En BBS FS cada plano es un clip <code>idle</code> (quieto) o <code>keyframe</code> (con movimiento). Sin probar dentro del juego.</p>
       </section>
     </div>
   </div>
