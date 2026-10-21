@@ -12,6 +12,8 @@ import * as A from './almacen.js';
 import { Vista } from './vista.js';
 import { Linea } from './linea.js';
 import { panelDirector, reiniciarDirector } from './director.js';
+import * as FSM from './nucleo/fs.js';
+import * as auto from './autocam.js';
 
 const $ = (s) => document.querySelector(s);
 const D2R = Math.PI / 180;
@@ -49,7 +51,7 @@ const minis = new Miniaturas(128);
 
 // ------------------------------------------------------------------ estado
 const E = {
-  film: null, plantilla: null, id: null, nombre: 'mi_escena',
+  film: null, plantilla: null, id: null, nombre: 'mi_escena', fs: null,   // fs: si el film abierto es de BBS FS (ver nucleo/fs.js)
   t: 0, i: -1, hueso: null, toma: null, key: null,
   modo: 'mover', panel: 'actores', eje: 'xz', play: false, porCamara: false, iman: false,
 };
@@ -106,6 +108,7 @@ function dibujarLinea() {
     ticks: E.toma ? FM.ticksToma(E.toma) : [],
     barras: ts.map((c) => ({ a: num(c.tick ?? 0), b: num(c.tick ?? 0) + num(c.duration ?? 0), activa: c === act, elegida: c === E.toma, titulo: c.title || '' })),
   });
+  if (auto.activo()) filas.push({ id: 'cortes', nombre: '✂ Cortes', titulo: true, color: '#ff7ab0', ticks: auto.ticksCortes() });
   const r = rep();
   if (r) {
     const fs = FM.filas(r);
@@ -158,6 +161,7 @@ function enfocar(r = null, todos = false) {
 let tGuardar = null;
 function autoguardar() {
   clearTimeout(tGuardar);
+  if (E.fs) return;       // los films de BBS FS no se guardan solos acá (se exportan: la copia de adentro no sabe de todo lo del film)
   tGuardar = setTimeout(async () => {
     try { E.id = await A.guardarFilm(E.id, E.nombre, FM.paraGuardar(E.film)); await A.kvGuardar('ultimo', E.id); } catch (e) { console.warn('no se pudo autoguardar', e); }
   }, 800);
@@ -266,6 +270,7 @@ async function keyPoseCompleta(r) {
 
 // keyframes de una fila de la línea (para mover, borrar o cambiar la curva)
 function pistasFila(fila) {
+  if (fila === 'cortes') return [{ kf: auto.S.cortes, base: 0 }];
   if (fila === 'tomas') return E.toma ? FM.pistasToma(E.toma).map((kf) => ({ kf, base: num(E.toma.tick ?? 0) })) : [];
   const deActor = (r) => FM.filas(r).flatMap((f) => FM.pistasDeFila(r, f.id)).map((kf) => ({ kf, base: 0 }));
   if (fila === 'actor') return rep() ? deActor(rep()) : [];
@@ -280,6 +285,7 @@ function moverKeys(fila, desde, hasta) {
     P.mover(kf, desde - base, h);
   }
   E.key = { fila, tick: hasta };
+  if (fila === 'cortes') { auto.cambioCortes(); return; }
   E.t = hasta;
   refrescar();
 }
@@ -288,7 +294,9 @@ function borrarKey() {
   if (!E.key) return;
   guardarDeshacer();
   for (const { kf, base } of pistasFila(E.key.fila)) P.quitar(kf, E.key.tick - base);
+  const eraCorte = E.key.fila === 'cortes';
   E.key = null; refrescar();
+  if (eraCorte) auto.cambioCortes();
 }
 function herramientasKey() {
   const ks = E.key ? keysEn(E.key.fila, E.key.tick) : [];
@@ -522,6 +530,7 @@ const rotZYX = (r) => new THREE.Matrix4().makeRotationZ(r[2]).multiply(new THREE
 
 async function panelCamaras(frag) {
   enlaces.length = 0;
+  auto.panel(frag);
   const ts = FM.tomas(E.film);
   frag.append(titulo(`Cámaras (${ts.length})`));
   frag.append(el('div', { class: 'ayuda' }, 'Mové la vista con el dedo (un dedo gira, dos dedos acercan y desplazan) y tocá ', el('b', {}, '➕ Cámara desde esta vista'), '. Para que se mueva: andá a otro tiempo, acomodá la vista y tocá ', el('b', {}, '◆ Key con esta vista'), '.'));
@@ -784,11 +793,13 @@ async function alCambiarFuente() {
 async function panelProyecto(frag) {
   enlaces.length = 0;
   frag.append(titulo('Este film'));
-  frag.append(el('div', { class: 'nota' }, `${E.film.replays.length} actores · ${FM.tomas(E.film).length} cámaras · dura ${(fin() / 20).toFixed(1)} s. Se guarda solo en este aparato mientras trabajás.`));
+  frag.append(el('div', { class: 'nota' }, `${E.film.replays.length} actores · ${FM.tomas(E.film).length} cámaras · dura ${(fin() / 20).toFixed(1)} s. ` + (E.fs ? 'Film de BBS FS: acá se editan las cámaras; no se guarda solo, exportalo (💾) cuando termines.' : 'Se guarda solo en este aparato mientras trabajás.')));
   frag.append(el('div', { class: 'fila' },
     boton('💾 Exportar a BBS (.dat)', exportar, { class: 'principal' }),
     boton('📂 Abrir un .dat', () => $('#inDat').click()),
     boton('🆕 Film nuevo', nuevoFilmPreg)));
+  frag.append(el('div', { class: 'nota' }, fuente.tipo ? `Skins y modelos de: ${fuente.nombre}` : 'Para ver a los personajes con sus skins, indicá dónde está tu carpeta bbs (PC) o su .zip.'));
+  frag.append(el('div', { class: 'fila' }, boton('📂 Carpeta bbs de la PC', () => abrirCarpetaBBS().then(() => dibujarPanel()).catch(() => {})), boton('🗜️ .zip de la carpeta bbs', () => $('#inZip').click())));
   frag.append(el('div', { class: 'ayuda' }, 'Para usarlo en el juego: copiá el .dat a ', el('b', {}, 'saves\\<tu mundo>\\bbs\\films'), ' (en la PC se guarda en EstudioBBS\\Salida\\editor). Los actores aparecen en el mismo lugar del mundo que acá: ', el('b', {}, 'X, Y, Z'), ' son coordenadas del mundo.'));
   frag.append(titulo('Ubicar en el mundo'));
   frag.append(el('div', { class: 'nota' }, 'Corré a todos los actores y cámaras juntos (por ejemplo, para llevar la escena al lugar del mundo donde vas a grabar).'));
@@ -826,7 +837,7 @@ function correrTodo(dx, dy, dz) {
 }
 async function exportar() {
   try {
-    const bytes = await escribir(FM.paraGuardar(E.film));
+    const bytes = await escribir(E.fs ? FSM.aFS(E.fs, FM.paraGuardar(E.film)) : FM.paraGuardar(E.film));
     await leer(bytes);   // que se pueda volver a leer antes de darlo por bueno
     const nombre = (E.nombre || 'escena').replace(/[^\w\- ]+/g, '_').trim() || 'escena';
     aviso(await guardarSalida('editor', nombre + '.dat', bytes), false, 6000);
@@ -834,7 +845,7 @@ async function exportar() {
 }
 async function nuevoFilmPreg() {
   if (E.film.replays.length && !confirm('¿Empezar un film nuevo? Este queda guardado en "Mis films".')) return;
-  reiniciarDirector();
+  reiniciarDirector(); E.fs = null; auto.reiniciar();
   E.film = FM.filmNuevo(E.plantilla); E.id = null; E.nombre = 'escena_' + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '');
   E.i = -1; E.hueso = null; E.toma = null; E.key = null; E.t = 0; pila.length = 0; pilaRehacer.length = 0;
   $('#nombreFilm').value = E.nombre; botonesDeshacer();
@@ -849,17 +860,25 @@ function adoptar(film, conservar = false) {
 $('#inDat').addEventListener('change', async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
-    const film = await leer(new Uint8Array(await f.arrayBuffer()));
+    let film = await leer(new Uint8Array(await f.arrayBuffer()));
     if (!film || !Array.isArray(film.replays)) throw new Error('Ese archivo no parece un film de BBS.');
+    E.fs = null;
+    let aviso2 = '';
+    if (FSM.esFS(film)) {
+      const c = FSM.aEditor(film); E.fs = c.fs; film = c.film;
+      aviso2 = ' · BBS FS: acá se editan las cámaras (lo demás del film sale igual que como vino)';
+      auto.reiniciar();
+    }
     E.film = adoptar(film); E.id = null; E.nombre = f.name.replace(/\.dat$/i, '');
     E.i = -1; E.hueso = null; E.toma = null; E.key = null; E.t = 0; pila.length = 0; pilaRehacer.length = 0;
     $('#nombreFilm').value = E.nombre; botonesDeshacer();
     await refrescar({ rearmar: true }); enfocar(null, true);
-    aviso(`Abierto: ${f.name} (${film.replays.length} actores, ${FM.tomas(film).length} cámaras)`);
+    aviso(`Abierto: ${f.name} (${film.replays.length} actores, ${FM.tomas(film).length} cámaras)` + aviso2, false, aviso2 ? 7000 : 3500);
   } catch (err) { aviso('No se pudo abrir: ' + (err.message || err), true); }
 });
 async function abrirGuardado(id) {
   const x = await A.leerFilm(id); if (!x) return;
+  E.fs = null; auto.reiniciar();
   E.film = adoptar(x.film); E.id = id; E.nombre = x.nombre;
   E.i = -1; E.hueso = null; E.toma = null; E.key = null; E.t = 0; pila.length = 0; pilaRehacer.length = 0;
   $('#nombreFilm').value = E.nombre; botonesDeshacer();
@@ -919,9 +938,10 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'ArrowRight') irA(tk() + (e.shiftKey ? 10 : 1));
   else if (e.key === 'Delete' || e.key === 'Backspace') borrarKey();
   else if (e.key.toLowerCase() === 'k') ponerKey();
+  else if (e.key.toLowerCase() === 's' && !e.ctrlKey && !e.metaKey && auto.S.fase === 'cortes') { e.preventDefault(); auto.marcar(); }
 });
 // por si se cierra la pestaña justo después de un cambio
-window.addEventListener('pagehide', () => { if (tGuardar) { clearTimeout(tGuardar); A.guardarFilm(E.id, E.nombre, FM.paraGuardar(E.film)); } });
+window.addEventListener('pagehide', () => { if (tGuardar && !E.fs) { clearTimeout(tGuardar); A.guardarFilm(E.id, E.nombre, FM.paraGuardar(E.film)); } });
 
 // ------------------------------------------------------------------ arranque
 async function arrancar() {
@@ -949,7 +969,12 @@ async function arrancar() {
   botonesDeshacer();
   await refrescar({ rearmar: true });
   if (x) enfocar(null, true);
-  window.__editor = { E, vista, FM, P, refrescar, irA, A };   // para las pruebas
+  auto.iniciar({
+    E, el, titulo, boton, vista, aviso, guardarDeshacer, refrescar, dibujarPanel, dibujarLinea, irA, aplicar, play, fin, exportar,
+    audioArchivo: () => audioArchivo, cargarAudio: () => $('#inAudio').click(),
+    porCamara: (on) => { if (E.porCamara !== on) $('#btnPorCamara').click(); },
+  });
+  window.__editor = { E, vista, FM, P, FSM, auto, refrescar, irA, A };   // para las pruebas
 }
 function leerKvVisor(k) {
   return new Promise((res) => {

@@ -135,3 +135,14 @@ input[type=range] { width: 100%; accent-color: var(--acento); height: 28px; }
   .ayuda { padding: 5px 8px; margin-bottom: 5px; font-size: 12px; }
   .lista { margin-bottom: 5px; }
 }
+
+/* cámaras automáticas */
+.tramoCam { border-top: 1px solid var(--borde); padding-top: 8px; margin-top: 8px; }
+.cabCam { font-size: 13px; margin-bottom: 6px; }
+.opcionesCam { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.opCam { display: flex; flex-direction: column; gap: 2px; padding: 3px; text-align: left; min-height: 0; height: auto; }
+.opCam canvas { width: 100%; aspect-ratio: 16 / 9; border-radius: 5px; background: #2c313a; display: block; }
+.opCam .nomCam { font-size: 12px; line-height: 1.15; }
+.opCam .subCam { font-size: 11px; color: var(--tenue); line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opCam.elegida { outline: 3px solid var(--acento); outline-offset: -1px; border-color: var(--acento); }
+@media (min-width: 900px) and (min-width: 1500px) { .opcionesCam { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

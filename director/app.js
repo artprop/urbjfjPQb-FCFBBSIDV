@@ -8,7 +8,6 @@ import * as capas from './nucleo/capas.js';
 import { leerAudio } from './nucleo/wav.js';
 import * as uiCapas from './ui_capas.js';
 import * as uiEscena from './ui_escena.js';
-import * as uiCamaras from './ui_camaras.js';
 import * as formato from './nucleo/formato.js';
 
 export const $ = (id) => document.getElementById(id);
@@ -69,14 +68,13 @@ export async function abrirFilm(id, pestana = null) {
     try { localStorage.setItem('director_film', id); } catch { /* sin almacenamiento */ }
     estado('estadoFilm', `Abierto: ${app.filmNombre} · ${(film.replays || []).length} actores`, 'ok');
     if (app.formato === 'fs') {
-      // BBS FS: por ahora solo las cámaras (las otras páginas trabajan con el formato 2.2)
+      // BBS FS: el Director todavía no lo trabaja; las cámaras automáticas están en el Editor
       $('capasTrabajo').hidden = $('escenaTrabajo').hidden = true;
-      mostrar('camaras'); uiCamaras.abrir();
-      estado('estadoFilm', `Abierto: ${app.filmNombre} · ${(film.replays || []).length} actores · formato BBS FS (por ahora solo la página Cámaras)`, 'ok');
+      estado('estadoFilm', `Este film es de BBS FS. El Director todavía trabaja con el formato 2.2: para poner cámaras automáticas abrilo en el Editor (pestaña 🎥 Cámaras → «Automatizar cámaras»).`, 'aviso');
       return;
     }
     if (pestana) mostrar(pestana);
-    await Promise.all([uiEscena.abrir(), uiCapas.abrir(), uiCamaras.abrir()]);
+    await Promise.all([uiEscena.abrir(), uiCapas.abrir()]);
   } catch (e) {
     console.warn(e);
     estado('estadoFilm', 'No se pudo abrir: ' + e.message, 'mal');
@@ -99,7 +97,7 @@ async function pintarCarpeta(est) {
 // ---------------------------------------------------------------- pestañas
 function mostrar(tab) {
   for (const b of document.querySelectorAll('#pestanas button')) b.setAttribute('aria-selected', String(b.dataset.tab === tab));
-  $('tabCapas').hidden = tab !== 'capas'; $('tabEscena').hidden = tab !== 'escena'; $('tabCamaras').hidden = tab !== 'camaras';
+  $('tabCapas').hidden = tab !== 'capas'; $('tabEscena').hidden = tab !== 'escena';
   try { localStorage.setItem('director_tab', tab); } catch { /* nada */ }
   if (tab === 'escena') uiEscena.dibujar();
 }
@@ -109,6 +107,7 @@ async function iniciar() {
   for (const b of document.querySelectorAll('#pestanas button')) b.onclick = () => mostrar(b.dataset.tab);
   let tab = 'capas';
   try { tab = localStorage.getItem('director_tab') || 'capas'; } catch { /* nada */ }
+  if (tab !== 'capas' && tab !== 'escena') tab = 'capas';
   mostrar(tab);
 
   const bocas = await (await fetch('nucleo/bocas.json')).json();
@@ -119,11 +118,11 @@ async function iniciar() {
   mb.className = 'etiqueta ' + (app.rhubarb ? 'exacta' : 'simple');
   mb.title = app.rhubarb ? 'Las bocas se calculan con Rhubarb, como en el Director de la PC.'
     : 'Sin Rhubarb (celular o página suelta): la boca se abre y se cierra con el volumen de la voz. En la PC (abrir.bat) sale exacta.';
-  $('btnSalidaCapas').hidden = $('btnSalidaEscena').hidden = $('btnSalidaCam').hidden = !app.pc;
+  $('btnSalidaCapas').hidden = $('btnSalidaEscena').hidden = !app.pc;
   A.persistir();
 
   pintarCarpeta(await app.fuentes.iniciar().catch(() => 'sin_carpeta'));
-  uiCapas.iniciar(); uiEscena.iniciar(); uiCamaras.iniciar();
+  uiCapas.iniciar(); uiEscena.iniciar();
   await listarFilms();
   let ultimo = '';
   try { ultimo = localStorage.getItem('director_film') || ''; } catch { /* nada */ }
