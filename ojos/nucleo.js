@@ -105,10 +105,37 @@ export function detectarOjos(cara) {
   if (a && !b) { b = espejoOjo(a); avisos.push('Solo encontré el ojo de la izquierda de la imagen: copié el otro en espejo.'); }
   else if (b && !a) { a = espejoOjo(b); avisos.push('Solo encontré el ojo de la derecha de la imagen: copié el otro en espejo.'); }
   else if (!a && !b) {
-    a = { c0: 1, c1: 2, r0: 3, r1: 4, p: { c0: 2, c1: 2, r0: 3, r1: 4 }, ceja: null }; b = espejoOjo(a);
-    avisos.push('No pude encontrar los ojos en esta skin: dejé los de Steve. Ajustalos a mano.');
+    const perfil = detectarPerfil(cara);
+    if (perfil) { a = perfil; b = espejoOjo(a); avisos.push('Encontré los ojos por el contraste (blanco afuera, iris adentro). Revisalos sobre la cara.'); }
+    else {
+      a = { c0: 1, c1: 2, r0: 3, r1: 4, p: { c0: 2, c1: 2, r0: 3, r1: 4 }, ceja: null }; b = espejoOjo(a);
+      avisos.push('No pude encontrar los ojos en esta skin: dejé los de Steve. Ajustalos a mano.');
+    }
   }
   return { a, b, avisos };
+}
+
+/**
+ * Ojos del modelo estándar (columnas 1-2 y 5-6: esclerótica en la de afuera, iris en la de adentro) buscados por contraste, para pieles que la otra
+ * búsqueda no resuelve (pelo muy oscuro, esclerótica gris…). Una o dos filas donde la columna de afuera es bastante más clara que la de adentro.
+ */
+function detectarPerfil(cara) {
+  const lu = (f, c) => lum(pix(cara, f, c));
+  const s = [];
+  for (let f = 1; f <= 6; f++) s[f] = ((lu(f, 1) - lu(f, 2)) + (lu(f, 6) - lu(f, 5))) / 2;
+  const filas = [];
+  for (let f = 1; f <= 6; f++) if (s[f] > 40) filas.push(f);
+  if (!filas.length) return null;
+  // la tanda de filas seguidas más fuerte (de 1 o 2 filas)
+  let mejor = null;
+  for (let i = 0; i < filas.length; i++) {
+    const f0 = filas[i], f1 = filas[i + 1] === f0 + 1 ? f0 + 1 : f0;
+    const fuerza = s[f0] + (f1 !== f0 ? s[f1] : 0);
+    if (!mejor || fuerza > mejor.fuerza) mejor = { f0, f1, fuerza };
+    if (f1 !== f0) i++;
+  }
+  if (mejor.f1 - mejor.f0 + 1 > 2) return null;
+  return { c0: 1, c1: 2, r0: mejor.f0, r1: mejor.f1, p: { c0: 2, c1: 2, r0: mejor.f0, r1: mejor.f1 }, ceja: null };
 }
 
 /** Colores sacados de la cara: piel (la más común en los costados de los ojos), blanco del ojo, color de las cejas. */
@@ -389,17 +416,17 @@ export function dibujarFrente(ctx, textura, modelo, pose, E, ox = 0, oy = 0, ran
  * (los párpados y la pupila quedan escondidos detrás de la piel y solo se ven por el hueco) y las cejas, que van por delante de la piel.
  * cara: lienzo o imagen de 8x8 con la cara; huecos: [{c0, c1, r0, r1}] en columnas/filas de la cara.
  */
-export function dibujarEscena(ctx, { cara, textura, modelo, pose, E, huecos }) {
+export function dibujarEscena(ctx, { cara, textura, modelo, pose, E, huecos, desvio = 0 }) {   // desvio: filas que se baja el modelo (ojos estándar más abajo en la cara)
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#16110f'; ctx.fillRect(0, 0, 8 * E, 8 * E);
-  dibujarFrente(ctx, textura, modelo, pose, E, 0, 0, 'detras');
+  dibujarFrente(ctx, textura, modelo, pose, E, 0, desvio * E, 'detras');
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, 8 * E, 8 * E);
   for (const h of huecos) ctx.rect(h.c0 * E, h.r0 * E, (h.c1 - h.c0 + 1) * E, (h.r1 - h.r0 + 1) * E);
   ctx.clip('evenodd');
   ctx.imageSmoothingEnabled = false; ctx.drawImage(cara, 0, 0, 8 * E, 8 * E);
   ctx.restore();
-  dibujarFrente(ctx, textura, modelo, pose, E, 0, 0, 'delante');
+  dibujarFrente(ctx, textura, modelo, pose, E, 0, desvio * E, 'delante');
   ctx.restore();
 }
 
@@ -496,30 +523,62 @@ export function compararConEstandar(cfg) {
 }
 
 /**
- * La textura de los ojos en el formato del modelo estándar (la que va en assets/models/player/eyes_1px/OjosNombre.png).
- * modeloEstandar: el .bbs.json del modelo (eyes o eyes_1px); res: lo que devolvió generar().
+ * Los colores lisos de cada pieza de los ojos, sacados de la skin como los sacás vos: la esclerótica (lo que rodea a la pupila dentro del ojo), la pupila (los píxeles de
+ * su columna, de arriba hacia abajo: puede tener dos colores), la ceja (el píxel de arriba de la pupila, si es más oscuro que la piel) y la piel (la más común al lado de la nariz).
+ * tocados: { piel, blanco, ceja } si los cambió el usuario.
  */
-export function texturaEstandar(res, modeloEstandar) {
+export function coloresEstandar(cara, cfg, tocados = null) {
+  const base = coloresDeCara(cara, cfg), { clase } = clasesDeCara(cara);
+  // piel: la más común en las columnas de la nariz (3 y 4), de la fila de los ojos hacia abajo, sin lo oscuro
+  const cuenta = new Map();
+  for (let f = Math.max(0, cfg.a.r0 - 1); f <= 7; f++) for (const c of [3, 4]) {
+    const p = pix(cara, f, c); if (p[3] < 128 || lum(p) < 80) continue;
+    const k = p.slice(0, 3).join(','); cuenta.set(k, (cuenta.get(k) || 0) + 1);
+  }
+  let piel = base.piel, mx = 0;
+  for (const [k, v] of cuenta) if (v > mx) { mx = v; piel = k.split(',').map(Number); }
+  const ojo = (o) => {
+    const esc = [];
+    for (let f = o.r0; f <= o.r1; f++) for (let c = o.c0; c <= o.c1; c++) if (!(f >= o.p.r0 && f <= o.p.r1 && c >= o.p.c0 && c <= o.p.c1)) esc.push(pix(cara, f, c));
+    const media = (l) => [0, 1, 2].map((q) => Math.round(l.reduce((s, p) => s + p[q], 0) / l.length));
+    const pupila = []; for (let f = o.r0; f <= o.r1; f++) pupila.push(pix(cara, f, o.p.c0).slice(0, 3));
+    let ceja = base.ceja;
+    if (o.r0 > 0) { const p = pix(cara, o.r0 - 1, o.p.c0); if (p[3] >= 128 && lum(p) < lum(piel) - 20) ceja = p.slice(0, 3); }
+    return { esclerotica: esc.length ? media(esc) : piel.slice(), pupila, ceja };
+  };
+  const A = ojo(cfg.a), B = ojo(cfg.b);
+  const out = { a: A, b: B, piel, ceja: A.ceja };
+  if (tocados) {
+    if (tocados.piel) out.piel = tocados.piel;
+    if (tocados.blanco) { A.esclerotica = tocados.blanco; B.esclerotica = tocados.blanco; }
+    if (tocados.ceja) out.ceja = tocados.ceja;
+  }
+  return out;
+}
+
+/**
+ * La textura de los ojos como la que usás: el diseño completo del modelo estándar (eyes o eyes_1px) con un color liso por pieza
+ * (esclerótica, pupila de 1 o 2 colores, ceja, piel de los párpados y de las paredes). modeloEstandar: el .bbs.json del modelo.
+ */
+export function texturaPlana(modeloEstandar, col) {
   const T = modeloEstandar.model.texture[0], rgba = new Uint8Array(T * T * 4);
-  const trozo = (id) => res.trozos.find((t) => t.id === id);
-  const poner = (u, v, px) => { if (u >= 0 && v >= 0 && u < T && v < T) rgba.set(px, (v * T + u) * 4); };
-  const px = (t, x, y) => t.rgba.subarray((y * t.w + x) * 4, (y * t.w + x) * 4 + 4);
+  const poner = (u, v, c) => { if (u >= 0 && v >= 0 && u < T && v < T) rgba.set([c[0], c[1], c[2], 255], (v * T + u) * 4); };
   for (const [id, g] of Object.entries(modeloEstandar.model.groups)) {
-    const t = trozo(id === 'anchor' ? 'paredes' : id);
-    if (!t) continue;
-    for (const c of g.cubes) {
-      for (const [cara, r] of Object.entries(c.uvs)) {
-        const u0 = Math.min(r[0], r[2]), u1 = Math.max(r[0], r[2]), v0 = Math.min(r[1], r[3]), v1 = Math.max(r[1], r[3]);
-        for (let v = v0; v < v1; v++) for (let u = u0; u < u1; u++) {
-          if (id === 'anchor') { poner(u, v, px(t, 0, 0)); continue; }
-          if (cara === 'front' || cara === 'back') poner(u, v, px(t, Math.min(t.w - 1, u - u0), Math.min(t.h - 1, v - v0)));
-          else if (cara === 'right') poner(u, v, px(t, 0, Math.min(t.h - 1, v - v0)));
-          else if (cara === 'left') poner(u, v, px(t, t.w - 1, Math.min(t.h - 1, v - v0)));
-          else if (cara === 'top') poner(u, v, px(t, Math.min(t.w - 1, u - u0), 0));
-          else poner(u, v, px(t, Math.min(t.w - 1, u - u0), t.h - 1));
+    const lado = /_(r|er|rt|rb)$/.test(id) ? col.a : col.b;
+    for (const c of g.cubes) for (const [cara, r] of Object.entries(c.uvs)) {
+      const u0 = Math.min(r[0], r[2]), u1 = Math.max(r[0], r[2]), v0 = Math.min(r[1], r[3]), v1 = Math.max(r[1], r[3]);
+      for (let v = v0; v < v1; v++) for (let u = u0; u < u1; u++) {
+        if (id === 'anchor' || id.startsWith('eyelid_')) poner(u, v, col.piel);
+        else if (id.startsWith('eye_')) poner(u, v, lado.esclerotica);
+        else if (id.startsWith('eyebrow_')) poner(u, v, col.ceja);
+        else if (id.startsWith('pupil_') && cara === 'front') {      // solo el frente de la pupila (los costados quedan transparentes, como en tus texturas)
+          const filas = lado.pupila, alto = v1 - v0;
+          poner(u, v, alto === filas.length ? filas[v - v0] : filas[Math.min(filas.length - 1, Math.floor(filas.length / 2))]);
         }
       }
     }
   }
+  // como en tus texturas: las filas 8 y 9 (puntas de las cejas) van llenas con el color de la ceja y las 14 y 15 (paredes) con el de la piel
+  for (const [v, c] of [[8, col.ceja], [9, col.ceja], [14, col.piel], [15, col.piel]]) for (let u = 0; u < 12; u++) if (!rgba[(v * T + u) * 4 + 3]) poner(u, v, c);
   return { w: T, h: T, rgba };
 }

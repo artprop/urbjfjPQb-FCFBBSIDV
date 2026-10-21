@@ -34,8 +34,15 @@ export async function guardarSalida(modo, nombre, datos, tipo = 'application/oct
   return 'Descargado: ' + nombre;
 }
 
-export async function abrirCarpetaSalida() {
-  if (await esPC()) await fetch(new URL('/pc/abrir_salida', location.href)).catch(() => {});
+// Abre la carpeta de Salida en el explorador (solo PC). Con modo / carpeta abre esa subcarpeta; con nombre, la carpeta con ese archivo elegido.
+export async function abrirCarpetaSalida(modo = '', nombre = '', carpeta = '') {
+  if (!(await esPC())) return;
+  if (typeof modo !== 'string') modo = nombre = carpeta = '';   // llamada desde un botón (el evento llega como primer argumento)
+  const q = new URLSearchParams();
+  if (modo) q.set('modo', modo);
+  if (nombre) q.set('nombre', nombre);
+  if (carpeta) q.set('carpeta', carpeta);
+  await fetch(new URL('/pc/abrir_salida?' + q, location.href)).catch(() => {});
 }
 
 // Bocas exactas (solo PC): manda un .wav y devuelve el JSON de Rhubarb { mouthCues: [{start, end, value}] }

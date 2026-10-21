@@ -1,6 +1,6 @@
 // Crafteo de personajes (por ahora: ojos, cejas y máscaras de borrado): de la skin arma lo que le falta al personaje para animarlo.
 import { pngDeRGBA } from '../mocap/paquete_modelos.js';
-import { guardarSalida, esPC } from '../comun/plataforma.js';
+import { guardarSalida, esPC, abrirCarpetaSalida } from '../comun/plataforma.js';
 import * as N from './nucleo.js';
 import { crearVista3D } from './vista3d.js';
 
@@ -277,12 +277,14 @@ const lienzoDe = (w, h, rgba) => { const c = document.createElement('canvas'); c
 
 function dibujar() {
   if (!res) return;
-  const tex = lienzoDe(res.textura.w, res.textura.h, res.textura.rgba);
+  const plana = estandar ? texturaDeOjos() : null;     // con tus ojos estándar se ve lo que sale: tu modelo con la textura lisa
+  const tex = plana ? lienzoDe(plana.w, plana.h, plana.rgba) : lienzoDe(res.textura.w, res.textura.h, res.textura.rgba);
+  const modelo = plana ? STOCK[plana.variante] : res.modelo, desvio = plana ? estandar.dy : 0;
   const huecos = [...celdasBorradas()].map((k) => ({ c0: k & 7, c1: k & 7, r0: k >> 3, r1: k >> 3 }));
   const pose = (n) => (n && res.poses[n] ? res.poses[n].pose : null);
   const pintar = (cv, E, n) => {
     const cx = cv.getContext('2d'); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height);
-    N.dibujarEscena(cx, { cara: caraCv, textura: tex, modelo: res.modelo, pose: pose(n), E, huecos });
+    N.dibujarEscena(cx, { cara: caraCv, textura: tex, modelo, pose: pose(n), E, huecos, desvio });
   };
   pintar($('#cvGrande'), 44, poseActiva);
   $('#txPose').textContent = (poseActiva || 'Reposo') + ' · como en BBS';
@@ -299,7 +301,7 @@ function dibujar() {
   for (const d of gal.children) { d.classList.toggle('activa', (d.dataset.pose || null) === poseActiva); pintar(d.querySelector('canvas'), 12, d.dataset.pose || null); }
   // los ojos solos en 3D (un poco más tarde, así no se traba mientras dibujás)
   clearTimeout(t3d);
-  t3d = setTimeout(() => { if (vista3d && res) vista3d.mostrar(res, nombreModelo(), poseActiva).catch((e) => console.warn('vista 3D', e)); }, 150);
+  t3d = setTimeout(() => { if (vista3d && res) vista3d.mostrar(res, nombreModelo(), poseActiva, plana ? { variante: plana.variante, modelo: STOCK[plana.variante], png: plana.bytes, dy: estandar.dy } : null).catch((e) => console.warn('vista 3D', e)); }, 150);
 }
 
 // ------------------------------------------------------------------ exportar
@@ -329,17 +331,28 @@ function archivosMascaras() {
   return lista;
 }
 
+const nombreTextura = () => 'Ojos' + personaje().replace(/(^|_)([a-z0-9])/g, (m, x, b) => b.toUpperCase()).replace(/_/g, '') + '.png';
+
+/** La textura de los ojos en el diseño de tus modelos (eyes o eyes_1px) con un color liso por pieza, como las que hacés a mano. null si todavía no cargaron los modelos. */
+function texturaDeOjos() {
+  const variante = estandar ? estandar.variante : ((cfg.a.r1 - cfg.a.r0 + 1) >= 2 ? 'eyes' : 'eyes_1px');
+  if (!STOCK[variante]) return null;
+  const col = N.coloresEstandar(cara, cfg, Object.keys(tocados).length ? { ...tocados } : null);
+  const t = N.texturaPlana(STOCK[variante], col);
+  return { variante, w: t.w, h: t.h, rgba: t.rgba, bytes: pngDeRGBA(t.w, t.h, t.rgba) };
+}
+
 /** Cómo van los ojos en el form: con tu modelo estándar solo cambia la textura; si no, un modelo propio. */
 function ojosDelPersonaje() {
   const nombre = nombreModelo();
-  if (estandar && STOCK[estandar.variante]) {
-    const archivo = 'Ojos' + personaje().replace(/(^|_)([a-z])/g, (m, a, b) => b.toUpperCase()).replace(/_/g, '') + '.png';
-    const tex = N.texturaEstandar(res, STOCK[estandar.variante]);
-    return { modelo: 'player/' + estandar.variante, textura: `assets:models/player/${estandar.variante}/${archivo}`, bajar: estandar.dy,
-      archivos: [{ ruta: `assets/models/player/${estandar.variante}/${archivo}`, bytes: pngDeRGBA(tex.w, tex.h, tex.rgba) }], pngNombre: archivo, png: pngDeRGBA(tex.w, tex.h, tex.rgba) };
+  const t = estandar && texturaDeOjos();
+  if (t) {
+    const archivo = nombreTextura();
+    return { modelo: 'player/' + t.variante, textura: `assets:models/player/${t.variante}/${archivo}`, bajar: estandar.dy,
+      archivos: [{ ruta: `assets/models/player/${t.variante}/${archivo}`, bytes: t.bytes }] };
   }
   return { modelo: 'player/' + nombre, textura: `assets:models/player/${nombre}/textura.png`, bajar: 0,
-    archivos: archivosModelo().map(([n, b]) => ({ ruta: `assets/models/player/${nombre}/${n}`, bytes: b })), pngNombre: nombre + '.png', png: pngBytes() };
+    archivos: archivosModelo().map(([n, b]) => ({ ruta: `assets/models/player/${nombre}/${n}`, bytes: b })) };
 }
 
 /** Todo el personaje: [{ ruta, bytes }] con rutas relativas a la carpeta del personaje (assets/models/...). */
@@ -359,9 +372,14 @@ function archivosPersonaje() {
 
 async function exportarPng() {
   if (!res) return;
-  const o = ojosDelPersonaje();
-  try { estado(await guardarSalida('ojos', o.pngNombre, new Blob([o.png], { type: 'image/png' })), 'ok') ; if (estandar) estado($('#estado').textContent + `\nEs la textura de ${estandar.variante}: copiala a assets/models/player/${estandar.variante}/.`, 'ok'); }
-  catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
+  const t = texturaDeOjos();
+  const nombre = t ? nombreTextura() : nombreModelo() + '.png', bytes = t ? t.bytes : pngBytes();
+  try {
+    let msg = await guardarSalida('ojos', nombre, new Blob([bytes], { type: 'image/png' }));
+    if (t) msg += `\nTextura en el diseño de ${t.variante}${estandar ? '' : ' (tus ojos no son del todo los estándar: se adaptó)'}: va en assets/models/player/${t.variante}/.`;
+    estado(msg, 'ok');
+    if (await esPC()) abrirCarpetaSalida('ojos', nombre);
+  } catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
 
 // archivos: [{ ruta, bytes }] (rutas con subcarpetas); carpeta: nombre de la carpeta que se crea; ayuda: qué hacer después
@@ -373,6 +391,7 @@ async function exportar(archivos, carpeta, ayuda, forzarSelector = false) {
         await guardarSalida('ojos', n, new Blob([a.bytes], { type: tipoDe(n) }), tipoDe(n), [carpeta, ...partes].join('/'));
       }
       estado(`Listo: ${archivos.length} archivos en la carpeta Salida\\ojos\\${carpeta}\n${ayuda}`, 'ok');
+      abrirCarpetaSalida('ojos', '', carpeta);
       return;
     }
     if (window.showDirectoryPicker) return elegirCarpeta(archivos, carpeta, ayuda);
@@ -459,4 +478,4 @@ $('#btnAjustes').onclick = () => { hoja.hidden = false; };
 $('#btnCerrar').onclick = () => { hoja.hidden = true; };
 hoja.addEventListener('pointerdown', (e) => { if (e.target === hoja) hoja.hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hoja.hidden = true; });
-window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, STOCK, get estandar() { return estandar; } };   // para las pruebas
+window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, texturaDeOjos, STOCK, get estandar() { return estandar; } };   // para las pruebas
