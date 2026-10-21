@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ojos para BBS</title>
+<title>Crafteo de personajes</title>
 <link rel="icon" href="../icono.svg">
 <style>
-  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e5645a; --azul: #3b6fd6; --cv: calc(50vw - 12px); }
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e5645a; --azul: #3b6fd6; --ed: calc((100vw - 16px) * 0.6); --sm: calc((var(--ed) - 6px) / 2); }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; height: 100%; overflow: hidden; }
@@ -22,10 +22,11 @@
   #barra b { font-size: 14px; margin-right: auto; white-space: nowrap; }
   #barra button, #barra .boton { padding: 5px 8px; }
   #app { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 8px; }
-  #lienzos { flex: none; display: flex; gap: 6px; justify-content: center; }
-  .lienzo { position: relative; width: var(--cv); }
-  .lienzo canvas { display: block; width: 100%; aspect-ratio: 1; height: auto; }
-  .rotulo { position: absolute; left: 4px; top: 3px; font-size: 10.5px; padding: 0 5px; border-radius: 4px; background: rgba(0,0,0,.55); color: #dfe5ee; pointer-events: none; }
+  #lienzos { flex: none; display: grid; grid-template-columns: var(--ed) var(--sm); grid-template-rows: var(--sm) var(--sm); gap: 6px; justify-content: center; }
+  .lienzo { position: relative; min-width: 0; min-height: 0; }
+  .lienzo.ed { grid-row: 1 / span 2; }
+  .lienzo canvas { display: block; width: 100%; height: 100%; }
+  .rotulo { position: absolute; left: 4px; top: 3px; font-size: 10px; max-width: 94%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 0 5px; border-radius: 4px; background: rgba(0,0,0,.55); color: #dfe5ee; pointer-events: none; }
   canvas { image-rendering: pixelated; background: #0f1218; border: 1px solid var(--borde); border-radius: 8px; }
   #cvEditor { cursor: crosshair; touch-action: none; }
   #controles { flex: none; display: flex; flex-direction: column; gap: 5px; background: var(--panel); border: 1px solid var(--borde); border-radius: 10px; padding: 6px; }
@@ -66,12 +67,14 @@
   details { color: var(--suave); font-size: 12.5px; }
   details ol { padding-left: 18px; margin: 6px 0; }
   #cvTextura { width: 96px; height: 96px; }
+  @media (max-width: 520px) { #titulo { display: none; } #barra button, #barra .boton { padding: 5px 7px; } #barra { gap: 5px; } #barra .boton { margin-right: auto; } }
   /* pantalla ancha: controles a la izquierda, todo a la vista */
   @media (min-width: 800px) {
-    :root { --cv: min(34vw, calc(100dvh - 300px)); }
-    #app { display: grid; grid-template-columns: 300px 1fr; grid-template-rows: auto 1fr; gap: 8px 10px; }
+    :root { --cv: min(21vw, calc(100dvh - 300px)); }
+    #app { display: grid; grid-template-columns: 290px 1fr; grid-template-rows: auto 1fr; gap: 8px 10px; }
     #controles { grid-row: 1 / 3; grid-column: 1; align-self: start; padding: 10px; gap: 10px; }
-    #lienzos { grid-column: 2; grid-row: 1; justify-content: flex-start; }
+    #lienzos { grid-column: 2; grid-row: 1; justify-content: flex-start; grid-template-columns: repeat(3, var(--cv)); grid-template-rows: var(--cv); }
+    .lienzo.ed { grid-row: auto; }
     #galeria { grid-column: 2; grid-row: 2; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
     .pose { font-size: 10.5px; padding: 4px; }
     .piezas button { padding: 5px 9px; font-size: 12.5px; }
@@ -83,10 +86,11 @@
 </head>
 <body>
 <div id="barra">
-  <b>👁 Ojos para BBS</b>
+  <b id="titulo">🧩 Crafteo</b>
   <label class="boton" title="Elegir la skin del personaje (.png de 64×64 o 64×32)">🖼 Skin<input type="file" id="inSkin" accept="image/png,image/*" hidden></label>
   <button id="btnPng" class="principal" title="Exportar solo la textura de los ojos (.png)" disabled>🖼 PNG</button>
-  <button id="btnModelo" title="Exportar el modelo: una carpeta con el modelo, las poses y la textura" disabled>📁 Modelo</button>
+  <button id="btnModelo" title="Exportar solo el modelo de ojos: una carpeta con el modelo, las poses y la textura" disabled>📁 Ojos</button>
+  <button id="btnPersonaje" title="Exportar el personaje completo: el form para BBS, la skin, las máscaras de borrado y los ojos" disabled>🧩 Personaje</button>
   <button id="btnAjustes" title="Ajustes, colores, números y ayuda" disabled>⚙</button>
 </div>
 <div id="app">
@@ -95,8 +99,9 @@
   </div>
   <div id="panelOjos" hidden style="display:contents">
     <div id="lienzos">
-      <div class="lienzo"><canvas id="cvEditor" width="352" height="352"></canvas><span class="rotulo">Dibujá acá</span></div>
+      <div class="lienzo ed"><canvas id="cvEditor" width="352" height="352"></canvas><span class="rotulo">Dibujá acá</span></div>
       <div class="lienzo"><canvas id="cvGrande" width="352" height="352"></canvas><span class="rotulo" id="txPose">Reposo</span></div>
+      <div class="lienzo"><canvas id="cv3d"></canvas><span class="rotulo">Ojos solos · girá</span></div>
     </div>
     <div id="controles">
       <div id="fila1">
@@ -109,6 +114,7 @@
       <div id="opciones">
         <label><input type="checkbox" id="chkAmbos" checked> Mover ambos</label>
         <label><input type="checkbox" id="chkEspejo"> Espejo</label>
+        <button id="btnConCeja" title="Le asigna cejas a los dos ojos (aunque la skin no las tenga). Después las movés o les cambiás el color">＋ Ceja</button>
         <button id="btnSinCeja" title="Saca la ceja del ojo elegido">✖ Ceja</button>
         <button id="btnReanalizar" title="Vuelve a buscar los ojos y borra tus cambios">🔄 Buscar</button>
       </div>
@@ -122,14 +128,26 @@
     <h3>Ajustes <button id="btnCerrar">✕</button></h3>
     <label class="fila">Saltones <input type="range" id="rgSaliente" min="0" max="2" step="0.25" value="0" style="flex:1"> <span id="txSaliente">0 px</span></label>
     <label class="chk"><input type="checkbox" id="chkLisos"> Párpados lisos (un solo color de piel; si no, copian la piel de al lado)</label>
-    <label class="chk"><input type="checkbox" id="chkColores"> Usar estos colores en vez de los de la skin</label>
     <div class="fila" id="filaColores">
+      <span class="det">Colores (se sacan de la skin; tocá uno para cambiarlo)</span>
       <label>Piel <input type="color" id="colPiel"></label>
       <label>Blanco <input type="color" id="colBlanco"></label>
       <label>Cejas <input type="color" id="colCeja"></label>
+      <button id="btnColoresAuto" title="Vuelve a los colores de la skin">↺ Auto</button>
       <canvas id="cvTextura" width="128" height="128" title="Textura de los ojos"></canvas>
     </div>
-    <div class="fila"><label>Nombre <input type="text" id="inNombre" value="eyes_nuevo"></label><button id="btnOtra" hidden title="Elegís la carpeta donde se crea la carpeta del modelo (por ejemplo config\bbs\assets\models\player)">📂 Elegir dónde guardar…</button></div>
+    <h3 style="margin-top:4px">Máscaras de borrado <span class="det">(capas «erase» de BBS)</span></h3>
+    <label class="chk"><input type="checkbox" id="chkMOjos" checked> Ojos: borra el lugar de los ojos para poner el modelo</label>
+    <label class="chk"><input type="checkbox" id="chkUsarMia" checked> Si los ojos son los estándar, usar <b>tu máscara</b> (AEsclerotica1x2, con shiftY según la fila) y tu modelo <code>eyes</code>/<code>eyes_1px</code> con una textura nueva, en vez de crear una máscara y un modelo propios</label>
+    <label class="chk"><input type="checkbox" id="chkMBoca"> Boca: borra el lugar de la boca (dibujala con «Boca» sobre la cara)</label>
+    <label class="chk"><input type="checkbox" id="chkMPest"> Pestañas: borra las pestañas de la skin y las pasa a los párpados del modelo (pintalas con «Pestañas»)</label>
+    <label class="chk"><input type="checkbox" id="chkMSombrero" checked> También la capa de arriba (sombrero) donde tenga algo</label>
+    <h3 style="margin-top:4px">Personaje <span class="det">(para «🧩 Personaje»)</span></h3>
+    <div class="fila"><label>Cuerpo <select id="selCuerpo"><option value="player/steve">steve</option><option value="player/alex">alex (brazos finos)</option><option value="player/steve_bends">steve_bends</option><option value="player/alex_bends">alex_bends</option></select></label></div>
+    <div class="fila"><label style="flex:1">Skin en BBS <input type="text" id="inRutaSkin" value="player/_LosSaucera/personaje.png" style="width:100%"></label></div>
+    <label class="chk"><input type="checkbox" id="chkIncluirSkin"> Incluir una copia de la skin en el paquete (si ya la tenés en esa ruta, no hace falta)</label>
+    <div class="fila"><label style="flex:1">Carpeta de las máscaras nuevas <input type="text" id="inCarpeta" value="player/_LosSaucera/PelosYMisc/Mascaras" style="width:100%"></label></div>
+    <div class="fila"><label>Nombre de los ojos <input type="text" id="inNombre" value="eyes_nuevo"></label><button id="btnOtra" hidden title="Elegís la carpeta donde se crea la carpeta del modelo (por ejemplo config\bbs\assets\models\player)">📂 Elegir dónde guardar…</button></div>
     <details>
       <summary>Números (avanzado)</summary>
       <div class="det" style="margin:6px 0">Columnas 0–7 de izquierda a derecha, filas 0–7 de arriba abajo. Es lo mismo que dibujar sobre la cara.</div>

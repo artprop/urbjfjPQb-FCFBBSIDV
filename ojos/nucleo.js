@@ -167,7 +167,7 @@ const cubo = (desde, tam, origen, caras) => ({ from: desde.map(r3), size: tam.ma
 /**
  * Arma todo: { modelo (.bbs.json), poses, config, textura: {w, h, rgba}, info }.
  * cfg: { a, b (ojos como los da detectarOjos), saliente (px hacia afuera), colores: {piel, blanco, ceja} | null (para pisar los de la cara),
- *        parpadosLisos (párpados de un solo color), nombre (del modelo) }.
+ *        parpadosLisos (párpados de un solo color), pestanas (celdas f*8+c con pestañas de la skin), nombre (del modelo) }.
  */
 export function generar(cara, cfg) {
   const sal = cfg.saliente || 0;
@@ -180,11 +180,14 @@ export function generar(cara, cfg) {
   const trozos = [];     // { id, w, h, rgba }
   const hacer = (id, w, h, f) => { const rgba = new Uint8Array(w * h * 4); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) rgba.set(f(x, y), (y * w + x) * 4); trozos.push({ id, w, h, rgba }); };
   const opaco = (c) => [c[0], c[1], c[2], 255];
+  const pestanas = new Set(cfg.pestanas || []);     // celdas de la cara con pestañas de la skin: pasan a ser del párpado del modelo
   const dePiel = (f, c) => {
     if (f < 0 || f > 7 || c < 0 || c > 7) return opaco(col.piel);
-    const p = pix(cara, f, c); return clase[f * 8 + c] || p[3] < 128 ? opaco(col.piel) : p;
+    const p = pix(cara, f, c);
+    if (pestanas.has(f * 8 + c) && p[3] >= 128) return p;
+    return clase[f * 8 + c] || p[3] < 128 ? opaco(col.piel) : p;
   };
-  const ocultaPiel = !!(cfg.parpadosLisos || (cfg.colores && cfg.colores.piel));   // párpados de un solo color en vez de copiar la piel de al lado
+  const ocultaPiel = !!(cfg.parpadosLisos || (cfg.colores && cfg.colores.piel)) && !pestanas.size;   // párpados de un solo color en vez de copiar la piel de al lado
   for (const [lado, L] of Object.entries(LADOS)) {
     const o = cfg[lado], g = G[lado], w = o.c1 - o.c0 + 1, h = o.r1 - o.r0 + 1;
     const dentroPupila = (f, c) => f >= o.p.r0 && f <= o.p.r1 && c >= o.p.c0 && c <= o.p.c1;
@@ -287,7 +290,7 @@ export function generar(cara, cfg) {
     bones: { eye_l: { hidden: true, opposite: 'eye_r' }, eye_r: { hidden: true }, pupil_l: { opposite: 'pupil_r' }, eyelid_lt: { opposite: 'eyelid_rt' },
       eyelid_lb: { opposite: 'eyelid_rb' }, eyebrow_l: { opposite: 'eyebrow_r' }, eyebrow_el: { opposite: 'eyebrow_er' } },
   };
-  return { modelo, poses, config, textura: { w: T, h: T, rgba }, colores: col, info: { ojoA: describirOjo(cfg.a), ojoB: describirOjo(cfg.b), textura: `${T}×${T}` } };
+  return { modelo, poses, config, textura: { w: T, h: T, rgba }, trozos, colores: col, info: { ojoA: describirOjo(cfg.a), ojoB: describirOjo(cfg.b), textura: `${T}×${T}` } };
 }
 
 // ------------------------------------------------------------------ poses
@@ -398,4 +401,125 @@ export function dibujarEscena(ctx, { cara, textura, modelo, pose, E, huecos }) {
   ctx.restore();
   dibujarFrente(ctx, textura, modelo, pose, E, 0, 0, 'delante');
   ctx.restore();
+}
+
+// ------------------------------------------------------------------ máscaras de borrado (capas "erase" de BBS)
+/** Una sugerencia para la máscara de la boca: la caja de lo oscuro o de color fuerte entre las columnas 2 y 5, filas 5 a 7. null si no hay. */
+export function detectarBoca(cara, ojos = null) {
+  const { clase } = clasesDeCara(cara);
+  const enOjo = (f, c) => !!ojos && [ojos.a, ojos.b].some((o) => f >= o.r0 && f <= o.r1 && c >= o.c0 && c <= o.c1);
+  const pts = [];
+  for (let f = 5; f <= 7; f++) for (let c = 2; c <= 5; c++) if ((clase[f * 8 + c] === 'O' || clase[f * 8 + c] === 'C') && !enOjo(f, c)) pts.push({ f, c });
+  if (!pts.length) return null;
+  return { c0: Math.min(...pts.map((p) => p.c)), c1: Math.max(...pts.map((p) => p.c)), r0: Math.min(...pts.map((p) => p.f)), r1: Math.max(...pts.map((p) => p.f)) };
+}
+
+/** Celdas de la cara (f*8+c) de cada máscara: ojos (las cajas de los dos ojos), boca (una caja) y pestañas (celdas sueltas). */
+export function celdasDeMascaras(cfg) {
+  const caja = (b) => { const s = new Set(); if (b) for (let f = b.r0; f <= b.r1; f++) for (let c = b.c0; c <= b.c1; c++) s.add(f * 8 + c); return s; };
+  return { ojos: new Set([...caja(cfg.a), ...caja(cfg.b)]), boca: caja(cfg.mascaras && cfg.mascaras.boca), pestanas: new Set((cfg.mascaras && cfg.mascaras.pestanas) || []) };
+}
+
+/**
+ * PNG (RGBA) de una máscara de borrado del tamaño de la skin: píxeles opacos donde BBS tiene que borrar la textura de abajo.
+ * Cada celda de la cara (columna c, fila f) está en la skin en (8+c, 8+f); con `sombrero`, también en la capa de arriba (40+c, 8+f) si ahí hay algo.
+ */
+export function mascaraRGBA(w, h, skinRgba, celdas, sombrero = true) {
+  const out = new Uint8Array(w * h * 4);
+  const poner = (x, y) => { if (x < w && y < h) out.set([255, 255, 255, 255], (y * w + x) * 4); };
+  for (const k of celdas) {
+    const f = k >> 3, c = k & 7;
+    poner(8 + c, 8 + f);
+    if (sombrero && 40 + c < w && 8 + f < h && skinRgba[((8 + f) * w + 40 + c) * 4 + 3] > 0) poner(40 + c, 8 + f);
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ form de BBS del personaje
+import { FORM_BASE, PARTE_OJOS } from './plantilla_form.js';
+const clonar = (o) => JSON.parse(JSON.stringify(o));
+const uuid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); }));
+
+/**
+ * El form del personaje, en el formato que exporta BBS (lista de forms): el modelo del cuerpo con la skin y las capas de borrado
+ * ({ path, erase: true }) encima, y los ojos como parte de «head».
+ * opciones: { nombre, modeloBase ('player/steve'...), rutaSkin ('assets:models/...'), capas: [{path, shiftY?}], modeloOjos ('player/eyes_x'), texturaOjos, bajarOjos (filas) }
+ */
+export function formPersonaje(o) {
+  const f = clonar(FORM_BASE);
+  f.name = o.nombre; f.model = o.modeloBase || 'player/steve';
+  f.texture = [{ path: o.rutaSkin }, ...(o.capas || []).map((c) => (c.shiftY ? { path: c.path, erase: true, shiftY: c.shiftY } : { path: c.path, erase: true }))];
+  const parte = clonar(PARTE_OJOS);
+  parte.form.model = o.modeloOjos; parte.form.texture = o.texturaOjos || ''; parte.bone = 'head';
+  if (o.bajarOjos) parte.transform = { r2: [0, 0, 0], r: [0, 0, 0], s: [1, 1, 1], t: [0, -o.bajarOjos * 0.0625, 0] };   // ojos estándar más abajo en la cara: se bajan en el form, no en el modelo
+  f.parts = [parte];
+  return { id: uuid(), title: o.nombre, forms: [f] };
+}
+
+/** ¿Brazos finos (Alex)? En una skin de 64x64 con brazos de 3 píxeles, la última columna del brazo derecho está vacía. */
+export function brazosFinos(rgba, w, h) {
+  if (h < 64) return false;
+  let vacios = 0, total = 0;
+  for (let y = 20; y < 32; y++) for (const x of [54, 55]) { total++; if (rgba[(y * w + x) * 4 + 3] === 0) vacios++; }
+  return vacios >= total * 0.9;
+}
+
+// ------------------------------------------------------------------ lo que ya usás vos (sacado de tu archivo de presets)
+/**
+ * Tus archivos en BBS. Todo está en assets/models/player/_LosSaucera. La máscara de borrado de los ojos que usás es AEsclerotica1x2.png:
+ * 1 fila por 2 columnas por ojo, en el lugar de los ojos de Steve (columnas 1-2 y 5-6, fila 4); en las skins de brazos finos (Alex) con los ojos
+ * una fila más abajo la corrés con shiftY: 1 (y los ojos del modelo se bajan 0,0625 en la parte).
+ */
+export const USUARIO = {
+  carpeta: 'player/_LosSaucera',
+  mascaraOjos: { ruta: 'assets:models/player/_LosSaucera/PelosYMisc/OjosMask/AEsclerotica1x2.png', cols: [[1, 2], [5, 6]], fila: 4 },
+  carpetaMascaras: 'PelosYMisc/Mascaras',      // dónde van las máscaras nuevas (boca, pestañas…) que no son las tuyas
+};
+/** Las celdas que borra tu máscara de ojos corrida `dy` filas. */
+export function celdasMascaraUsuario(dy = 0) {
+  const s = new Set();
+  for (const [c0, c1] of USUARIO.mascaraOjos.cols) for (let c = c0; c <= c1; c++) s.add((USUARIO.mascaraOjos.fila + dy) * 8 + c);
+  return s;
+}
+
+/**
+ * ¿Los ojos de esta skin son los del modelo estándar (player/eyes: 2×2; player/eyes_1px: 2×1), solo que más arriba o más abajo?
+ * Devuelve { variante: 'eyes' | 'eyes_1px', dy } (dy = filas más abajo que los de Steve) o null si hace falta un modelo propio.
+ */
+export function compararConEstandar(cfg) {
+  const A = cfg.a, B = cfg.b, h = A.r1 - A.r0 + 1;
+  if (cfg.saliente || h < 1 || h > 2) return null;
+  const bien = (o, cols, pup) => o.c0 === cols[0] && o.c1 === cols[1] && o.r1 - o.r0 + 1 === h && o.p.c0 === pup && o.p.c1 === pup && o.p.r0 === o.r0 && o.p.r1 === o.r1
+    && (!o.ceja || (o.ceja.c0 === o.c0 && o.ceja.c1 === o.c1 && o.ceja.r === o.r0 - 1));
+  if (!bien(A, [1, 2], 2) || !bien(B, [5, 6], 5) || A.r0 !== B.r0 || A.r1 !== B.r1) return null;
+  return { variante: h === 1 ? 'eyes_1px' : 'eyes', dy: A.r1 - 4 };
+}
+
+/**
+ * La textura de los ojos en el formato del modelo estándar (la que va en assets/models/player/eyes_1px/OjosNombre.png).
+ * modeloEstandar: el .bbs.json del modelo (eyes o eyes_1px); res: lo que devolvió generar().
+ */
+export function texturaEstandar(res, modeloEstandar) {
+  const T = modeloEstandar.model.texture[0], rgba = new Uint8Array(T * T * 4);
+  const trozo = (id) => res.trozos.find((t) => t.id === id);
+  const poner = (u, v, px) => { if (u >= 0 && v >= 0 && u < T && v < T) rgba.set(px, (v * T + u) * 4); };
+  const px = (t, x, y) => t.rgba.subarray((y * t.w + x) * 4, (y * t.w + x) * 4 + 4);
+  for (const [id, g] of Object.entries(modeloEstandar.model.groups)) {
+    const t = trozo(id === 'anchor' ? 'paredes' : id);
+    if (!t) continue;
+    for (const c of g.cubes) {
+      for (const [cara, r] of Object.entries(c.uvs)) {
+        const u0 = Math.min(r[0], r[2]), u1 = Math.max(r[0], r[2]), v0 = Math.min(r[1], r[3]), v1 = Math.max(r[1], r[3]);
+        for (let v = v0; v < v1; v++) for (let u = u0; u < u1; u++) {
+          if (id === 'anchor') { poner(u, v, px(t, 0, 0)); continue; }
+          if (cara === 'front' || cara === 'back') poner(u, v, px(t, Math.min(t.w - 1, u - u0), Math.min(t.h - 1, v - v0)));
+          else if (cara === 'right') poner(u, v, px(t, 0, Math.min(t.h - 1, v - v0)));
+          else if (cara === 'left') poner(u, v, px(t, t.w - 1, Math.min(t.h - 1, v - v0)));
+          else if (cara === 'top') poner(u, v, px(t, Math.min(t.w - 1, u - u0), 0));
+          else poner(u, v, px(t, Math.min(t.w - 1, u - u0), t.h - 1));
+        }
+      }
+    }
+  }
+  return { w: T, h: T, rgba };
 }

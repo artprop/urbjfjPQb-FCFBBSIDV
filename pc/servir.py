@@ -310,8 +310,10 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
                 modo = nombre_seguro(q.get('modo', ['otros'])[0])
                 nombre = nombre_seguro(q.get('nombre', ['salida'])[0])
                 carpeta = os.path.join(SALIDA, modo)
-                if q.get('carpeta'):   # una subcarpeta (por ejemplo, un modelo con su .obj y su .png)
-                    carpeta = os.path.join(carpeta, nombre_seguro(q['carpeta'][0]))
+                if q.get('carpeta'):   # una subcarpeta (por ejemplo, un modelo con su .obj y su .png); con "/" se arman subcarpetas adentro de subcarpetas
+                    for tramo in q['carpeta'][0].split('/'):
+                        if tramo.strip(' .'):
+                            carpeta = os.path.join(carpeta, nombre_seguro(tramo))
                 os.makedirs(carpeta, exist_ok=True)
                 ruta = os.path.join(carpeta, nombre)
                 with open(ruta, 'wb') as f:

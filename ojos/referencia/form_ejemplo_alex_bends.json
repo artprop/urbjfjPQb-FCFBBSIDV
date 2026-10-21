@@ -1,0 +1,1280 @@
+{
+ "id": "6dd004d0-81a8-406c-bc40-c3797a8b4b4a",
+ "title": "Ejemplo (recortado)",
+ "forms": [
+  {
+   "pose_overlay": {},
+   "hitboxHeight": 1.8,
+   "color": -1,
+   "pose_overlay0": {},
+   "disabled_tracks": [],
+   "pose_overlay1": {},
+   "hp": 20.0,
+   "shaderShadow": true,
+   "states": [],
+   "shape_keys": {
+    "keys": {}
+   },
+   "transform": {},
+   "step_height": 0.5,
+   "additive_color": false,
+   "pose_overlay2": {},
+   "pose_overlay3": {},
+   "model": "player/alex_bends",
+   "bone_tracks": true,
+   "id": "bbs:model",
+   "track_name": "",
+   "hitboxWidth": 0.5,
+   "visible": true,
+   "hitboxEyeHeight": 0.9,
+   "pose": {
+    "pose": {
+     "right_knee": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       -0.97738427,
+       0.0,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "right_arm": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       0.71558493,
+       -0.6108652,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "left_leg": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       0.7330381,
+       0.7504916,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "left_arm": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       0.83775795,
+       0.7330382,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "right_leg": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       0.7679447,
+       -0.5061453,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "right_elbow": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       1.1693702,
+       0.0,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "left_knee": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       -1.2217302,
+       0.0,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     },
+     "left_elbow": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       1.0821037,
+       0.0,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "fix": 0.0,
+      "color": -1,
+      "lighting": 0.0
+     }
+    }
+   },
+   "texture": [
+    {
+     "path": "assets:models/player/_LosSaucera/SauceVariantes/A1AltVariant.png"
+    },
+    {
+     "path": "assets:models/player/_LosSaucera/PelosYMisc/OjosMask/AEsclerotica1x2.png",
+     "erase": true,
+     "shiftY": 1
+    },
+    {
+     "path": "assets:models/player/_LosSaucera/Ropa/MujerSlim/Superior/A1RemeraSpido.png",
+     "color": -14803426
+    },
+    {
+     "path": "assets:models/player/_LosSaucera/Ropa/MujerSlim/Superior/A7MusculosaC.png",
+     "color": -3669907
+    },
+    {
+     "path": "assets:models/player/_LosSaucera/Ropa/VaronStock/Inferior/A9C.png",
+     "color": -3669907
+    },
+    {
+     "path": "assets:models/player/_LosSaucera/Ropa/Zapats/A1ZapatillasC.png"
+    },
+    {
+     "path": "assets:models/player/_LosSaucera/PelosYMisc/OjosMask/AEsclerotica1x2.png",
+     "color": -736346
+    }
+   ],
+   "hitboxSneakMultiplier": 0.9,
+   "transform_overlay3": {},
+   "transform_overlay2": {},
+   "transform_overlay1": {},
+   "lighting": 1.0,
+   "transform_overlay0": {},
+   "hitbox": false,
+   "movement_speed": 0.1,
+   "uiScale": 1.0,
+   "anchor": {
+    "actor": -1,
+    "attachment": "",
+    "scale": false,
+    "translate": false
+   },
+   "keybind": 0,
+   "name": "F:eB_Ropa",
+   "parts": [
+    {
+     "transform": {
+      "r2": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "r": [
+       0.0,
+       0.0,
+       0.0
+      ],
+      "s": [
+       1.0,
+       1.0,
+       1.0
+      ],
+      "t": [
+       0.0,
+       -0.0625,
+       0.0
+      ]
+     },
+     "form": {
+      "pose_overlay": {},
+      "hitboxHeight": 1.8,
+      "color": -1,
+      "pose_overlay0": {},
+      "disabled_tracks": [],
+      "pose_overlay1": {},
+      "hp": 20.0,
+      "shaderShadow": true,
+      "states": [],
+      "shape_keys": {
+       "keys": {}
+      },
+      "transform": {},
+      "step_height": 0.5,
+      "additive_color": false,
+      "pose_overlay2": {},
+      "pose_overlay3": {},
+      "model": "player/eyes_1px",
+      "bone_tracks": true,
+      "id": "bbs:model",
+      "track_name": "ojos",
+      "hitboxWidth": 0.5,
+      "visible": true,
+      "hitboxEyeHeight": 0.9,
+      "pose": {
+       "pose": {
+        "eyelid_lt": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          -0.06981318
+         ],
+         "s": [
+          1.05,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          -0.281,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "eyebrow_r": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.20943953
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.156,
+          -0.094,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "eyelid_rt": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.06981318
+         ],
+         "s": [
+          1.05,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          -0.281,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "eyebrow_l": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          -0.20943953
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          -0.156,
+          -0.094,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        }
+       }
+      },
+      "texture": "assets:models/player/eyes_1px/OjosMiri.png",
+      "hitboxSneakMultiplier": 0.9,
+      "transform_overlay3": {},
+      "transform_overlay2": {},
+      "transform_overlay1": {},
+      "lighting": 1.0,
+      "transform_overlay0": {},
+      "hitbox": false,
+      "movement_speed": 0.1,
+      "uiScale": 1.0,
+      "anchor": {
+       "actor": -1,
+       "attachment": "",
+       "scale": false,
+       "translate": false
+      },
+      "keybind": 0,
+      "name": "Ojos",
+      "parts": [],
+      "transform_overlay": {},
+      "actions": {}
+     },
+     "bone": "head",
+     "useTarget": false
+    },
+    {
+     "transform": {},
+     "form": {
+      "pose_overlay": {},
+      "hitboxHeight": 1.8,
+      "color": -1,
+      "pose_overlay0": {},
+      "disabled_tracks": [],
+      "pose_overlay1": {},
+      "hp": 20.0,
+      "shaderShadow": true,
+      "states": [],
+      "shape_keys": {
+       "keys": {}
+      },
+      "transform": {},
+      "step_height": 0.5,
+      "additive_color": false,
+      "pose_overlay2": {},
+      "pose_overlay3": {},
+      "model": "player/face",
+      "bone_tracks": true,
+      "id": "bbs:model",
+      "track_name": "boca",
+      "hitboxWidth": 0.5,
+      "visible": true,
+      "hitboxEyeHeight": 0.9,
+      "pose": {
+       "pose": {
+        "female_i": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_a": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_s": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_u": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "female_o": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_o": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "female_u": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "female_s": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "female_a": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_e": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "female_s2": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_s3": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_i": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "male_s2": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "s": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        }
+       }
+      },
+      "hitboxSneakMultiplier": 0.9,
+      "transform_overlay3": {},
+      "transform_overlay2": {},
+      "transform_overlay1": {},
+      "lighting": 1.0,
+      "transform_overlay0": {},
+      "hitbox": false,
+      "movement_speed": 0.1,
+      "uiScale": 1.0,
+      "anchor": {
+       "actor": -1,
+       "attachment": "",
+       "scale": false,
+       "translate": false
+      },
+      "keybind": 0,
+      "name": "Boca",
+      "parts": [],
+      "transform_overlay": {},
+      "actions": {}
+     },
+     "bone": "head",
+     "useTarget": false
+    },
+    {
+     "transform": {},
+     "form": {
+      "pose_overlay": {},
+      "hitboxHeight": 1.8,
+      "color": -1,
+      "pose_overlay0": {},
+      "disabled_tracks": [],
+      "pose_overlay1": {},
+      "hp": 20.0,
+      "shaderShadow": true,
+      "states": [],
+      "shape_keys": {
+       "keys": {}
+      },
+      "transform": {},
+      "step_height": 0.5,
+      "additive_color": false,
+      "pose_overlay2": {},
+      "pose_overlay3": {},
+      "model": "player/dedos",
+      "bone_tracks": true,
+      "id": "bbs:model",
+      "track_name": "manoizq",
+      "hitboxWidth": 0.5,
+      "visible": true,
+      "hitboxEyeHeight": 0.9,
+      "pose": {
+       "pose": {
+        "Anchor": {
+         "r2": [
+          0.0,
+          -0.0,
+          -0.0
+         ],
+         "r": [
+          0.0,
+          1.570796,
+          -0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          1.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "5pinki": {
+         "r2": [
+          0.0,
+          -0.0,
+          -0.0
+         ],
+         "r": [
+          -1.6580616,
+          -0.052359883,
+          -0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          -0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "1thumb": {
+         "r2": [
+          0.0,
+          -0.0,
+          -0.0
+         ],
+         "r": [
+          0.13089961,
+          -0.13962635,
+          -1.6493341
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          -3.0,
+          0.0,
+          0.5
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "3middl": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.4660747,
+          0.0,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "4anular": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.4660753,
+          0.0,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "2index": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.5882484,
+          0.0,
+          -0.043633223
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        }
+       }
+      },
+      "texture": "assets:models/player/_LosSaucera/SauceVariantes/A1AltVariant.png",
+      "hitboxSneakMultiplier": 0.9,
+      "transform_overlay3": {},
+      "transform_overlay2": {},
+      "transform_overlay1": {},
+      "lighting": 1.0,
+      "transform_overlay0": {},
+      "hitbox": false,
+      "movement_speed": 0.1,
+      "uiScale": 1.0,
+      "anchor": {
+       "actor": -1,
+       "attachment": "",
+       "scale": false,
+       "translate": false
+      },
+      "keybind": 0,
+      "name": "ManoIzq",
+      "parts": [],
+      "transform_overlay": {},
+      "actions": {}
+     },
+     "bone": "left_arm_item",
+     "useTarget": false
+    },
+    {
+     "transform": {},
+     "form": {
+      "pose_overlay": {},
+      "hitboxHeight": 1.8,
+      "color": -1,
+      "pose_overlay0": {},
+      "disabled_tracks": [],
+      "pose_overlay1": {},
+      "hp": 20.0,
+      "shaderShadow": true,
+      "states": [],
+      "shape_keys": {
+       "keys": {}
+      },
+      "transform": {},
+      "step_height": 0.5,
+      "additive_color": false,
+      "pose_overlay2": {},
+      "pose_overlay3": {},
+      "model": "player/dedos",
+      "bone_tracks": true,
+      "id": "bbs:model",
+      "track_name": "manoder",
+      "hitboxWidth": 0.5,
+      "visible": true,
+      "hitboxEyeHeight": 0.9,
+      "pose": {
+       "pose": {
+        "Anchor": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          -1.570796,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          -0.5,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "5pinki": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.8325951,
+          0.0,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          -0.5
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "1thumb": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          0.0,
+          0.0,
+          1.5271628
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.5,
+          0.0,
+          0.0
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "3middl": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.5795226,
+          0.0,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          -0.5
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "4anular": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.5446157,
+          0.0,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          -0.5
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        },
+        "2index": {
+         "r2": [
+          0.0,
+          0.0,
+          0.0
+         ],
+         "r": [
+          -1.588249,
+          0.09599308,
+          0.0
+         ],
+         "s": [
+          1.0,
+          1.0,
+          1.0
+         ],
+         "t": [
+          0.0,
+          0.0,
+          -0.5
+         ],
+         "fix": 0.0,
+         "color": -1,
+         "lighting": 0.0
+        }
+       }
+      },
+      "texture": "assets:models/player/_LosSaucera/SauceVariantes/A1AltVariant.png",
+      "hitboxSneakMultiplier": 0.9,
+      "transform_overlay3": {},
+      "transform_overlay2": {},
+      "transform_overlay1": {},
+      "lighting": 1.0,
+      "transform_overlay0": {},
+      "hitbox": false,
+      "movement_speed": 0.1,
+      "uiScale": 1.0,
+      "anchor": {
+       "actor": -1,
+       "attachment": "",
+       "scale": false,
+       "translate": false
+      },
+      "keybind": 0,
+      "name": "ManoDer",
+      "parts": [],
+      "transform_overlay": {},
+      "actions": {}
+     },
+     "bone": "right_arm_item",
+     "useTarget": false
+    }
+   ],
+   "transform_overlay": {},
+   "actions": {}
+  }
+ ]
+}
