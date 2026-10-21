@@ -137,13 +137,16 @@
       <canvas id="cvTextura" width="128" height="128" title="Textura de los ojos"></canvas>
     </div>
     <h3 style="margin-top:4px">Máscaras de borrado <span class="det">(capas «erase» de BBS)</span></h3>
-    <label class="chk"><input type="checkbox" id="chkMOjos" checked> Ojos: borra el lugar de los ojos para poner el modelo (el recuadro de «Ojo»)</label>
+    <label class="chk"><input type="checkbox" id="chkMOjos" checked> Ojos: borra el lugar de los ojos para poner el modelo</label>
+    <label class="chk"><input type="checkbox" id="chkUsarMia" checked> Si los ojos son los estándar, usar <b>tu máscara</b> (AEsclerotica1x2, con shiftY según la fila) y tu modelo <code>eyes</code>/<code>eyes_1px</code> con una textura nueva, en vez de crear una máscara y un modelo propios</label>
     <label class="chk"><input type="checkbox" id="chkMBoca"> Boca: borra el lugar de la boca (dibujala con «Boca» sobre la cara)</label>
     <label class="chk"><input type="checkbox" id="chkMPest"> Pestañas: borra las pestañas de la skin y las pasa a los párpados del modelo (pintalas con «Pestañas»)</label>
     <label class="chk"><input type="checkbox" id="chkMSombrero" checked> También la capa de arriba (sombrero) donde tenga algo</label>
     <h3 style="margin-top:4px">Personaje <span class="det">(para «🧩 Personaje»)</span></h3>
     <div class="fila"><label>Cuerpo <select id="selCuerpo"><option value="player/steve">steve</option><option value="player/alex">alex (brazos finos)</option><option value="player/steve_bends">steve_bends</option><option value="player/alex_bends">alex_bends</option></select></label></div>
-    <div class="fila"><label style="flex:1">Carpeta en BBS <input type="text" id="inCarpeta" value="player/personaje" style="width:100%"></label></div>
+    <div class="fila"><label style="flex:1">Skin en BBS <input type="text" id="inRutaSkin" value="player/_LosSaucera/personaje.png" style="width:100%"></label></div>
+    <label class="chk"><input type="checkbox" id="chkIncluirSkin"> Incluir una copia de la skin en el paquete (si ya la tenés en esa ruta, no hace falta)</label>
+    <div class="fila"><label style="flex:1">Carpeta de las máscaras nuevas <input type="text" id="inCarpeta" value="player/_LosSaucera/PelosYMisc/Mascaras" style="width:100%"></label></div>
     <div class="fila"><label>Nombre de los ojos <input type="text" id="inNombre" value="eyes_nuevo"></label><button id="btnOtra" hidden title="Elegís la carpeta donde se crea la carpeta del modelo (por ejemplo config\bbs\assets\models\player)">📂 Elegir dónde guardar…</button></div>
     <details>
       <summary>Números (avanzado)</summary>

@@ -22,6 +22,10 @@ let res = null;         // lo último que se generó
 let poseActiva = null;  // nombre de la pose que se ve en grande (null = reposo)
 let activo = { lado: 'a', pieza: 'ojo' };
 let pendiente = 0, t3d = 0;
+let estandar = null;    // { variante, dy } si los ojos son los de tu modelo estándar (eyes / eyes_1px)
+const STOCK = {};       // los modelos estándar (para repintar la textura en su formato)
+fetch(new URL('../mocap/datos/ojos/eyes/eyes.bbs.json', import.meta.url)).then((r) => r.json()).then((j) => { STOCK.eyes = j; recalcular(); }).catch(() => {});
+fetch(new URL('../mocap/datos/ojos/eyes_1px/eyes_1px.bbs.json', import.meta.url)).then((r) => r.json()).then((j) => { STOCK.eyes_1px = j; recalcular(); }).catch(() => {});
 let vista3d = null;
 
 // ------------------------------------------------------------------ cargar la skin
@@ -40,7 +44,7 @@ async function cargarSkin(archivo) {
     cara = N.caraDeSkin(skin.rgba, skin.w, skin.h);
     caraCv = lienzoDe(8, 8, cara);
     $('#inNombre').value = 'eyes_' + base;
-    $('#inCarpeta').value = 'player/' + base;
+    $('#inRutaSkin').value = `${N.USUARIO.carpeta}/${archivo.name.replace(/[^A-Za-z0-9_.\-]+/g, '_')}`;
     $('#selCuerpo').value = N.brazosFinos(skin.rgba, skin.w, skin.h) ? 'player/alex' : 'player/steve';
     if (!vista3d) vista3d = crearVista3D($('#cv3d'));
     buscar();
@@ -52,7 +56,7 @@ async function cargarSkin(archivo) {
 
 function buscar() {
   const o = N.detectarOjos(cara);
-  cfg = { a: o.a, b: o.b, saliente: 0, avisos: o.avisos, mascaras: { ojos: true, boca: N.detectarBoca(cara, o), pestanas: [] } };
+  cfg = { a: o.a, b: o.b, saliente: 0, avisos: o.avisos, mascaras: { ojos: true, boca: null, pestanas: [] }, bocaSugerida: N.detectarBoca(cara, o) };   // la máscara de la boca arranca apagada: la prendés vos
   tocados = {};
   $('#rgSaliente').value = 0; $('#txSaliente').textContent = '0 px';
   $('#chkLisos').checked = false;
@@ -241,10 +245,13 @@ function recalcular() {
 function nombreModelo() { return ($('#inNombre').value || 'eyes_nuevo').replace(/[^A-Za-z0-9_]+/g, '_'); }
 const personaje = () => nombreModelo().replace(/^eyes_/, '') || 'personaje';
 
+/** ¿Se usa tu máscara de ojos (en vez de crear una)? */
+const usaMia = () => !!(estandar && STOCK[estandar.variante] && $('#chkUsarMia').checked && $('#chkMOjos').checked);
+
 /** Las celdas que se borran (huecos), según las máscaras que están prendidas. */
 function celdasBorradas() {
   const c = N.celdasDeMascaras(cfg), todas = new Set();
-  if ($('#chkMOjos').checked) c.ojos.forEach((k) => todas.add(k));
+  if ($('#chkMOjos').checked) (usaMia() ? N.celdasMascaraUsuario(estandar.dy) : c.ojos).forEach((k) => todas.add(k));
   if ($('#chkMBoca').checked) c.boca.forEach((k) => todas.add(k));
   if ($('#chkMPest').checked) c.pestanas.forEach((k) => todas.add(k));
   return todas;
@@ -256,8 +263,12 @@ function hacer() {
   try {
     res = N.generar(cara, { a: cfg.a, b: cfg.b, saliente: cfg.saliente, colores, parpadosLisos: $('#chkLisos').checked, pestanas: $('#chkMPest').checked ? cfg.mascaras.pestanas : [], nombre: nombreModelo() });
   } catch (e) { estado('No pude armar los ojos con esos números: ' + (e.message || e), 'mal'); return; }
+  estandar = N.compararConEstandar(cfg);
   const av = cfg.avisos.length ? '\n⚠ ' + cfg.avisos.join('\n⚠ ') : '';
-  $('#detectado').textContent = `Izq: ${res.info.ojoA} · Der: ${res.info.ojoB} · textura ${res.info.textura}` + av;
+  const modo = estandar
+    ? `\n✔ Ojos estándar: modelo ${estandar.variante}${estandar.dy ? ` (${Math.abs(estandar.dy)} fila${Math.abs(estandar.dy) > 1 ? 's' : ''} ${estandar.dy > 0 ? 'más abajo' : 'más arriba'})` : ''}; ${usaMia() ? `tu máscara AEsclerotica1x2${estandar.dy ? ' con shiftY ' + estandar.dy : ''}` : 'máscara nueva'}. Solo hace falta la textura.`
+    : '\n• Ojos propios (no son los del modelo estándar): se arman modelo y máscara nuevos.';
+  $('#detectado').textContent = `Izq: ${res.info.ojoA} · Der: ${res.info.ojoB}` + modo + av;
   for (const [k, id] of [['piel', '#colPiel'], ['blanco', '#colBlanco'], ['ceja', '#colCeja']]) if (!tocados[k]) $(id).value = hex(res.colores[k]);
   dibujar();
 }
@@ -303,34 +314,53 @@ function archivosModelo() {
   return [['config.json', texto(res.config)], [nombre + '.bbs.json', texto(res.modelo)], ['poses.json', texto(res.poses)], ['textura.png', pngBytes()]];
 }
 
-/** Las máscaras de borrado prendidas: [{ archivo, bytes }] */
+/** Las máscaras de borrado prendidas: [{ path (ruta en BBS), shiftY?, archivo?, bytes? }] (si hay `bytes`, es un archivo nuevo que hay que guardar) */
 function archivosMascaras() {
   const c = N.celdasDeMascaras(cfg), sombrero = $('#chkMSombrero').checked, lista = [];
-  const hacer = (archivo, celdas) => { if (celdas.size) lista.push({ archivo, bytes: pngDeRGBA(skin.w, skin.h, N.mascaraRGBA(skin.w, skin.h, skin.rgba, celdas, sombrero)) }); };
-  if ($('#chkMOjos').checked) hacer('Mascara_Ojos.png', c.ojos);
-  if ($('#chkMBoca').checked) hacer('Mascara_Boca.png', c.boca);
-  if ($('#chkMPest').checked) hacer('Mascara_Pestanas.png', c.pestanas);
+  const car = ($('#inCarpeta').value || N.USUARIO.carpeta).replace(/^\/+|\/+$/g, '').replace(/\\/g, '/');
+  const nuevo = (sufijo, celdas) => {
+    if (!celdas.size) return;
+    const archivo = `${personaje()}_${sufijo}.png`;
+    lista.push({ path: `assets:models/${car}/${archivo}`, archivo, bytes: pngDeRGBA(skin.w, skin.h, N.mascaraRGBA(skin.w, skin.h, skin.rgba, celdas, sombrero)) });
+  };
+  if ($('#chkMOjos').checked) { if (usaMia()) lista.push({ path: N.USUARIO.mascaraOjos.ruta, ...(estandar.dy ? { shiftY: estandar.dy } : {}) }); else nuevo('Ojos', c.ojos); }
+  if ($('#chkMBoca').checked) nuevo('Boca', c.boca);
+  if ($('#chkMPest').checked) nuevo('Pestanas', c.pestanas);
   return lista;
 }
 
-/** Todo el personaje: [{ ruta, bytes }] con rutas relativas a la carpeta del personaje. */
+/** Cómo van los ojos en el form: con tu modelo estándar solo cambia la textura; si no, un modelo propio. */
+function ojosDelPersonaje() {
+  const nombre = nombreModelo();
+  if (estandar && STOCK[estandar.variante]) {
+    const archivo = 'Ojos' + personaje().replace(/(^|_)([a-z])/g, (m, a, b) => b.toUpperCase()).replace(/_/g, '') + '.png';
+    const tex = N.texturaEstandar(res, STOCK[estandar.variante]);
+    return { modelo: 'player/' + estandar.variante, textura: `assets:models/player/${estandar.variante}/${archivo}`, bajar: estandar.dy,
+      archivos: [{ ruta: `assets/models/player/${estandar.variante}/${archivo}`, bytes: pngDeRGBA(tex.w, tex.h, tex.rgba) }], pngNombre: archivo, png: pngDeRGBA(tex.w, tex.h, tex.rgba) };
+  }
+  return { modelo: 'player/' + nombre, textura: `assets:models/player/${nombre}/textura.png`, bajar: 0,
+    archivos: archivosModelo().map(([n, b]) => ({ ruta: `assets/models/player/${nombre}/${n}`, bytes: b })), pngNombre: nombre + '.png', png: pngBytes() };
+}
+
+/** Todo el personaje: [{ ruta, bytes }] con rutas relativas a la carpeta del personaje (assets/models/...). */
 function archivosPersonaje() {
-  const nombre = nombreModelo(), car = ($('#inCarpeta').value || 'player/' + personaje()).replace(/^\/+|\/+$/g, '').replace(/\\/g, '/');
-  const masc = archivosMascaras();
-  const ruta = (f) => `assets:models/${car}/${f}`;
+  const masc = archivosMascaras(), ojos = ojosDelPersonaje();
+  const rutaSkin = ($('#inRutaSkin').value || `${N.USUARIO.carpeta}/${personaje()}.png`).replace(/^\/+/, '').replace(/\\/g, '/');
   const form = N.formPersonaje({
-    nombre: personaje(), modeloBase: $('#selCuerpo').value, rutaSkin: ruta('skin.png'), capas: masc.map((m) => ({ path: ruta(m.archivo) })),
-    modeloOjos: 'player/' + nombre, texturaOjos: `assets:models/player/${nombre}/textura.png`,
+    nombre: personaje(), modeloBase: $('#selCuerpo').value, rutaSkin: `assets:models/${rutaSkin}`, capas: masc.map((m) => ({ path: m.path, shiftY: m.shiftY })),
+    modeloOjos: ojos.modelo, texturaOjos: ojos.textura, bajarOjos: ojos.bajar,
   });
-  const out = [{ ruta: 'personaje.json', bytes: texto(form) }, { ruta: `assets/models/${car}/skin.png`, bytes: skin.bytes }];
-  for (const m of masc) out.push({ ruta: `assets/models/${car}/${m.archivo}`, bytes: m.bytes });
-  for (const [n, b] of archivosModelo()) out.push({ ruta: `assets/models/player/${nombre}/${n}`, bytes: b });
+  const out = [{ ruta: 'personaje.json', bytes: texto(form) }];
+  if ($('#chkIncluirSkin').checked) out.push({ ruta: `assets/models/${rutaSkin}`, bytes: skin.bytes });
+  for (const m of masc) if (m.bytes) out.push({ ruta: m.path.replace(/^assets:/, 'assets/'), bytes: m.bytes });
+  out.push(...ojos.archivos);
   return out;
 }
 
 async function exportarPng() {
   if (!res) return;
-  try { estado(await guardarSalida('ojos', nombreModelo() + '.png', new Blob([pngBytes()], { type: 'image/png' })), 'ok'); }
+  const o = ojosDelPersonaje();
+  try { estado(await guardarSalida('ojos', o.pngNombre, new Blob([o.png], { type: 'image/png' })), 'ok') ; if (estandar) estado($('#estado').textContent + `\nEs la textura de ${estandar.variante}: copiala a assets/models/player/${estandar.variante}/.`, 'ok'); }
   catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
 
@@ -376,7 +406,7 @@ async function elegirCarpeta(archivos, carpeta, ayuda) {
 }
 
 const AYUDA_OJOS = 'Copiala a config\\bbs\\assets\\models\\player.';
-const AYUDA_PERSONAJE = 'Copiá «assets» adentro de tu carpeta bbs e importá personaje.json en BBS (forms).';
+const AYUDA_PERSONAJE = 'Copiá «assets» adentro de tu carpeta bbs (la que tiene assets y settings) e importá personaje.json en BBS (forms).';
 const exportarModelo = () => { if (res) exportar(archivosModelo().map(([n, b]) => ({ ruta: n, bytes: b })), nombreModelo(), AYUDA_OJOS); };
 const exportarPersonaje = (forzar = false) => { if (res && skin) exportar(archivosPersonaje(), personaje(), AYUDA_PERSONAJE, forzar === true); };
 
@@ -406,8 +436,9 @@ $('#chkLisos').onchange = () => recalcular();
 for (const [k, id] of [['piel', '#colPiel'], ['blanco', '#colBlanco'], ['ceja', '#colCeja']]) $(id).oninput = () => { tocados[k] = deHex($(id).value); recalcular(); };
 $('#btnColoresAuto').onclick = () => { tocados = {}; recalcular(); };
 $('#chkMOjos').onchange = () => { cfg.mascaras.ojos = $('#chkMOjos').checked; recalcular(); };
+$('#chkUsarMia').onchange = () => recalcular();
 $('#chkMBoca').onchange = () => {
-  if (!cfg.mascaras.boca && $('#chkMBoca').checked) cfg.mascaras.boca = { c0: 2, c1: 5, r0: 6, r1: 6 };   // 4 píxeles, como la que usás
+  if (!cfg.mascaras.boca && $('#chkMBoca').checked) cfg.mascaras.boca = cfg.bocaSugerida || { c0: 2, c1: 5, r0: 6, r1: 6 };   // la que se detectó, o 4 píxeles
   if (!$('#chkMBoca').checked) cfg.mascaras.boca = null;
   dibujarEditor(); recalcular();
 };
@@ -428,4 +459,4 @@ $('#btnAjustes').onclick = () => { hoja.hidden = false; };
 $('#btnCerrar').onclick = () => { hoja.hidden = true; };
 hoja.addEventListener('pointerdown', (e) => { if (e.target === hoja) hoja.hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hoja.hidden = true; });
-window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras };   // para las pruebas
+window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, STOCK, get estandar() { return estandar; } };   // para las pruebas

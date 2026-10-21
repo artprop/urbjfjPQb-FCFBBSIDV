@@ -48,13 +48,23 @@ En el modelo de la cabeza: `x` desde `3-c` hasta `4-c`; `y` desde `7-f` hasta `8
 ## 4. Hecho / falta
 Hecho: ojos (cualquier tamaño de ojo y pupila, de uno o varios colores), cejas asignables, máscaras de ojos/boca/pestañas, form del personaje con las capas `erase`,
 vista 2D «como en BBS» con el hueco, vista 3D de los ojos solos, exportar textura / ojos / personaje completo.
-Falta: boca (unir con los modelos de Mocap), dedos, `shiftY` en vez de una máscara nueva, esclerótica como capa tintada, lote (varios personajes), presets, probar todo dentro de BBS.
+Falta: boca (unir con los modelos de Mocap), dedos (se deja para más tarde), esclerótica como capa tintada, lote (varios personajes), presets, probar todo dentro de BBS.
+
+## 4b. Tus archivos (v.030)
+Todo lo tuyo está en `assets/models/player/_LosSaucera` (skins, `PelosYMisc/…`, `Ropa/…`). El crafteo lo usa así:
+- **Máscara de ojos**: tu `PelosYMisc/OjosMask/AEsclerotica1x2.png` (1 fila × 2 columnas por ojo, columnas 1-2 y 5-6, fila 4). Si los ojos de la skin están una fila más abajo (Alex),
+  el form lleva `shiftY` y la parte de los ojos baja `0,0625` por fila, como en tus forms. Si los ojos no son los estándar, se crea una máscara nueva.
+- **Modelo de ojos**: si los ojos son los de `player/eyes` (2×2) o `player/eyes_1px` (2×1, pupila 1 px en la columna de adentro), **solo se genera la textura**, en el formato de esos modelos
+  (`Ojos<Nombre>.png` dentro de `assets/models/player/eyes_1px/` o `eyes/`). Si no, se crea un modelo propio con su textura.
+- **Skin**: el form apunta a la ruta que escribas (por defecto `_LosSaucera/<archivo>`); la copia de la skin es opcional.
+- **Máscaras nuevas** (boca, pestañas, o ojos propios): `PelosYMisc/Mascaras/<Personaje>_<Parte>.png`.
+Supuestos sin confirmar: que `AEsclerotica1x2.png` cubre exactamente esas 4 celdas, y que `shiftY` positivo baja la máscara.
 
 ## 5. Preguntas abiertas
-1. **Máscaras**: hoy los píxeles de la máscara son blancos opacos. ¿Te sirve? ¿Preferís que, cuando tus ojos están una fila más abajo, el form use tu `AEsclerotica1x2.png` con `shiftY` en vez de una máscara nueva?
+1. **Máscaras nuevas** (boca, pestañas): hoy son blancas y opacas. ¿Te sirve? ¿Tenés máscaras tuyas de boca o de pestañas para usar en vez de crearlas?
 2. **Boca**: ¿siempre una máscara de 4×1? ¿Qué modelo de boca va con qué cuerpo (`player/face`, `boca_Man`…)?
 3. **Dedos**: ¿armo el elemento «manos» (UVs según brazo clásico/fino y mano izquierda/derecha + poses de los dedos)?
 4. **Ojos tintados** (`LID_BOTH`, `SCLERA`…): ¿lo seguimos usando o alcanza con la textura pintada por personaje?
-5. **Rutas**: ¿en qué carpeta de tu `assets/models` van los personajes (por ejemplo `_LosSaucera/…`) para que `personaje.json` apunte ahí directamente?
+5. **Skins**: ¿en qué subcarpeta de `_LosSaucera` van las skins nuevas (`SauceVariantes`, otra)? Se puede escribir la ruta en «Skin en BBS».
 
 Referencias en `ojos/referencia/`: `dedos.bbs.json` y un form de ejemplo (alex_bends con dedos, boca y ojos).
