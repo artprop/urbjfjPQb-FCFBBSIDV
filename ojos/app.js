@@ -22,10 +22,25 @@ let res = null;         // lo último que se generó
 let poseActiva = null;  // nombre de la pose que se ve en grande (null = reposo)
 let activo = { lado: 'a', pieza: 'ojo' };
 let pendiente = 0, t3d = 0;
-let estandar = null;    // { variante, dy } si los ojos son los de tu modelo estándar (eyes / eyes_1px)
-const STOCK = {};       // los modelos estándar (para repintar la textura en su formato)
-fetch(new URL('../mocap/datos/ojos/eyes/eyes.bbs.json', import.meta.url)).then((r) => r.json()).then((j) => { STOCK.eyes = j; recalcular(); }).catch(() => {});
-fetch(new URL('../mocap/datos/ojos/eyes_1px/eyes_1px.bbs.json', import.meta.url)).then((r) => r.json()).then((j) => { STOCK.eyes_1px = j; recalcular(); }).catch(() => {});
+let ajuste = null;      // la pose de tamaño y lugar de los ojos para el modelo elegido (null con «propio»)
+let idModelo = 'propio';// el modelo de ojos que se está usando
+let mascaraMia = null;  // { dy } si los ojos están donde tapa tu máscara AEsclerotica1x2
+const STOCK = {};       // tus cuatro modelos de ojos: { json, obj, objetos, cajas, poses, vista }
+async function cargarStock() {
+  const base = new URL('../visor/builtin/models/player/', import.meta.url);
+  for (const id of N.MODELOS_OJOS) {
+    try {
+      const json = await (await fetch(new URL(`${id}/${N.ARCHIVO_MODELO[id]}`, base))).json();
+      const obj = id.includes('31') ? await (await fetch(new URL(`${id}/base.obj`, base))).text() : null;
+      const objetos = obj ? N.parsearOBJ(obj, json.model.texture[0], json.model.texture[1]) : null;
+      const cajas = N.cajasDeModelo(json, objetos);
+      const poses = await (await fetch(new URL(`${N.POSES_DE[id]}/poses.json`, base))).json();
+      STOCK[id] = { json, obj, objetos, cajas, poses, vista: N.modeloVistaPrevia(json, cajas) };
+    } catch (e) { console.warn('modelo de ojos', id, e); }
+  }
+  recalcular();
+}
+cargarStock();
 let vista3d = null;
 
 // ------------------------------------------------------------------ cargar la skin
@@ -246,15 +261,22 @@ function nombreModelo() { return ($('#inNombre').value || 'eyes_nuevo').replace(
 const personaje = () => nombreModelo().replace(/^eyes_/, '') || 'personaje';
 
 /** ¿Se usa tu máscara de ojos (en vez de crear una)? */
-const usaMia = () => !!(estandar && STOCK[estandar.variante] && $('#chkUsarMia').checked && $('#chkMOjos').checked);
+const usaMia = () => !!(mascaraMia && $('#chkUsarMia').checked && $('#chkMOjos').checked);
 
 /** Las celdas que se borran (huecos), según las máscaras que están prendidas. */
 function celdasBorradas() {
   const c = N.celdasDeMascaras(cfg), todas = new Set();
-  if ($('#chkMOjos').checked) (usaMia() ? N.celdasMascaraUsuario(estandar.dy) : c.ojos).forEach((k) => todas.add(k));
+  if ($('#chkMOjos').checked) (usaMia() ? N.celdasMascaraUsuario(mascaraMia.dy) : c.ojos).forEach((k) => todas.add(k));
   if ($('#chkMBoca').checked) c.boca.forEach((k) => todas.add(k));
   if ($('#chkMPest').checked) c.pestanas.forEach((k) => todas.add(k));
   return todas;
+}
+
+/** Qué modelo de ojos se usa: el elegido, o el que corresponde al alto de los ojos. */
+function modeloEfectivo() {
+  const v = $('#selModeloOjos').value;
+  if (v === 'propio') return 'propio';
+  return v === 'auto' ? ((cfg.a.r1 - cfg.a.r0 + 1) >= 2 ? 'eyes' : 'eyes_1px') : v;
 }
 
 function hacer() {
@@ -263,11 +285,14 @@ function hacer() {
   try {
     res = N.generar(cara, { a: cfg.a, b: cfg.b, saliente: cfg.saliente, colores, parpadosLisos: $('#chkLisos').checked, pestanas: $('#chkMPest').checked ? cfg.mascaras.pestanas : [], nombre: nombreModelo() });
   } catch (e) { estado('No pude armar los ojos con esos números: ' + (e.message || e), 'mal'); return; }
-  estandar = N.compararConEstandar(cfg);
+  mascaraMia = N.coincideMascara(cfg);
+  idModelo = modeloEfectivo();
+  ajuste = idModelo !== 'propio' && STOCK[idModelo] ? N.poseAjuste(STOCK[idModelo].cajas, cfg) : null;
+  $('#poseTexto').value = ajuste ? N.textoPose(ajuste) : '(Con el modelo «propio» no hace falta pose: el modelo ya sale con el tamaño y el lugar de tus ojos.)';
   const av = cfg.avisos.length ? '\n⚠ ' + cfg.avisos.join('\n⚠ ') : '';
-  const modo = estandar
-    ? `\n✔ Ojos estándar: modelo ${estandar.variante}${estandar.dy ? ` (${Math.abs(estandar.dy)} fila${Math.abs(estandar.dy) > 1 ? 's' : ''} ${estandar.dy > 0 ? 'más abajo' : 'más arriba'})` : ''}; ${usaMia() ? `tu máscara AEsclerotica1x2${estandar.dy ? ' con shiftY ' + estandar.dy : ''}` : 'máscara nueva'}. Solo hace falta la textura.`
-    : '\n• Ojos propios (no son los del modelo estándar): se arman modelo y máscara nuevos.';
+  const desv = mascaraMia && mascaraMia.dy ? ` (${Math.abs(mascaraMia.dy)} fila${Math.abs(mascaraMia.dy) > 1 ? 's' : ''} ${mascaraMia.dy > 0 ? 'más abajo' : 'más arriba'})` : '';
+  const modo = (ajuste ? `\n✔ Modelo ${idModelo}: se ajusta con una pose (tamaño y lugar); solo hace falta la textura.` : '\n• Modelo propio: se arman modelo y textura nuevos.')
+    + `\n${usaMia() ? `Máscara: tu AEsclerotica1x2${desv}${mascaraMia.dy ? ' con shiftY ' + mascaraMia.dy : ''}.` : 'Máscara: nueva (los ojos no están donde tapa la tuya).'}`;
   $('#detectado').textContent = `Izq: ${res.info.ojoA} · Der: ${res.info.ojoB}` + modo + av;
   for (const [k, id] of [['piel', '#colPiel'], ['blanco', '#colBlanco'], ['ceja', '#colCeja']]) if (!tocados[k]) $(id).value = hex(res.colores[k]);
   dibujar();
@@ -275,16 +300,23 @@ function hacer() {
 
 const lienzoDe = (w, h, rgba) => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba), w, h), 0, 0); return c; };
 
+/** La pose de una expresión con el ajuste de tamaño y lugar puesto (con el modelo propio, la que se generó). */
+function poseDe(n) {
+  if (!ajuste) return n && res.poses[n] ? res.poses[n].pose : null;
+  const st = STOCK[idModelo], expr = n && st.poses[n] ? st.poses[n].pose : null;
+  return N.componerPose(ajuste, expr);
+}
+
 function dibujar() {
   if (!res) return;
-  const plana = estandar ? texturaDeOjos() : null;     // con tus ojos estándar se ve lo que sale: tu modelo con la textura lisa
+  const plana = ajuste ? texturaDeOjos() : null;     // con tus modelos se ve lo que sale: tu modelo con la textura lisa y la pose de ajuste
   const tex = plana ? lienzoDe(plana.w, plana.h, plana.rgba) : lienzoDe(res.textura.w, res.textura.h, res.textura.rgba);
-  const modelo = plana ? STOCK[plana.variante] : res.modelo, desvio = plana ? estandar.dy : 0;
+  const modelo = plana ? STOCK[idModelo].vista : res.modelo;
   const huecos = [...celdasBorradas()].map((k) => ({ c0: k & 7, c1: k & 7, r0: k >> 3, r1: k >> 3 }));
-  const pose = (n) => (n && res.poses[n] ? res.poses[n].pose : null);
+  const pose = poseDe;
   const pintar = (cv, E, n) => {
     const cx = cv.getContext('2d'); cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height);
-    N.dibujarEscena(cx, { cara: caraCv, textura: tex, modelo, pose: pose(n), E, huecos, desvio });
+    N.dibujarEscena(cx, { cara: caraCv, textura: tex, modelo, pose: pose(n), E, huecos });
   };
   pintar($('#cvGrande'), 44, poseActiva);
   $('#txPose').textContent = (poseActiva || 'Reposo') + ' · como en BBS';
@@ -301,7 +333,13 @@ function dibujar() {
   for (const d of gal.children) { d.classList.toggle('activa', (d.dataset.pose || null) === poseActiva); pintar(d.querySelector('canvas'), 12, d.dataset.pose || null); }
   // los ojos solos en 3D (un poco más tarde, así no se traba mientras dibujás)
   clearTimeout(t3d);
-  t3d = setTimeout(() => { if (vista3d && res) vista3d.mostrar(res, nombreModelo(), poseActiva, plana ? { variante: plana.variante, modelo: STOCK[plana.variante], png: plana.bytes, dy: estandar.dy } : null).catch((e) => console.warn('vista 3D', e)); }, 150);
+  t3d = setTimeout(() => {
+    if (!vista3d || !res) return;
+    const st = plana && STOCK[idModelo];
+    const o = st ? { carpeta: idModelo, modelo: st.json, obj: st.obj, config: res.config, png: plana.bytes, pose: poseDe(poseActiva) }
+      : { carpeta: nombreModelo(), modelo: res.modelo, obj: null, config: res.config, png: pngBytes(), pose: poseDe(poseActiva) };
+    vista3d.mostrar(o).catch((e) => console.warn('vista 3D', e));
+  }, 150);
 }
 
 // ------------------------------------------------------------------ exportar
@@ -325,7 +363,7 @@ function archivosMascaras() {
     const archivo = `${personaje()}_${sufijo}.png`;
     lista.push({ path: `assets:models/${car}/${archivo}`, archivo, bytes: pngDeRGBA(skin.w, skin.h, N.mascaraRGBA(skin.w, skin.h, skin.rgba, celdas, sombrero)) });
   };
-  if ($('#chkMOjos').checked) { if (usaMia()) lista.push({ path: N.USUARIO.mascaraOjos.ruta, ...(estandar.dy ? { shiftY: estandar.dy } : {}) }); else nuevo('Ojos', c.ojos); }
+  if ($('#chkMOjos').checked) { if (usaMia()) lista.push({ path: N.USUARIO.mascaraOjos.ruta, ...(mascaraMia.dy ? { shiftY: mascaraMia.dy } : {}) }); else nuevo('Ojos', c.ojos); }
   if ($('#chkMBoca').checked) nuevo('Boca', c.boca);
   if ($('#chkMPest').checked) nuevo('Pestanas', c.pestanas);
   return lista;
@@ -333,25 +371,25 @@ function archivosMascaras() {
 
 const nombreTextura = () => 'Ojos' + personaje().replace(/(^|_)([a-z0-9])/g, (m, x, b) => b.toUpperCase()).replace(/_/g, '') + '.png';
 
-/** La textura de los ojos en el diseño de tus modelos (eyes o eyes_1px) con un color liso por pieza, como las que hacés a mano. null si todavía no cargaron los modelos. */
+/** La textura de los ojos en el diseño del modelo elegido (con un color liso por pieza, como las que hacés a mano). null si todavía no cargaron los modelos o se usa el modelo propio. */
 function texturaDeOjos() {
-  const variante = estandar ? estandar.variante : ((cfg.a.r1 - cfg.a.r0 + 1) >= 2 ? 'eyes' : 'eyes_1px');
-  if (!STOCK[variante]) return null;
+  const id = ajuste ? idModelo : null;
+  if (!id || !STOCK[id]) return null;
   const col = N.coloresEstandar(cara, cfg, Object.keys(tocados).length ? { ...tocados } : null);
-  const t = N.texturaPlana(STOCK[variante], col);
-  return { variante, w: t.w, h: t.h, rgba: t.rgba, bytes: pngDeRGBA(t.w, t.h, t.rgba) };
+  const t = N.texturaPlana(STOCK[id].json, col, STOCK[id].objetos);
+  return { variante: id, w: t.w, h: t.h, rgba: t.rgba, bytes: pngDeRGBA(t.w, t.h, t.rgba) };
 }
 
-/** Cómo van los ojos en el form: con tu modelo estándar solo cambia la textura; si no, un modelo propio. */
+/** Cómo van los ojos en el form: con uno de tus modelos solo cambia la textura (y la pose de ajuste); si no, un modelo propio. */
 function ojosDelPersonaje() {
   const nombre = nombreModelo();
-  const t = estandar && texturaDeOjos();
+  const t = texturaDeOjos();
   if (t) {
     const archivo = nombreTextura();
-    return { modelo: 'player/' + t.variante, textura: `assets:models/player/${t.variante}/${archivo}`, bajar: estandar.dy,
+    return { modelo: 'player/' + t.variante, textura: `assets:models/player/${t.variante}/${archivo}`, pose: ajuste,
       archivos: [{ ruta: `assets/models/player/${t.variante}/${archivo}`, bytes: t.bytes }] };
   }
-  return { modelo: 'player/' + nombre, textura: `assets:models/player/${nombre}/textura.png`, bajar: 0,
+  return { modelo: 'player/' + nombre, textura: `assets:models/player/${nombre}/textura.png`, pose: null,
     archivos: archivosModelo().map(([n, b]) => ({ ruta: `assets/models/player/${nombre}/${n}`, bytes: b })) };
 }
 
@@ -361,7 +399,7 @@ function archivosPersonaje() {
   const rutaSkin = ($('#inRutaSkin').value || `${N.USUARIO.carpeta}/${personaje()}.png`).replace(/^\/+/, '').replace(/\\/g, '/');
   const form = N.formPersonaje({
     nombre: personaje(), modeloBase: $('#selCuerpo').value, rutaSkin: `assets:models/${rutaSkin}`, capas: masc.map((m) => ({ path: m.path, shiftY: m.shiftY })),
-    modeloOjos: ojos.modelo, texturaOjos: ojos.textura, bajarOjos: ojos.bajar,
+    modeloOjos: ojos.modelo, texturaOjos: ojos.textura, poseOjos: ojos.pose,
   });
   const out = [{ ruta: 'personaje.json', bytes: texto(form) }];
   if ($('#chkIncluirSkin').checked) out.push({ ruta: `assets/models/${rutaSkin}`, bytes: skin.bytes });
@@ -374,10 +412,17 @@ async function exportarPng() {
   if (!res) return;
   const t = texturaDeOjos();
   const nombre = t ? nombreTextura() : nombreModelo() + '.png', bytes = t ? t.bytes : pngBytes();
+  const ayuda = t ? `\nTextura del modelo ${t.variante}: va en assets/models/player/${t.variante}/.` : '';
+  // elegir la carpeta donde se guarda (se acuerda de la última): así va directo adonde corresponde
+  if (window.showSaveFilePicker && $('#chkPreguntar').checked) {
+    try {
+      const h = await window.showSaveFilePicker({ suggestedName: nombre, id: 'ojos-png', types: [{ description: 'Imagen PNG', accept: { 'image/png': ['.png'] } }] });
+      const w = await h.createWritable(); await w.write(bytes); await w.close();
+      estado(`Guardado: ${h.name}${ayuda}`, 'ok'); return;
+    } catch (e) { if (e.name === 'AbortError') { estado('Cancelado.'); return; } /* si falla, sigue como siempre */ }
+  }
   try {
-    let msg = await guardarSalida('ojos', nombre, new Blob([bytes], { type: 'image/png' }));
-    if (t) msg += `\nTextura en el diseño de ${t.variante}${estandar ? '' : ' (tus ojos no son del todo los estándar: se adaptó)'}: va en assets/models/player/${t.variante}/.`;
-    estado(msg, 'ok');
+    estado((await guardarSalida('ojos', nombre, new Blob([bytes], { type: 'image/png' }))) + ayuda, 'ok');
     if (await esPC()) abrirCarpetaSalida('ojos', nombre);
   } catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
@@ -456,6 +501,16 @@ for (const [k, id] of [['piel', '#colPiel'], ['blanco', '#colBlanco'], ['ceja', 
 $('#btnColoresAuto').onclick = () => { tocados = {}; recalcular(); };
 $('#chkMOjos').onchange = () => { cfg.mascaras.ojos = $('#chkMOjos').checked; recalcular(); };
 $('#chkUsarMia').onchange = () => recalcular();
+$('#selModeloOjos').onchange = () => recalcular();
+$('#btnCopiarPose').onclick = async () => {
+  const txt = $('#poseTexto').value;
+  try { await navigator.clipboard.writeText(txt); }
+  catch { const t = $('#poseTexto'); $('#detPose').open = true; t.select(); document.execCommand('copy'); }
+  estado('Pose copiada. En BBS, pegala en la pose de la parte de los ojos.', 'ok');
+};
+try { const g = localStorage.getItem('ojos-preguntar'); if (g !== null) $('#chkPreguntar').checked = g === '1'; } catch { /* sin guardado */ }
+$('#chkPreguntar').onchange = () => { try { localStorage.setItem('ojos-preguntar', $('#chkPreguntar').checked ? '1' : '0'); } catch { /* sin guardado */ } };
+if (matchMedia('(min-width: 800px)').matches) $('#detPose').open = true;   // en la compu se ve el texto de la pose
 $('#chkMBoca').onchange = () => {
   if (!cfg.mascaras.boca && $('#chkMBoca').checked) cfg.mascaras.boca = cfg.bocaSugerida || { c0: 2, c1: 5, r0: 6, r1: 6 };   // la que se detectó, o 4 píxeles
   if (!$('#chkMBoca').checked) cfg.mascaras.boca = null;
@@ -478,4 +533,4 @@ $('#btnAjustes').onclick = () => { hoja.hidden = false; };
 $('#btnCerrar').onclick = () => { hoja.hidden = true; };
 hoja.addEventListener('pointerdown', (e) => { if (e.target === hoja) hoja.hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hoja.hidden = true; });
-window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, texturaDeOjos, STOCK, get estandar() { return estandar; } };   // para las pruebas
+window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, texturaDeOjos, STOCK, get ajuste() { return ajuste; }, get idModelo() { return idModelo; } };   // para las pruebas

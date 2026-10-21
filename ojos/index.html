@@ -39,6 +39,12 @@
   #opciones { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--suave); }
   #opciones label { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
   #opciones button { padding: 3px 8px; font-size: 12px; }
+  #filaModelo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--suave); }
+  #filaModelo select { padding: 3px 6px; font-size: 12px; }
+  #filaModelo button { padding: 3px 8px; font-size: 12px; }
+  #detPose { font-size: 12px; color: var(--suave); }
+  #detPose summary { cursor: pointer; }
+  #poseTexto { width: 100%; margin-top: 4px; background: #11141a; color: #cfd6e2; border: 1px solid var(--borde); border-radius: 6px; font: 11px/1.3 ui-monospace, Consolas, monospace; resize: vertical; }
   #detectado { font-size: 11px; color: var(--suave); white-space: pre-wrap; line-height: 1.3; }
   #galeria { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; align-content: start; overflow: hidden; }
   .pose { background: var(--panel); border: 1px solid var(--borde); border-radius: 6px; padding: 2px; text-align: center; cursor: pointer; font-size: 8.5px; color: var(--suave); line-height: 1.1; overflow: hidden; }
@@ -118,6 +124,13 @@
         <button id="btnSinCeja" title="Saca la ceja del ojo elegido">✖ Ceja</button>
         <button id="btnReanalizar" title="Vuelve a buscar los ojos y borra tus cambios">🔄 Buscar</button>
       </div>
+      <div id="filaModelo">
+        <label>Modelo <select id="selModeloOjos">
+          <option value="auto">automático</option><option value="eyes">eyes (2 px)</option><option value="eyes_1px">eyes_1px</option>
+          <option value="eyes_31">eyes_31</option><option value="eyes_31_1px">eyes_31_1px</option><option value="propio">propio (crear uno)</option></select></label>
+        <button id="btnCopiarPose" title="Copia la pose de tamaño y lugar de los ojos para pegarla en BBS">📋 Copiar pose</button>
+      </div>
+      <details id="detPose"><summary>Pose para BBS (tamaño y lugar de los ojos)</summary><textarea id="poseTexto" readonly rows="8" spellcheck="false"></textarea></details>
       <div id="detectado"></div>
     </div>
     <div id="galeria"></div>
@@ -145,6 +158,7 @@
     <h3 style="margin-top:4px">Personaje <span class="det">(para «🧩 Personaje»)</span></h3>
     <div class="fila"><label>Cuerpo <select id="selCuerpo"><option value="player/steve">steve</option><option value="player/alex">alex (brazos finos)</option><option value="player/steve_bends">steve_bends</option><option value="player/alex_bends">alex_bends</option></select></label></div>
     <div class="fila"><label style="flex:1">Skin en BBS <input type="text" id="inRutaSkin" value="player/_LosSaucera/personaje.png" style="width:100%"></label></div>
+    <label class="chk"><input type="checkbox" id="chkPreguntar" checked> Al exportar el PNG, preguntar en qué carpeta guardarlo (se acuerda de la última)</label>
     <label class="chk"><input type="checkbox" id="chkIncluirSkin"> Incluir una copia de la skin en el paquete (si ya la tenés en esa ruta, no hace falta)</label>
     <div class="fila"><label style="flex:1">Carpeta de las máscaras nuevas <input type="text" id="inCarpeta" value="player/_LosSaucera/PelosYMisc/Mascaras" style="width:100%"></label></div>
     <div class="fila"><label>Nombre de los ojos <input type="text" id="inNombre" value="eyes_nuevo"></label><button id="btnOtra" hidden title="Elegís la carpeta donde se crea la carpeta del modelo (por ejemplo config\bbs\assets\models\player)">📂 Elegir dónde guardar…</button></div>

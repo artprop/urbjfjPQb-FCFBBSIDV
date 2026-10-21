@@ -393,7 +393,7 @@ export function dibujarFrente(ctx, textura, modelo, pose, E, ox = 0, oy = 0, ran
     return (memo[id] = m);
   };
   const piezas = [];
-  for (const [id, g] of Object.entries(grupos)) for (const c of g.cubes) if (c.uvs.front && c.size[0] > 0 && c.size[1] > 0) piezas.push({ id, c });
+  for (const [id, g] of Object.entries(grupos)) for (const c of (g.cubes || [])) if (c.uvs.front && c.size[0] > 0 && c.size[1] > 0) piezas.push({ id, c });
   piezas.sort((p, q) => q.c.from[2] - p.c.from[2]);     // de atrás para adelante (z más negativo = más cerca)
   for (const { id, c } of piezas) {
     if (rango === 'detras' && c.from[2] <= -4) continue;      // la piel está en z = -4: lo que está atrás se ve solo por el hueco
@@ -478,6 +478,7 @@ export function formPersonaje(o) {
   f.texture = [{ path: o.rutaSkin }, ...(o.capas || []).map((c) => (c.shiftY ? { path: c.path, erase: true, shiftY: c.shiftY } : { path: c.path, erase: true }))];
   const parte = clonar(PARTE_OJOS);
   parte.form.model = o.modeloOjos; parte.form.texture = o.texturaOjos || ''; parte.bone = 'head';
+  if (o.poseOjos) parte.form.pose = { pose: Object.fromEntries(Object.entries(o.poseOjos).map(([h, p]) => [h, { r2: [0, 0, 0], r: p.r.slice(), s: p.s.slice(), t: p.t.slice(), fix: 0.0, color: -1, lighting: 0.0 }])) };   // el ajuste de tamaño y lugar, sin colores propios
   if (o.bajarOjos) parte.transform = { r2: [0, 0, 0], r: [0, 0, 0], s: [1, 1, 1], t: [0, -o.bajarOjos * 0.0625, 0] };   // ojos estándar más abajo en la cara: se bajan en el form, no en el modelo
   f.parts = [parte];
   return { id: uuid(), title: o.nombre, forms: [f] };
@@ -560,12 +561,12 @@ export function coloresEstandar(cara, cfg, tocados = null) {
  * La textura de los ojos como la que usás: el diseño completo del modelo estándar (eyes o eyes_1px) con un color liso por pieza
  * (esclerótica, pupila de 1 o 2 colores, ceja, piel de los párpados y de las paredes). modeloEstandar: el .bbs.json del modelo.
  */
-export function texturaPlana(modeloEstandar, col) {
+export function texturaPlana(modeloEstandar, col, objetos = null) {
   const T = modeloEstandar.model.texture[0], rgba = new Uint8Array(T * T * 4);
   const poner = (u, v, c) => { if (u >= 0 && v >= 0 && u < T && v < T) rgba.set([c[0], c[1], c[2], 255], (v * T + u) * 4); };
   for (const [id, g] of Object.entries(modeloEstandar.model.groups)) {
     const lado = /_(r|er|rt|rb)$/.test(id) ? col.a : col.b;
-    for (const c of g.cubes) for (const [cara, r] of Object.entries(c.uvs)) {
+    for (const c of (g.cubes || [])) for (const [cara, r] of Object.entries(c.uvs)) {
       const u0 = Math.min(r[0], r[2]), u1 = Math.max(r[0], r[2]), v0 = Math.min(r[1], r[3]), v1 = Math.max(r[1], r[3]);
       for (let v = v0; v < v1; v++) for (let u = u0; u < u1; u++) {
         if (id === 'anchor' || id.startsWith('eyelid_')) poner(u, v, col.piel);
@@ -578,7 +579,150 @@ export function texturaPlana(modeloEstandar, col) {
       }
     }
   }
+  // modelos «31»: los párpados y las cejas son formas de un OBJ; se pintan sus triángulos de UV con el color de la pieza
+  if (objetos) {
+    const dentro = (p, a, b, c) => {
+      const s = (p1, p2, p3) => (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1]);
+      const d1 = s(p, a, b), d2 = s(p, b, c), d3 = s(p, c, a);
+      return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+    };
+    for (const [id, o] of Object.entries(objetos)) {
+      const color = id.startsWith('eyelid_') ? col.piel : id.startsWith('eyebrow_') ? col.ceja : null; if (!color) continue;
+      for (const [a, b, c] of o.tris) {
+        const x0 = Math.floor(Math.min(a[0], b[0], c[0])), x1 = Math.ceil(Math.max(a[0], b[0], c[0])), y0 = Math.floor(Math.min(a[1], b[1], c[1])), y1 = Math.ceil(Math.max(a[1], b[1], c[1]));
+        for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+          let toca = false;
+          for (const dx of [0.1, 0.5, 0.9]) for (const dy of [0.1, 0.5, 0.9]) if (!toca && dentro([x + dx, y + dy], a, b, c)) toca = true;
+          if (toca) poner(x, y, color);
+        }
+      }
+    }
+  }
+  const esCubos = !objetos;
   // como en tus texturas: las filas 8 y 9 (puntas de las cejas) van llenas con el color de la ceja y las 14 y 15 (paredes) con el de la piel
-  for (const [v, c] of [[8, col.ceja], [9, col.ceja], [14, col.piel], [15, col.piel]]) for (let u = 0; u < 12; u++) if (!rgba[(v * T + u) * 4 + 3]) poner(u, v, c);
+  if (esCubos) for (const [v, c] of [[8, col.ceja], [9, col.ceja], [14, col.piel], [15, col.piel]]) for (let u = 0; u < 12; u++) if (!rgba[(v * T + u) * 4 + 3]) poner(u, v, c);
   return { w: T, h: T, rgba };
+}
+
+// ------------------------------------------------------------------ modelos de ojos del usuario (eyes, eyes_1px, eyes_31, eyes_31_1px) y su ajuste
+export const MODELOS_OJOS = ['eyes', 'eyes_1px', 'eyes_31', 'eyes_31_1px'];
+export const ARCHIVO_MODELO = { eyes: 'eyes.bbs.json', eyes_1px: 'eyes_1px.bbs.json', eyes_31: 'eyes_31.bbs.json', eyes_31_1px: 'eyes_1px.bbs.json' };
+/** Qué grupo de poses usa cada modelo (los «31» usan las de eyes / eyes_1px, como dice su config). */
+export const POSES_DE = { eyes: 'eyes', eyes_1px: 'eyes_1px', eyes_31: 'eyes', eyes_31_1px: 'eyes_1px' };
+
+/**
+ * Lee las piezas de un OBJ (las formas de los párpados y cejas de los modelos «31»): por objeto, su caja en píxeles de modelo y sus triángulos de UV en texeles.
+ * Las coordenadas del OBJ están en bloques (1/16 = un píxel); la V va invertida, como la lee el Visor.
+ */
+export function parsearOBJ(texto, tw = 16, th = 16) {
+  const V = [], T = [], objetos = {};
+  let o = null;
+  for (const raw of texto.split(/\r?\n/)) {
+    const t = raw.trim().split(/\s+/);
+    if (t[0] === 'o' || t[0] === 'g') { o = objetos[t[1]] = objetos[t[1]] || { min: [1e9, 1e9, 1e9], max: [-1e9, -1e9, -1e9], tris: [] }; }
+    else if (t[0] === 'v') V.push([+t[1] * 16, +t[2] * 16, +t[3] * 16]);
+    else if (t[0] === 'vt') T.push([+t[1] * tw, (1 - +t[2]) * th]);
+    else if (t[0] === 'f' && o) {
+      const idx = t.slice(1).map((s) => { const p = s.split('/'); return [parseInt(p[0], 10) - 1, parseInt(p[1], 10) - 1]; });
+      for (const [vi] of idx) { const p = V[vi]; for (let k = 0; k < 3; k++) { o.min[k] = Math.min(o.min[k], p[k]); o.max[k] = Math.max(o.max[k], p[k]); } }
+      for (let i = 1; i + 1 < idx.length; i++) o.tris.push([idx[0], idx[i], idx[i + 1]].map(([, ti]) => T[ti] || [0, 0]));
+    }
+  }
+  return objetos;
+}
+
+/** La caja de cada hueso de un modelo de ojos: { hueso: { desde, tam, origen, uv? } } (de su cubo, o de su forma del OBJ). */
+export function cajasDeModelo(json, objetos = null) {
+  const out = {};
+  for (const [id, g] of Object.entries(json.model.groups)) {
+    const c = (g.cubes || []).find((q) => q.size[0] > 0 && q.size[1] > 0 && q.size[2] > 0);
+    if (c) out[id] = { desde: c.from.slice(), tam: c.size.slice(), origen: g.origin.slice() };
+    else if (objetos && objetos[id] && objetos[id].tris.length) {
+      const m = objetos[id];
+      let su = 0, sv = 0, k = 0; for (const tri of m.tris) for (const [u, v] of tri) { su += u; sv += v; k++; }
+      out[id] = { desde: m.min.slice(), tam: m.max.map((v, i) => Math.max(0.1, v - m.min[i])), origen: g.origin.slice(), uv: [su / k, sv / k] };
+    }
+  }
+  return out;
+}
+
+const r4 = (v) => Math.round(v * 1e4) / 1e4 + 0;
+const rangoCaja = (o) => ({ x0: 3 - o.c1, x1: 4 - o.c0, y0: 7 - o.r1, y1: 8 - o.r0 });
+
+/**
+ * La pose que hace que un modelo de ojos (eyes, eyes_1px, eyes_31…) quede con el tamaño y el lugar de los ojos de la skin: para cada hueso,
+ * escala y traslación (en píxeles, como las poses de BBS: x al revés) que llevan su caja a la caja que corresponde. Sin colores propios.
+ * cajas: cajasDeModelo(); cfg: { a, b (ojos), saliente }.
+ */
+export function poseAjuste(cajas, cfg) {
+  const pose = {};
+  const poner = (hueso, X0, X1, Y0, Y1, conEscalaY = true) => {
+    const c = cajas[hueso]; if (!c) return;
+    const sx = (X1 - X0) / c.tam[0], sy = conEscalaY ? (Y1 - Y0) / c.tam[1] : 1;
+    const cx = c.desde[0] + c.tam[0] / 2, cy = c.desde[1] + c.tam[1] / 2;
+    const px = c.origen[0], py = c.origen[1];
+    const t0 = px + sx * (cx - px) - (X0 + X1) / 2;                // x va al revés: nueva x = origen + escala·(x - origen) - t
+    const t1 = (conEscalaY ? (Y0 + Y1) / 2 : Y0 + c.tam[1] / 2) - (py + sy * (cy - py));
+    pose[hueso] = { r: [0, 0, 0], s: [r4(sx), r4(sy), 1], t: [r4(t0), r4(t1), 0] };
+  };
+  for (const [lado, s] of [['a', 'r'], ['b', 'l']]) {
+    const o = cfg[lado], E = rangoCaja(o), P = rangoCaja(o.p);
+    poner('eye_' + s, E.x0, E.x1, E.y0, E.y1);
+    poner('pupil_' + s, P.x0, P.x1, P.y0, P.y1);
+    const alto = (h) => (cajas[h] ? cajas[h].tam[1] : 0.9);
+    poner('eyelid_' + s + 't', E.x0, E.x1, E.y1, E.y1 + alto('eyelid_' + s + 't'), false);
+    // la de abajo: su borde de arriba toca la parte de abajo del ojo
+    const cb = cajas['eyelid_' + s + 'b'];
+    if (cb) poner('eyelid_' + s + 'b', E.x0, E.x1, E.y0 - cb.tam[1], E.y0, false);
+    if (o.ceja) { const B = rangoCaja({ c0: o.ceja.c0, c1: o.ceja.c1, r0: o.ceja.r, r1: o.ceja.r }); poner('eyebrow_' + s, B.x0, B.x1, B.y0 - 0.025, B.y0 - 0.025 + alto('eyebrow_' + s), false); }
+    else poner('eyebrow_' + s, E.x0, E.x1, E.y1 - 0.025, E.y1 - 0.025 + alto('eyebrow_' + s), false);
+  }
+  pose.anchor = { r: [0, 0, 0], s: [1, 1, 1], t: [0, 0, -(cfg.saliente || 0)] };
+  return pose;
+}
+
+/** El texto que se copia y se pega en BBS (pose de la parte de los ojos): el mismo formato que usás, con color -1 (sin teñir: el color lo trae la textura). */
+export function textoPose(pose) {
+  const orden = ['eye_r', 'eyelid_lt', 'eyebrow_r', 'anchor', 'pupil_l', 'eye_l', 'eyelid_lb', 'eyelid_rb', 'pupil_r', 'eyelid_rt', 'eyebrow_l'];
+  const fl = (v) => (Number.isInteger(v) ? v.toFixed(1) : String(v));
+  const ar = (a) => '[' + a.map(fl).join(', ') + ']';
+  const huesos = orden.filter((h) => pose[h]).map((h) => {
+    const p = completarHueso(pose[h]);
+    return `        "${h}": {\n            "r": ${ar(p.r)},\n            "s": ${ar(p.s)},\n            "visible": true,\n            "t": ${ar(p.t)},\n            "fix": 0.0,\n            "color": -1,\n            "overlay": 16777215,\n            "lighting": 0.0\n        }`;
+  });
+  return `{\n    "_CopyPose": true,\n    "pose": {\n${huesos.join(',\n')}\n    }\n}`;
+}
+/** Un hueso con todos los campos que lleva una pose de BBS. */
+export function completarHueso(p) {
+  return { r: p.r.slice(), s: p.s.slice(), visible: true, t: p.t.slice(), fix: 0.0, color: -1, overlay: 16777215, lighting: 0.0 };
+}
+
+/** Suma el ajuste de tamaño y lugar con la pose de una expresión (escalas multiplicadas, traslaciones y giros sumados). */
+export function componerPose(ajuste, expr) {
+  const out = {};
+  for (const h of new Set([...Object.keys(ajuste || {}), ...Object.keys(expr || {})])) {
+    const a = (ajuste && ajuste[h]) || { r: [0, 0, 0], s: [1, 1, 1], t: [0, 0, 0] }, e = (expr && expr[h]) || { r: [0, 0, 0], s: [1, 1, 1], t: [0, 0, 0] };
+    out[h] = { r: a.r.map((v, i) => v + e.r[i]), s: a.s.map((v, i) => v * e.s[i]), t: a.t.map((v, i) => v + e.t[i]), r2: [0, 0, 0], fix: 0 };
+  }
+  return out;
+}
+
+/** Una copia del modelo con las formas del OBJ convertidas en cajas, para poder dibujarlas en la vista 2D (que solo dibuja cubos). */
+export function modeloVistaPrevia(json, cajas) {
+  const m = JSON.parse(JSON.stringify(json));
+  for (const [id, g] of Object.entries(m.model.groups)) {
+    const c = cajas[id];
+    if (c && c.uv && !(g.cubes || []).length) {
+      const u = Math.floor(c.uv[0]), v = Math.floor(c.uv[1]);
+      g.cubes = [{ from: c.desde, size: c.tam, origin: [0, 0, 0], uvs: { front: [u, v, u + 1, v + 1] } }];
+    }
+  }
+  return m;
+}
+
+/** ¿Los ojos están donde tapa tu máscara AEsclerotica1x2 (columnas 1-2 y 5-6), corridos dy filas? Devuelve { dy } o null. */
+export function coincideMascara(cfg) {
+  const A = cfg.a, B = cfg.b, h = A.r1 - A.r0 + 1;
+  if (h < 1 || h > 2 || A.c0 !== 1 || A.c1 !== 2 || B.c0 !== 5 || B.c1 !== 6 || A.r0 !== B.r0 || A.r1 !== B.r1) return null;
+  return { dy: A.r1 - 4 };
 }
