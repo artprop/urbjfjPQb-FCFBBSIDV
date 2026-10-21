@@ -293,9 +293,19 @@ class Manejador(http.server.SimpleHTTPRequestHandler):
         if u.path in ('/pc/latido', '/pc/adios'):
             return self._ventana(u)
         if u.path == '/pc/abrir_salida':
-            os.makedirs(SALIDA, exist_ok=True)
+            # sin parametros abre Salida; con modo (y carpeta con "/") abre esa subcarpeta; con nombre, abre la carpeta con ese archivo elegido
+            q = urllib.parse.parse_qs(u.query)
+            carpeta = SALIDA
+            for tramo in [q.get('modo', [''])[0]] + q.get('carpeta', [''])[0].split('/'):
+                if tramo.strip(' .'):
+                    carpeta = os.path.join(carpeta, nombre_seguro(tramo))
+            os.makedirs(carpeta, exist_ok=True)
+            archivo = os.path.join(carpeta, nombre_seguro(q['nombre'][0])) if q.get('nombre') else ''
             if hasattr(os, 'startfile'):
-                os.startfile(SALIDA)
+                if archivo and os.path.isfile(archivo):
+                    subprocess.Popen(['explorer', '/select,' + archivo])
+                else:
+                    os.startfile(carpeta)
             return self._json({'ok': True})
         return super().do_GET()
 

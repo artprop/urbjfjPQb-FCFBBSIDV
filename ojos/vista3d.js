@@ -24,18 +24,23 @@ export function crearVista3D(canvas) {
   };
   new ResizeObserver(ajustar).observe(canvas); ajustar();
 
-  /** res: lo que devuelve generar(); nombre: nombre del modelo; pose: nombre de la pose o null */
-  async function mostrar(res, nombre, pose = null) {
+  /**
+   * res: lo que devuelve generar(); nombre: nombre del modelo; pose: nombre de la pose o null.
+   * alt (opcional): { variante, modelo (el .bbs.json estándar), png (bytes de la textura), dy } para ver el modelo estándar con la textura lisa, bajado dy filas.
+   */
+  async function mostrar(res, nombre, pose = null, alt = null) {
     const mia = ++ronda;
-    const base = `assets/models/player/${nombre}/`;
-    const png = new Blob([pngDeRGBA(res.textura.w, res.textura.h, res.textura.rgba)], { type: 'image/png' });
-    const config = { ...res.config, texture: `assets:models/player/${nombre}/textura.png` };
-    const archivos = { [base + 'config.json']: JSON.stringify(config), [base + nombre + '.bbs.json']: JSON.stringify(res.modelo), [base + 'textura.png']: png };
+    const carpeta = alt ? alt.variante : nombre;
+    const base = `assets/models/player/${carpeta}/`;
+    const png = new Blob([alt ? alt.png : pngDeRGBA(res.textura.w, res.textura.h, res.textura.rgba)], { type: 'image/png' });
+    const config = { ...res.config, texture: `assets:models/player/${carpeta}/textura.png` };
+    const archivos = { [base + 'config.json']: JSON.stringify(config), [base + carpeta + '.bbs.json']: JSON.stringify(alt ? alt.modelo : res.modelo), [base + 'textura.png']: png };
     const fuente = { rutas: () => Object.keys(archivos), texto: async (p) => archivos[p], blob: async (p) => archivos[p], existe: (p) => p in archivos };
     const modelos = new Modelos(fuente, new Texturas(fuente));
     const p = pose && res.poses[pose] ? { pose: res.poses[pose].pose } : null;
-    const m = await modelos.construir('player/' + nombre, { pose: p });
+    const m = await modelos.construir('player/' + carpeta, { pose: p });
     if (mia !== ronda) { liberar(m.obj); return; }     // llegó otro pedido más nuevo
+    if (alt && alt.dy) m.obj.position.y = -alt.dy / 16;
     if (modelo) { escena.remove(modelo); liberar(modelo); }
     modelo = m.obj; escena.add(modelo); dibujar();
   }
