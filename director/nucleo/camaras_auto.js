@@ -31,7 +31,20 @@ export const TOMAS = {
   atras: { nombre: 'seguimiento por detrás', fov: 55 },
   cenital: { nombre: 'cenital', fov: 60 },
 };
-export const TODAS = Object.keys(TOMAS);
+// Planos por encuadre: `alto` = cuántos bloques de alto entran en pantalla (un personaje mide 1,8); la distancia sale del fov.
+// objY = altura (sobre los pies) a la que apunta la cámara; camY = altura de la cámara; az = ángulo hacia un costado del frente del actor.
+export const ENCUADRES = {
+  entero: { nombre: 'plano entero', fov: 40, alto: 2.5, objY: 0.9, camY: 1.2, az: 14, ny: 0 },
+  americano: { nombre: 'plano americano', fov: 40, alto: 1.9, objY: 1.62, camY: 1.4, az: 18, ny: TERCIO },
+  medio_corto: { nombre: 'plano medio', fov: 40, alto: 1.5, objY: 1.62, camY: 1.55, az: 12, ny: TERCIO },
+  primer_plano: { nombre: 'primer plano', fov: 35, alto: 0.85, objY: 1.62, camY: 1.62, az: 10, ny: TERCIO },
+  detalle: { nombre: 'plano detalle (ojos)', fov: 30, alto: 0.3, objY: 1.64, camY: 1.64, az: 8, ny: 0 },
+  picado: { nombre: 'picado', fov: 45, alto: 2.2, objY: 0.8, camY: 3.2, az: 16, ny: 0 },
+  contra: { nombre: 'contrapicado', fov: 50, alto: 2.2, objY: 1.1, camY: 0.25, az: 18, ny: -0.1 },
+  tres_cuartos_e: { nombre: 'tres cuartos', fov: 40, alto: 1.5, objY: 1.62, camY: 1.55, az: 40, ny: TERCIO },
+};
+Object.assign(TOMAS, Object.fromEntries(Object.entries(ENCUADRES).map(([k, v]) => [k, { nombre: v.nombre, fov: v.fov }])));
+export const TODAS = Object.keys(TOMAS).filter((k) => !(k in ENCUADRES));     // las tomas de siempre (las de encuadre las usa planos.js)
 
 // ---------------------------------------------------------------- geometría de cámara (convenciones de Minecraft)
 // yaw 0 mira hacia +Z, yaw 90 hacia -X; pitch positivo mira hacia abajo.
@@ -83,7 +96,7 @@ function esMarca(rep) {
 }
 export function actores(film) {
   const reps = film.replays || [];
-  return reps.map((r, i) => i).filter((i) => !esMarca(reps[i]));
+  return reps.map((r, i) => i).filter((i) => !esMarca(reps[i]) && (!film._solo || film._solo.includes(i)));   // _solo: lista de actores a filmar (la pone el Director)
 }
 /** Estado de un actor en un tick: {x, y, z, yaw}. */
 export function estado(film, i, t) {
@@ -92,7 +105,7 @@ export function estado(film, i, t) {
   return { x, y: capas.valorProp(rep, 'y', t), z, yaw };
 }
 
-function finDeEscena(film, acciones) {
+export function finDeEscena(film, acciones) {
   let fin = 0;
   for (const a of acciones || []) fin = Math.max(fin, a.hasta || 0);
   for (const r of film.replays || []) {
@@ -187,7 +200,7 @@ function rumbo(film, ids, t) {
  * Una toma: devuelve {puntos: [[tick relativo, x, y, z, yaw, pitch]], fov, azimut, nota}.
  * ctx: {film, aspecto, lado (de la linea de los dos: +1 o -1), azimutPrevio}
  */
-function construirToma(tipo, seg, ctx) {
+export function construirToma(tipo, seg, ctx) {
   const { film } = ctx, asp = ctx.aspecto, largo = seg.hasta - seg.desde;
   const fov = TOMAS[tipo].fov;
   const ids = seg.sujetos.length ? seg.sujetos : actores(film);
@@ -207,7 +220,16 @@ function construirToma(tipo, seg, ctx) {
     const f = largo > 0 ? tr / largo : 1, t = seg.desde + tr;
     const p = estado(film, principal, t);
     let cam, objetivo, nx = 0, ny = 0;
-    if (tipo === 'general') {
+    if (ENCUADRES[tipo]) {
+      const E = ENCUADRES[tipo];
+      const dist = (E.alto / (2 * Math.tan((fov * D2R) / 2))) * (1 - (ctx.empuje || 0) * f);     // empuje: cuánto se acerca (dolly in) hasta el final
+      azimut = E.az * sig + (ctx.extraAz || 0);
+      const [dx, dz] = adelante(ini.yaw + azimut);
+      cam = [ini.x + dx * dist, ini.y + E.camY, ini.z + dz * dist];
+      objetivo = [p.x, p.y + E.objY, p.z];
+      ny = E.ny;
+      nx = TERCIO * ladoAire(ini.yaw, { yaw: yawHacia(p.x - cam[0], p.z - cam[2]) }, p);
+    } else if (tipo === 'general') {
       const c = centro(film, ids, t), c0 = centro(film, ids, seg.desde);
       const dist = Math.max(6.5, c0.radio * 2 + 4) * (1 - 0.08 * f);
       azimut = 35 * sig;
@@ -297,7 +319,7 @@ function construirToma(tipo, seg, ctx) {
 }
 
 // cuánto de la toma tiene a otro actor tapando al sujeto (0 a 1): alguien parado entre la cámara y él
-function oclusion(film, toma, seg, principal) {
+export function oclusion(film, toma, seg, principal) {
   const otros = actores(film).filter((i) => !seg.sujetos.includes(i));
   if (!otros.length) return 0;
   let malos = 0;
