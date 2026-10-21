@@ -94,7 +94,7 @@ input[type=range] { width: 100%; accent-color: var(--acento); height: 28px; }
   #modos { flex-direction: row; }
   #modos button { min-height: 42px; width: 48px; }
 }
-@media (max-width: 420px) { #btnExportar .txt { display: none; } }
+@media (max-width: 420px) { #btnExportar .txt, #btnAbrirDat .txt { display: none; } }
 @media (max-width: 520px) { #btnZoomMenos, #btnZoomMas, #btnInicio { display: none; } .herr select { max-width: 120px; } }
 
 /* pestaña Director */

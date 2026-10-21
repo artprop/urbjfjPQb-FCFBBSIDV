@@ -857,8 +857,15 @@ function adoptar(film, conservar = false) {
   film._modelo ??= clonar(film.replays[0] || E.plantilla.replays[0] || null);
   return film;
 }
-$('#inDat').addEventListener('change', async (e) => {
-  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+$('#btnAbrirDat').onclick = () => $('#inDat').click();
+// también se puede arrastrar el .dat sobre la pantalla (PC)
+for (const ev of ['dragover', 'drop']) document.addEventListener(ev, (e) => {
+  if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+  e.preventDefault();
+  if (ev === 'drop' && e.dataTransfer.files[0]) abrirDat(e.dataTransfer.files[0]);
+});
+$('#inDat').addEventListener('change', (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) abrirDat(f); });
+async function abrirDat(f) {
   try {
     let film = await leer(new Uint8Array(await f.arrayBuffer()));
     if (!film || !Array.isArray(film.replays)) throw new Error('Ese archivo no parece un film de BBS.');
@@ -874,8 +881,8 @@ $('#inDat').addEventListener('change', async (e) => {
     $('#nombreFilm').value = E.nombre; botonesDeshacer();
     await refrescar({ rearmar: true }); enfocar(null, true);
     aviso(`Abierto: ${f.name} (${film.replays.length} actores, ${FM.tomas(film).length} cámaras)` + aviso2, false, aviso2 ? 7000 : 3500);
-  } catch (err) { aviso('No se pudo abrir: ' + (err.message || err), true); }
-});
+  } catch (err) { console.warn(err); aviso('No se pudo abrir ' + f.name + ': ' + (err.message || err), true, 9000); }
+}
 async function abrirGuardado(id) {
   const x = await A.leerFilm(id); if (!x) return;
   E.fs = null; auto.reiniciar();
