@@ -100,3 +100,60 @@ export const PARTE_OJOS = {
  "bone": "head",
  "useTarget": false
 };
+
+// Una mano con dedos (modelo player/dedos, que toma la textura de la skin): va en left_arm_item / right_arm_item. Del form de ejemplo del usuario.
+export const PARTE_DEDOS = {
+ "transform": {},
+ "form": {
+  "pose_overlay": {},
+  "hitboxHeight": 1.8,
+  "color": -1,
+  "pose_overlay0": {},
+  "disabled_tracks": [],
+  "pose_overlay1": {},
+  "hp": 20.0,
+  "shaderShadow": true,
+  "states": [],
+  "shape_keys": {
+   "keys": {}
+  },
+  "transform": {},
+  "step_height": 0.5,
+  "additive_color": false,
+  "pose_overlay2": {},
+  "pose_overlay3": {},
+  "model": "player/dedos",
+  "bone_tracks": true,
+  "id": "bbs:model",
+  "track_name": "manoizq",
+  "hitboxWidth": 0.5,
+  "visible": true,
+  "hitboxEyeHeight": 0.9,
+  "pose": {
+   "pose": {}
+  },
+  "texture": "",
+  "hitboxSneakMultiplier": 0.9,
+  "transform_overlay3": {},
+  "transform_overlay2": {},
+  "transform_overlay1": {},
+  "lighting": 1.0,
+  "transform_overlay0": {},
+  "hitbox": false,
+  "movement_speed": 0.1,
+  "uiScale": 1.0,
+  "anchor": {
+   "actor": -1,
+   "attachment": "",
+   "scale": false,
+   "translate": false
+  },
+  "keybind": 0,
+  "name": "ManoIzq",
+  "parts": [],
+  "transform_overlay": {},
+  "actions": {}
+ },
+ "bone": "left_arm_item",
+ "useTarget": false
+};

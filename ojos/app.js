@@ -399,7 +399,7 @@ function archivosPersonaje() {
   const rutaSkin = ($('#inRutaSkin').value || `${N.USUARIO.carpeta}/${personaje()}.png`).replace(/^\/+/, '').replace(/\\/g, '/');
   const form = N.formPersonaje({
     nombre: personaje(), modeloBase: $('#selCuerpo').value, rutaSkin: `assets:models/${rutaSkin}`, capas: masc.map((m) => ({ path: m.path, shiftY: m.shiftY })),
-    modeloOjos: ojos.modelo, texturaOjos: ojos.textura, poseOjos: ojos.pose,
+    modeloOjos: ojos.modelo, texturaOjos: ojos.textura, poseOjos: ojos.pose, dedos: { izq: dedosPose('Izq'), der: dedosPose('Der') },
   });
   const out = [{ ruta: 'personaje.json', bytes: texto(form) }];
   if ($('#chkIncluirSkin').checked) out.push({ ruta: `assets/models/${rutaSkin}`, bytes: skin.bytes });
@@ -407,6 +407,21 @@ function archivosPersonaje() {
   out.push(...ojos.archivos);
   return out;
 }
+
+// ------------------------------------------------------------------ manos con dedos
+let POSES_DEDOS = {};
+/** La pose elegida para una mano ('Izq' o 'Der'), o null si no se eligió ninguna. */
+function dedosPose(lado) { const k = $('#selDedos' + lado).value; return k && POSES_DEDOS[k] ? POSES_DEDOS[k].pose : null; }
+async function cargarDedos() {
+  try { POSES_DEDOS = await (await fetch('./referencia/dedos_poses.json')).json(); } catch { return; }
+  for (const [lado, pref] of [['Izq', 'L_'], ['Der', 'R_']]) {
+    const sel = $('#selDedos' + lado), otro = pref === 'L_' ? 'R_' : 'L_';
+    sel.innerHTML = '<option value="">sin dedos</option>' + Object.keys(POSES_DEDOS).filter((k) => !k.startsWith(otro)).sort().map((k) => `<option value="${k}">${k}</option>`).join('');
+    try { const g = localStorage.getItem('ojos-dedos-' + lado); if (g && POSES_DEDOS[g]) sel.value = g; } catch { /* sin guardado */ }
+    sel.onchange = () => { try { localStorage.setItem('ojos-dedos-' + lado, sel.value); } catch { /* sin guardado */ } };
+  }
+}
+cargarDedos();
 
 async function exportarPng() {
   if (!res) return;
@@ -533,4 +548,4 @@ $('#btnAjustes').onclick = () => { hoja.hidden = false; };
 $('#btnCerrar').onclick = () => { hoja.hidden = true; };
 hoja.addEventListener('pointerdown', (e) => { if (e.target === hoja) hoja.hidden = true; });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hoja.hidden = true; });
-window.__ojos = { N, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, texturaDeOjos, STOCK, get ajuste() { return ajuste; }, get idModelo() { return idModelo; } };   // para las pruebas
+window.__ojos = { N, dedosPose, get res() { return res; }, get cfg() { return cfg; }, cargarSkin, recalcular, archivosPersonaje, archivosMascaras, ojosDelPersonaje, texturaDeOjos, STOCK, get ajuste() { return ajuste; }, get idModelo() { return idModelo; } };   // para las pruebas

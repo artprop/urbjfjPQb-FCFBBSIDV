@@ -135,6 +135,11 @@ function detectarPerfil(cara) {
     if (f1 !== f0) i++;
   }
   if (mejor.f1 - mejor.f0 + 1 > 2) return null;
+  // una esclerótica de arriba oscurecida (con la pupila aún más oscura al lado) sigue siendo parte del ojo
+  if (mejor.f0 === mejor.f1 && mejor.f0 > 1) {
+    const f = mejor.f0 - 1, pupArriba = Math.max(lu(f, 2), lu(f, 5));
+    if (s[f] > 10 && pupArriba < 60 && Math.min(lu(f, 1), lu(f, 6)) > pupArriba + 8) mejor.f0 = f;
+  }
   return { c0: 1, c1: 2, r0: mejor.f0, r1: mejor.f1, p: { c0: 2, c1: 2, r0: mejor.f0, r1: mejor.f1 }, ceja: null };
 }
 
@@ -463,7 +468,7 @@ export function mascaraRGBA(w, h, skinRgba, celdas, sombrero = true) {
 }
 
 // ------------------------------------------------------------------ form de BBS del personaje
-import { FORM_BASE, PARTE_OJOS } from './plantilla_form.js';
+import { FORM_BASE, PARTE_OJOS, PARTE_DEDOS } from './plantilla_form.js';
 const clonar = (o) => JSON.parse(JSON.stringify(o));
 const uuid = () => (globalThis.crypto && crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); }));
 
@@ -481,6 +486,13 @@ export function formPersonaje(o) {
   if (o.poseOjos) parte.form.pose = { pose: Object.fromEntries(Object.entries(o.poseOjos).map(([h, p]) => [h, { r2: [0, 0, 0], r: p.r.slice(), s: p.s.slice(), t: p.t.slice(), fix: 0.0, color: -1, lighting: 0.0 }])) };   // el ajuste de tamaño y lugar, sin colores propios
   if (o.bajarOjos) parte.transform = { r2: [0, 0, 0], r: [0, 0, 0], s: [1, 1, 1], t: [0, -o.bajarOjos * 0.0625, 0] };   // ojos estándar más abajo en la cara: se bajan en el form, no en el modelo
   f.parts = [parte];
+  // manos con dedos (opcional): o.dedos = { izq, der } con la pose de cada mano ({hueso: {r2, r, s, t, fix, color, lighting}}) o null
+  for (const [lado, hueso, nom] of [['izq', 'left_arm_item', 'ManoIzq'], ['der', 'right_arm_item', 'ManoDer']]) {
+    const pose = o.dedos && o.dedos[lado]; if (!pose) continue;
+    const m = clonar(PARTE_DEDOS);
+    m.bone = hueso; m.form.name = nom; m.form.track_name = nom.toLowerCase(); m.form.texture = o.rutaSkin; m.form.pose = { pose: clonar(pose) };
+    f.parts.push(m);
+  }
   return { id: uuid(), title: o.nombre, forms: [f] };
 }
 
@@ -532,10 +544,12 @@ export function coloresEstandar(cara, cfg, tocados = null) {
   const base = coloresDeCara(cara, cfg), { clase } = clasesDeCara(cara);
   // piel: la más común en las columnas de la nariz (3 y 4), de la fila de los ojos hacia abajo, sin lo oscuro
   const cuenta = new Map();
-  for (let f = Math.max(0, cfg.a.r0 - 1); f <= 7; f++) for (const c of [3, 4]) {
+  // primero entre los ojos (filas del ojo, columnas 3-4): es el tono de piel de verdad; si no hay, de ahí hacia abajo
+  const contar = (f0, f1) => { for (let f = f0; f <= f1; f++) for (const c of [3, 4]) {
     const p = pix(cara, f, c); if (p[3] < 128 || lum(p) < 80) continue;
     const k = p.slice(0, 3).join(','); cuenta.set(k, (cuenta.get(k) || 0) + 1);
-  }
+  } };
+  contar(cfg.a.r0, cfg.a.r1); if (!cuenta.size) contar(Math.max(0, cfg.a.r0 - 1), 7);
   let piel = base.piel, mx = 0;
   for (const [k, v] of cuenta) if (v > mx) { mx = v; piel = k.split(',').map(Number); }
   const ojo = (o) => {
@@ -545,13 +559,19 @@ export function coloresEstandar(cara, cfg, tocados = null) {
     const pupila = []; for (let f = o.r0; f <= o.r1; f++) pupila.push(pix(cara, f, o.p.c0).slice(0, 3));
     let ceja = base.ceja;
     if (o.r0 > 0) { const p = pix(cara, o.r0 - 1, o.p.c0); if (p[3] >= 128 && lum(p) < lum(piel) - 20) ceja = p.slice(0, 3); }
-    return { esclerotica: esc.length ? media(esc) : piel.slice(), pupila, ceja };
+    const filasEsc = [];
+    for (let f = o.r0; f <= o.r1; f++) {
+      const l = []; for (let c = o.c0; c <= o.c1; c++) if (!(f >= o.p.r0 && f <= o.p.r1 && c >= o.p.c0 && c <= o.p.c1)) l.push(pix(cara, f, c));
+      filasEsc.push(l.length ? media(l) : null);
+    }
+    const medio = esc.length ? media(esc) : piel.slice();
+    return { esclerotica: medio, escleroticaFilas: filasEsc.map((x) => x || medio), pupila, ceja };
   };
   const A = ojo(cfg.a), B = ojo(cfg.b);
   const out = { a: A, b: B, piel, ceja: A.ceja };
   if (tocados) {
     if (tocados.piel) out.piel = tocados.piel;
-    if (tocados.blanco) { A.esclerotica = tocados.blanco; B.esclerotica = tocados.blanco; }
+    if (tocados.blanco) { A.esclerotica = tocados.blanco; B.esclerotica = tocados.blanco; A.escleroticaFilas = null; B.escleroticaFilas = null; }
     if (tocados.ceja) out.ceja = tocados.ceja;
   }
   return out;
@@ -570,11 +590,15 @@ export function texturaPlana(modeloEstandar, col, objetos = null) {
       const u0 = Math.min(r[0], r[2]), u1 = Math.max(r[0], r[2]), v0 = Math.min(r[1], r[3]), v1 = Math.max(r[1], r[3]);
       for (let v = v0; v < v1; v++) for (let u = u0; u < u1; u++) {
         if (id === 'anchor' || id.startsWith('eyelid_')) poner(u, v, col.piel);
-        else if (id.startsWith('eye_')) poner(u, v, lado.esclerotica);
+        else if (id.startsWith('eye_')) {
+          // dos colores de esclerótica (la de arriba suele ir más oscura): cada fila de las caras de costado lleva la suya; arriba y abajo, la de la fila de arriba
+          const fs = lado.escleroticaFilas, lateral = cara !== 'top' && cara !== 'bottom';
+          poner(u, v, !fs || fs.length < 2 ? lado.esclerotica : lateral ? (v1 - v0 === fs.length ? fs[v - v0] : lado.esclerotica) : (c.size[1] === fs.length ? fs[0] : lado.esclerotica));
+        }
         else if (id.startsWith('eyebrow_')) poner(u, v, col.ceja);
-        else if (id.startsWith('pupil_') && cara === 'front') {      // solo el frente de la pupila (los costados quedan transparentes, como en tus texturas)
+        else if (id.startsWith('pupil_') && (cara === 'front' || cara === 'top')) {      // solo el frente de la pupila (los costados quedan transparentes, como en tus texturas)
           const filas = lado.pupila, alto = v1 - v0;
-          poner(u, v, alto === filas.length ? filas[v - v0] : filas[Math.min(filas.length - 1, Math.floor(filas.length / 2))]);
+          if (cara === 'top') poner(u, v, filas[0]); else poner(u, v, alto === filas.length ? filas[v - v0] : filas[Math.min(filas.length - 1, Math.floor(filas.length / 2))]);
         }
       }
     }
