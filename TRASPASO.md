@@ -84,6 +84,7 @@ v.021: estilo de boca **«línea fina, tono de piel»** (copiado de la animació
 - **Preset de muecas con los dibujos del usuario** (formas de «P», «U», «T», «O» de su animación de referencia) para que la conversión use exactamente sus bocas. Propuesto, aún no pedido.
 - Editor: mover/escalar partes de un `.bobj` (hoy solo gira); las partes pegadas a un hueso de un `.bobj` (ítems en la mano) no siguen al hueso.
 - Otro modelo de la línea emoticons: pedir el archivo y adaptar la armadura.
+- **Director: cámaras automáticas con planos cinematográficos** (pedido del usuario, sin empezar). Para una escena, el Director propone **varios planos a la vez** (general, entero, americano, medio, primer plano, detalle; también ángulos: normal, picado, contrapicado, sobre el hombro, de dos) como miniaturas, y el usuario **elige rápido** el que le parece más apropiado. El objetivo es **asignar cámaras rápido**: pocos toques por escena, sin armar cada cámara a mano. Ideas: calcular encuadre según la posición y tamaño de los actores; elegir con un toque y que quede asignada a esa escena/tramo; atajo para probar el siguiente plano.
 - Cámaras automáticas **con el mapa del mundo** (hoy pueden quedar tapadas por bloques).
 - Retocar la grabación en la Vista 3D con más opciones (hoy: muecas, arrugas, labios, cejas).
 - Boca más chica en «línea fina» (hoy copia el tamaño real; se achica con la sensibilidad).
