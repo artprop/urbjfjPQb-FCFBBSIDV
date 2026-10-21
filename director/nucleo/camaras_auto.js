@@ -179,6 +179,17 @@ export function segmentar(film, acciones, fin, minTicks = MIN_TICKS, maxTicks = 
   return res;
 }
 
+/** Quién se mueve y qué hace entre dos ticks (para los cortes que puso el usuario): {sujetos (los que se mueven), cat}. Sin movimiento: sujetos vacío. */
+export function tramoEn(film, desde, hasta) {
+  const ids = actores(film);
+  const bins = actividad(film, null, ids, Math.max(PASO, hasta)).filter((b) => b.t + PASO > desde && b.t < hasta);
+  const cuenta = new Map();
+  for (const b of bins) for (const [i, c] of b.act) cuenta.set(i, { n: ((cuenta.get(i) || {}).n || 0) + 1, c });
+  const lim = Math.max(1, bins.length * 0.25);
+  const act = new Map([...cuenta].filter(([, v]) => v.n >= lim).map(([i, v]) => [i, v.c]));
+  return { sujetos: [...act.keys()].sort((a, b) => a - b), cat: categoria(act) };
+}
+
 // ---------------------------------------------------------------- tomas
 const adelante = (yawDeg) => [-Math.sin(yawDeg * D2R), Math.cos(yawDeg * D2R)];
 const centro = (film, ids, t) => {

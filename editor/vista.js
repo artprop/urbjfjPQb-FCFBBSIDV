@@ -277,6 +277,23 @@ export class Vista {
       this.tomas.add(g);
     }
   }
+  // Una miniatura de lo que vería una cámara (v = {x, y, z, yaw, pitch, fov, roll}) dibujada en el canvas `cv`, con otro renderer para no tocar la vista grande.
+  captura(v, cv) {
+    if (!this.rmini) {
+      this.rmini = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      this.rmini.outputColorSpace = THREE.SRGBColorSpace; this.rmini.setPixelRatio(1); this.rmini.setSize(cv.width, cv.height, false);
+      this.camMini = new THREE.PerspectiveCamera(50, cv.width / cv.height, 0.05, 600);
+    }
+    const c = this.camMini;
+    if (this.rmini.domElement.width !== cv.width) { this.rmini.setSize(cv.width, cv.height, false); c.aspect = cv.width / cv.height; }
+    c.fov = v.fov; c.updateProjectionMatrix();
+    c.position.set(v.x, v.y, v.z); c.up.set(0, 1, 0); c.lookAt(v.x + dirX(v), v.y + dirY(v), v.z + dirZ(v)); c.rotateZ(-(v.roll || 0) * D2R);
+    const vt = this.tomas.visible, ve = this.extras.visible;
+    this.tomas.visible = false; this.extras.visible = false;      // sin los dibujitos de cámaras ni el aro del elegido
+    this.rmini.render(this.escena, c);
+    this.tomas.visible = vt; this.extras.visible = ve;
+    cv.getContext('2d').drawImage(this.rmini.domElement, 0, 0, cv.width, cv.height);
+  }
   foto() { this._cuadro(); return this.render.domElement.toDataURL('image/jpeg', 0.85); }
 }
 

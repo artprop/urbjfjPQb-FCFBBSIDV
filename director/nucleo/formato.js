@@ -84,6 +84,24 @@ export function clipFS({ titulo, capa, desde, hasta, puntos, fov }) {
   };
 }
 
+/**
+ * Un clip de BBS FS a partir de canales con sus propias curvas: canales = { x, y, z, yaw, pitch, fov: [{tick, value, interp}] }, roll (número).
+ * Si ningún canal se mueve es un «idle»; si no, un «keyframe». Ticks relativos al comienzo del clip.
+ */
+export function clipFSCanales({ titulo, capa, desde, dur, canales, roll = 0 }) {
+  const base = { title: titulo, enabled: B(1), layer: I(capa), tick: I(Math.round(desde)), duration: I(Math.max(1, Math.round(dur))), envelope: envFS() };
+  const v0 = (k) => canales[k][0].value;
+  if (['x', 'y', 'z', 'yaw', 'pitch', 'fov'].every((k) => canales[k].length <= 1)) {
+    return { type: 'bbs:idle', ...base, position: { angle: { roll: F(r4(roll)), pitch: F(r4(v0('pitch'))), fov: F(r4(v0('fov'))), yaw: F(r4(v0('yaw'))) }, point: { x: D(r4(v0('x'))), y: D(r4(v0('y'))), z: D(r4(v0('z'))) } } };
+  }
+  const track = (k) => ({ keyframes: canales[k].map((q, n) => { const o = { tick: F(Math.round(q.tick * 1000) / 1000), value: D(r4(q.value)) }; if (n && q.interp && q.interp !== 'linear') o.interp = q.interp; else if (n) o.interp = 'linear'; return o; }), type: 'double' });
+  return {
+    type: 'bbs:keyframe', ...base, additive: B(0),
+    x: track('x'), y: track('y'), z: track('z'), yaw: track('yaw'), pitch: track('pitch'), fov: track('fov'),
+    roll: { keyframes: [{ tick: F(0), value: D(r4(roll)) }], type: 'double' }, distance: { keyframes: [], type: 'double' },
+  };
+}
+
 /** El clip en el formato de destino. */
 export function clipDeToma(formato, datos) { return formato === 'fs' ? clipFS(datos) : clipDe(datos); }
 
