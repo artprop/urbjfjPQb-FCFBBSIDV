@@ -25,22 +25,21 @@ export function crearVista3D(canvas) {
   new ResizeObserver(ajustar).observe(canvas); ajustar();
 
   /**
-   * res: lo que devuelve generar(); nombre: nombre del modelo; pose: nombre de la pose o null.
-   * alt (opcional): { variante, modelo (el .bbs.json estándar), png (bytes de la textura), dy } para ver el modelo estándar con la textura lisa, bajado dy filas.
+   * Muestra un modelo de ojos solo. o: { carpeta (nombre del modelo), modelo (.bbs.json), obj (texto del OBJ o null), config, png (bytes), pose ({hueso: {r, s, t}} o null) }
    */
-  async function mostrar(res, nombre, pose = null, alt = null) {
+  async function mostrar(o) {
     const mia = ++ronda;
-    const carpeta = alt ? alt.variante : nombre;
-    const base = `assets/models/player/${carpeta}/`;
-    const png = new Blob([alt ? alt.png : pngDeRGBA(res.textura.w, res.textura.h, res.textura.rgba)], { type: 'image/png' });
-    const config = { ...res.config, texture: `assets:models/player/${carpeta}/textura.png` };
-    const archivos = { [base + 'config.json']: JSON.stringify(config), [base + carpeta + '.bbs.json']: JSON.stringify(alt ? alt.modelo : res.modelo), [base + 'textura.png']: png };
+    const base = `assets/models/player/${o.carpeta}/`;
+    const archivos = {
+      [base + 'config.json']: JSON.stringify({ ...o.config, texture: `assets:models/player/${o.carpeta}/textura.png` }),
+      [base + o.carpeta + '.bbs.json']: JSON.stringify(o.modelo),
+      [base + 'textura.png']: new Blob([o.png], { type: 'image/png' }),
+    };
+    if (o.obj) archivos[base + 'base.obj'] = o.obj;
     const fuente = { rutas: () => Object.keys(archivos), texto: async (p) => archivos[p], blob: async (p) => archivos[p], existe: (p) => p in archivos };
     const modelos = new Modelos(fuente, new Texturas(fuente));
-    const p = pose && res.poses[pose] ? { pose: res.poses[pose].pose } : null;
-    const m = await modelos.construir('player/' + carpeta, { pose: p });
+    const m = await modelos.construir('player/' + o.carpeta, { pose: o.pose ? { pose: o.pose } : null });
     if (mia !== ronda) { liberar(m.obj); return; }     // llegó otro pedido más nuevo
-    if (alt && alt.dy) m.obj.position.y = -alt.dy / 16;
     if (modelo) { escena.remove(modelo); liberar(modelo); }
     modelo = m.obj; escena.add(modelo); dibujar();
   }
