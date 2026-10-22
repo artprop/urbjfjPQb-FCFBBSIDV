@@ -80,6 +80,7 @@ async function volver(de, a) {
   a.push(foto());
   E.film = f.film; E.i = f.i; E.toma = f.toma >= 0 ? E.film.camera[f.toma] : null; E.key = null;
   if (!rep()) { E.i = -1; E.hueso = null; }
+  auto.alDeshacer();
   await refrescar({ rearmar: true });
   botonesDeshacer();
 }
