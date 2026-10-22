@@ -82,6 +82,33 @@ function dibujarLista() {
   $('#btnGuardar').disabled = !modelos.some((m) => m.resultado);
 }
 
+// ---------- carpetas de destino guardadas (Comida, Props…) ----------
+const DESTINOS_INICIALES = ['Comida', 'Props'];
+let destinos = [], destino = '';
+function cargarDestinos() {
+  try { destinos = JSON.parse(localStorage.getItem('conv-destinos') || 'null') || DESTINOS_INICIALES.slice(); destino = localStorage.getItem('conv-destino') || ''; } catch { destinos = DESTINOS_INICIALES.slice(); }
+  if (destino && !destinos.includes(destino)) destino = '';
+}
+function guardarDestinos() { try { localStorage.setItem('conv-destinos', JSON.stringify(destinos)); localStorage.setItem('conv-destino', destino); } catch { /* sin guardado */ } }
+function dibujarDestinos() {
+  const s = $('#selDestino');
+  s.replaceChildren(el('option', { value: '', textContent: '(directo, sin carpeta)' }), ...destinos.map((d) => el('option', { value: d, textContent: d })));
+  s.value = destino;
+  $('#btnQuitarDestino').disabled = !destino;
+}
+// «a/b» queda como carpetas anidadas; cada parte sin caracteres que BBS no acepta
+const limpiarRuta = (r) => String(r || '').split(/[\\/]+/).map((x) => x.trim()).filter(Boolean).map((x) => nombreLimpio(x)).join('/');
+$('#selDestino').onchange = () => { destino = $('#selDestino').value; guardarDestinos(); dibujarDestinos(); };
+$('#btnNuevoDestino').onclick = () => {
+  const n = limpiarRuta(prompt('Nombre de la carpeta (por ejemplo Comida o Props; con / queda adentro de otra, como Muebles/Sillas):', '') || '');
+  if (!n) return;
+  if (!destinos.some((d) => d.toLowerCase() === n.toLowerCase())) destinos.push(n);
+  destino = destinos.find((d) => d.toLowerCase() === n.toLowerCase()); guardarDestinos(); dibujarDestinos();
+};
+$('#btnQuitarDestino').onclick = () => { destinos = destinos.filter((d) => d !== destino); destino = ''; guardarDestinos(); dibujarDestinos(); };
+cargarDestinos(); dibujarDestinos();
+const rutaDe = (n) => (destino ? destino + '/' + n : n);
+
 function estado(txt, clase = '') { const e = $('#estado'); e.textContent = txt; e.className = clase; }
 
 // ---------- guardar ----------
@@ -94,7 +121,7 @@ async function archivosDe(listos) {
     usados.add(n.toLowerCase());
     const arch = [[n + '.obj', new Blob([m.resultado.texto], { type: 'text/plain' })]];
     if (m.png) arch.push([n + '.png', m.png]);
-    salida.push({ carpeta: n, arch });
+    salida.push({ carpeta: rutaDe(n), nombre: n, arch });
   }
   return salida;
 }
@@ -108,14 +135,18 @@ async function guardar() {
       let donde = '';
       for (const g of grupos) for (const [n, b] of g.arch) donde = await guardarSalida('convertidor', n, b, b.type, g.carpeta);
       const raiz = donde.replace(/^Guardado en /, '').replace(/[\\/][^\\/]+[\\/][^\\/]+$/, '');
-      estado(`Listo: ${grupos.map((g) => g.carpeta).join(', ')} en ${raiz}\nCopiá esas carpetas a config\\bbs\\assets\\models (o usá "Guardar en otra carpeta" para mandarlas directo).`, 'ok');
+      estado(`Listo: ${grupos.map((g) => g.carpeta).join(', ')} en ${raiz}\nCopiá ${destino ? 'la carpeta «' + destino + '»' : 'esas carpetas'} a config\\bbs\\assets\\models (o usá "Guardar en otra carpeta" para mandarlas directo).`, 'ok');
       return;
     }
     if (window.showDirectoryPicker) return guardarEnCarpeta();
     const arbol = {};
-    for (const g of grupos) { arbol[g.carpeta] = {}; for (const [n, b] of g.arch) arbol[g.carpeta][n] = new Uint8Array(await b.arrayBuffer()); }
+    for (const g of grupos) {
+      let nodo = arbol;
+      for (const parte of g.carpeta.split('/')) nodo = nodo[parte] ??= {};
+      for (const [n, b] of g.arch) nodo[n] = new Uint8Array(await b.arrayBuffer());
+    }
     const zip = zipSync(arbol, { level: 6 });
-    const donde = await guardarSalida('convertidor', (grupos.length === 1 ? grupos[0].carpeta : 'Modelos_Armourers') + '_BBS.zip', new Blob([zip], { type: 'application/zip' }));
+    const donde = await guardarSalida('convertidor', (grupos.length === 1 ? grupos[0].nombre : (destino ? destino.replace(/\//g, '_') : 'Modelos_Armourers')) + '_BBS.zip', new Blob([zip], { type: 'application/zip' }));
     estado(donde + '\nEn el celu no se pueden crear carpetas: va en un .zip.', 'ok');
   } catch (e) { estado('No se pudo guardar: ' + (e.message || e), 'mal'); }
 }
@@ -129,7 +160,8 @@ async function guardarEnCarpeta() {
   try {
     const grupos = await archivosDe(listos);
     for (const g of grupos) {
-      const sub = await dir.getDirectoryHandle(g.carpeta, { create: true });
+      let sub = dir;
+      for (const parte of g.carpeta.split('/')) sub = await sub.getDirectoryHandle(parte, { create: true });
       for (const [n, b] of g.arch) { const w = await (await sub.getFileHandle(n, { create: true })).createWritable(); await w.write(b); await w.close(); }
     }
     estado(`Listo: ${grupos.map((g) => g.carpeta).join(', ')} adentro de "${dir.name}". Si BBS estaba abierto, recargá los modelos.`, 'ok');
