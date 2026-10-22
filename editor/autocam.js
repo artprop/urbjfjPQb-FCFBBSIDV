@@ -9,6 +9,8 @@ export const S = { fase: 'inicio', cortes: [], tramos: null, avisos: [], solo: n
 let api = null;
 export function iniciar(a) { api = a; }
 export const ticksCortes = () => S.cortes.map((k) => Math.round(num(k.tick)));
+/** Se deshizo o rehizo algo: las propuestas de tomas ya no coinciden con el film, se vuelve a los cortes (que se conservan). */
+export function alDeshacer() { if (S.fase === 'elegir') { S.fase = 'cortes'; S.tramos = null; } }
 /** Otro film: lo de antes ya no vale. */
 export function reiniciar() { S.fase = 'inicio'; S.cortes = []; S.tramos = null; S.avisos = []; S.solo = null; S.semilla = 1; }
 export const activo = () => S.fase === 'cortes' || S.fase === 'elegir';
