@@ -61,6 +61,11 @@
     </div>
     <div id="lista"></div>
     <div id="acciones" hidden>
+      <div class="fila" id="filaDestino" style="margin-bottom:8px">
+        <label>Guardar en la carpeta <select id="selDestino" title="Dentro de esa carpeta se crea una carpeta por modelo (por ejemplo models\Comida\silla)"></select></label>
+        <button id="btnNuevoDestino" title="Agregar una carpeta a la lista">➕</button>
+        <button id="btnQuitarDestino" title="Sacar la carpeta elegida de la lista (no borra nada del disco)">➖</button>
+      </div>
       <button id="btnGuardar" class="principal">💾 Guardar para BBS</button>
       <button id="btnOtra" hidden title="Elegís una carpeta (por ejemplo config\bbs\assets\models\Comida) y se crea una carpeta por modelo adentro">📁 Guardar en otra carpeta…</button>
       <button id="btnCarpeta" hidden>📂 Abrir carpeta Salida</button>
@@ -70,7 +75,7 @@
     <details>
       <summary>Cómo ponerlo en BBS</summary>
       <ol>
-        <li>Tocá <b>Guardar para BBS</b>: queda una carpeta por modelo en <code>Salida\convertidor</code> (adentro, el .obj y el .png con el mismo nombre). O usá <b>Guardar en otra carpeta</b> y elegí directo la de BBS.</li>
+        <li>Elegí la <b>carpeta</b> (por ejemplo <code>Comida</code> o <code>Props</code>; con ➕ agregás las tuyas) y tocá <b>Guardar para BBS</b>: queda una carpeta por modelo adentro de <code>Salida\convertidor\&lt;carpeta&gt;</code> (adentro, el .obj y el .png con el mismo nombre). O usá <b>Guardar en otra carpeta</b> y elegí directo la de BBS.</li>
         <li>Copiá cada carpeta a <code>config\bbs\assets\models</code> (por ejemplo, dentro de <code>Comida</code>).</li>
         <li>En el juego, el modelo aparece con el nombre de la carpeta. Si BBS ya estaba abierto, recargá los modelos.</li>
       </ol>
