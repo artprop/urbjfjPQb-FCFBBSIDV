@@ -1,8 +1,9 @@
 // Vista de la izquierda: la animacion tal como viene (malla semitransparente + todos sus huesos).
-// Los huesos que se pasan a Minecraft se marcan con puntos verdes; los que faltan no existen, asi que se avisan aparte.
+// Cada hueso es un punto azul que se puede tocar (para elegirlo a mano); los que se pasan a Minecraft van en verde y el
+// de la parte que se está eligiendo, en amarillo.
 import * as THREE from '../mocap/three.module.min.js';
 
-const COLOR_HUESO = 0x8fb3ff, COLOR_USADO = 0x6fb24a;
+const COLOR_HUESO = 0x8fb3ff, COLOR_USADO = 0x6fb24a, COLOR_ACTIVO = 0xffd23f;
 
 // textura de un punto redondo (los Points de three.js son cuadrados)
 let _circulo = null;
@@ -28,6 +29,7 @@ export class VistaOriginal {
     this.an = null; this.mixer = null; this.mallaVisible = true;
     this.objetivo = new THREE.Vector3(0, 1, 0); this.az = 0; this.el_ = 0.12; this.dist = 4;
     this.frente0 = 0;   // angulo de la camara que mira al modelo de frente
+    this.alElegir = null;   // (hueso) => {}: se tocó un hueso
     this._arrastre();
     this.ro = new ResizeObserver(() => this.ajustar()); this.ro.observe(el);
     this.ajustar();
@@ -35,7 +37,7 @@ export class VistaOriginal {
 
   // an: lo que devuelve cargarAnimacion() (raiz de three.js, clips, huesos encontrados)
   poner(an, clip) {
-    if (this.an) { this.scene.remove(this.an.raiz); this.scene.remove(this.esqueleto); this.scene.remove(this.marcas); }
+    if (this.an) { this.scene.remove(this.an.raiz); this.scene.remove(this.esqueleto); this.puntos.forEach((p) => this.scene.remove(p)); }
     if (this.mixer) { this.mixer.stopAllAction(); this.mixer.uncacheRoot(this.an.raiz); }
     this.an = an;
     // malla: gris semitransparente (las texturas del archivo casi nunca vienen adentro)
@@ -53,11 +55,16 @@ export class VistaOriginal {
     this.esqueleto.renderOrder = 2;
     this.scene.add(this.esqueleto);
     this.nHuesos = this.esqueleto.bones.length;
-    // puntos verdes (del mismo tamaño en pantalla, esté cerca o lejos): los huesos que usa la conversion
-    this.usados = [...new Set(Object.values(an.huesos).filter(Boolean))];
-    const geo = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(this.usados.length * 3), 3));
-    this.marcas = new THREE.Points(geo, new THREE.PointsMaterial({ color: COLOR_USADO, size: 8, sizeAttenuation: false, map: circulo(), alphaTest: 0.5, depthTest: false }));
-    this.marcas.renderOrder = 3; this.marcas.frustumCulled = false; this.scene.add(this.marcas);
+    // puntos (del mismo tamaño en pantalla, esté cerca o lejos): todos los huesos, los usados y el elegido
+    this.visibles = an.esqueleto.map((h) => h.obj).filter((o) => !puntas.includes(o));
+    const puntos = (color, tam, orden) => {
+      const p = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color, size: tam, sizeAttenuation: false, map: circulo(), alphaTest: 0.5, depthTest: false }));
+      p.renderOrder = orden; p.frustumCulled = false; p.lista = []; this.scene.add(p); return p;
+    };
+    this.puntos = [puntos(COLOR_HUESO, 6, 3), puntos(COLOR_USADO, 9, 4), puntos(COLOR_ACTIVO, 15, 5)];
+    this._lista(this.puntos[0], this.visibles); this._lista(this.puntos[2], []);
+    this.activo = null;
+    this.actualizarUsados();
     this.mallaVisible && this.mallas.forEach((m) => (m.visible = true));
     this.ponerClip(clip);
   }
@@ -99,6 +106,16 @@ export class VistaOriginal {
     this._camara(); this.ir(this.t || 0);
   }
 
+  // los huesos que usa la conversion (despues de cambiar el mapa a mano)
+  actualizarUsados() { this._lista(this.puntos[1], [...new Set(Object.values(this.an.huesos).filter(Boolean))]); this.ir(this.t || 0); }
+  // el hueso de la parte que se esta eligiendo (o null)
+  marcarActivo(hueso) { this.activo = hueso || null; this._lista(this.puntos[2], hueso ? [hueso] : []); this.ir(this.t || 0); }
+  _lista(p, objs) {
+    p.lista = objs;
+    p.geometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(Math.max(1, objs.length) * 3), 3));
+    p.geometry.setDrawRange(0, objs.length);
+  }
+
   verMalla(si) { this.mallaVisible = si; (this.mallas || []).forEach((m) => (m.visible = si)); this.dibujar(); }
   vistaFrente() { this.az = this.frente0; this.el_ = 0.12; this.dist = (this.escala || 1) * 2.1; this._camara(); this.dibujar(); }
 
@@ -115,9 +132,11 @@ export class VistaOriginal {
       this.objetivo.x = this.c0.x + v.x - this.cad0.x; this.objetivo.z = this.c0.z + v.z - this.cad0.z;
       this._camara();
     }
-    const pos = this.marcas.geometry.attributes.position;
-    this.usados.forEach((b, i) => { b.getWorldPosition(v); pos.setXYZ(i, v.x, v.y, v.z); });
-    pos.needsUpdate = true;
+    for (const p of this.puntos) {
+      const pos = p.geometry.attributes.position;
+      p.lista.forEach((b, i) => { b.getWorldPosition(v); pos.setXYZ(i, v.x, v.y, v.z); });
+      pos.needsUpdate = true;
+    }
     this.dibujar();
   }
 
@@ -129,10 +148,14 @@ export class VistaOriginal {
     this.camera.lookAt(this.objetivo);
   }
   _arrastre() {
-    const c = this.renderer.domElement; let ult = null;
+    const c = this.renderer.domElement; let ult = null, ini = null;
     c.style.touchAction = 'none'; c.style.cursor = 'grab';
-    c.addEventListener('pointerdown', (e) => { ult = [e.clientX, e.clientY]; c.setPointerCapture(e.pointerId); c.style.cursor = 'grabbing'; });
-    c.addEventListener('pointerup', () => { ult = null; c.style.cursor = 'grab'; });
+    c.addEventListener('pointerdown', (e) => { ult = ini = [e.clientX, e.clientY]; c.setPointerCapture(e.pointerId); c.style.cursor = 'grabbing'; });
+    c.addEventListener('pointerup', (e) => {
+      // un toque sin arrastrar: el hueso mas cercano al dedo
+      if (ini && Math.hypot(e.clientX - ini[0], e.clientY - ini[1]) < 6 && this.alElegir) { const h = this.huesoEn(e.clientX, e.clientY); if (h) this.alElegir(h); }
+      ult = ini = null; c.style.cursor = 'grab';
+    });
     c.addEventListener('pointermove', (e) => {
       if (!ult) return;
       this.az -= (e.clientX - ult[0]) * 0.008; this.el_ += (e.clientY - ult[1]) * 0.008;
@@ -140,6 +163,19 @@ export class VistaOriginal {
     });
     c.addEventListener('wheel', (e) => { e.preventDefault(); this.dist *= Math.exp(e.deltaY * 0.001); this._camara(); this.dibujar(); }, { passive: false });
     c.addEventListener('dblclick', () => this.vistaFrente());
+  }
+  // el hueso que se ve más cerca de ese punto de la pantalla (a menos de 24 px), o null
+  huesoEn(x, y) {
+    if (!this.visibles) return null;
+    const r = this.renderer.domElement.getBoundingClientRect(), v = new THREE.Vector3();
+    let mejor = null, dMin = 24;
+    for (const b of this.visibles) {
+      b.getWorldPosition(v).project(this.camera);
+      if (v.z > 1) continue;
+      const d = Math.hypot(r.left + (v.x + 1) / 2 * r.width - x, r.top + (1 - v.y) / 2 * r.height - y);
+      if (d < dMin) { dMin = d; mejor = b; }
+    }
+    return mejor;
   }
   ajustar() {
     const w = this.el.clientWidth, h = this.el.clientHeight;

@@ -434,8 +434,7 @@ export async function clipsDeAnimacion(file) {
 }
 export async function importarAnimacion(file, { clip = 0, estilo = 'realista', film = '', actor = 0, desde = 0 } = {}, log = () => {}) {
   const f = await datosFijos();
-  const op = { ...(await leerConfig()), modo: 'cuerpo', estilo, actor, desde,
-    neutral: 0, torso: 1, con_giro: true, sin_giro: false, suavizado: 0.02, poses_fijas: '' };
+  const op = { ...(await leerConfig()), ...mocap.OPCIONES_IMPORTADA, estilo, actor, desde };
   const an = await leerAnimacion(file.name, await file.arrayBuffer());
   const c = an.clips[clip] || an.clips[0];
   log(`Animacion: ${an.archivo !== file.name ? `${an.archivo} (de ${file.name})` : file.name} (${c.name || 'sin nombre'}, ${c.duration.toFixed(1)} s)`);
