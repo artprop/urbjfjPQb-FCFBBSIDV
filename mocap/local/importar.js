@@ -44,14 +44,38 @@ function buscarHuesos(raiz) {
 
 export const IMPRESCINDIBLES = ['hips', 'head', 'brazoL', 'antebrazoL', 'manoL', 'brazoR', 'antebrazoR', 'manoR', 'musloL', 'piernaL', 'pieL', 'musloR', 'piernaR', 'pieR'];
 
-/** Lee el archivo y devuelve { raiz, clips, huesos, faltan, tipo }. */
+// Un .zip (como los que se bajan de Sketchfab, a veces con otro .zip adentro): se busca la animacion que trae.
+const EXT_ANIM = /\.(fbx|glb|bvh)$/i;
+function sacarDeZip(bytes, unzipSync, prof = 0) {
+  const arch = unzipSync(bytes);
+  const cands = [];
+  for (const [n, d] of Object.entries(arch)) {
+    if (/(^|\/)__MACOSX\//.test(n)) continue;
+    if (EXT_ANIM.test(n)) cands.push({ nombre: n.split('/').pop(), bytes: d });
+    else if (/\.zip$/i.test(n) && prof < 3) { try { const r = sacarDeZip(d, unzipSync, prof + 1); if (r) cands.push(r); } catch { /* zip roto: se saltea */ } }
+  }
+  return cands.sort((a, b) => b.bytes.length - a.bytes.length)[0] || null;   // la mas grande suele ser la de verdad
+}
+
+/** Lee el archivo y devuelve { raiz, clips, huesos, faltan, tipo, archivo }. */
 export async function leerAnimacion(nombre, bytes) {
-  const ext = String(nombre).toLowerCase().split('.').pop();
+  let ext = String(nombre).toLowerCase().split('.').pop();
+  if (ext === 'zip') {
+    const { unzipSync } = await import(LIB + '../libs/fflate.module.js');
+    const u8 = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+    const r = sacarDeZip(u8, unzipSync);
+    if (!r) throw new Error('El .zip no trae ninguna animación (FBX, GLB o BVH).');
+    const an = await leerAnimacion(r.nombre, r.bytes);
+    return { ...an, archivo: r.nombre };
+  }
   const buf = bytes instanceof ArrayBuffer ? bytes : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   let raiz, clips;
   if (ext === 'fbx') {
     const { FBXLoader } = await import(LIB + 'FBXLoader.js');
-    raiz = new FBXLoader().parse(buf, '');
+    // solo hacen falta los huesos: las texturas que nombra el FBX (que no vienen adentro) no se buscan
+    const sinTexturas = new THREE.LoadingManager();
+    sinTexturas.setURLModifier((u) => (/^(data|blob):/.test(u) ? u : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='));
+    raiz = new FBXLoader(sinTexturas).parse(buf, '');
     clips = raiz.animations || [];
   } else if (ext === 'glb' || ext === 'gltf') {
     const { GLTFLoader } = await import(LIB + 'GLTFLoader.js');
@@ -63,12 +87,12 @@ export async function leerAnimacion(nombre, bytes) {
     const r = new BVHLoader().parse(new TextDecoder().decode(buf));
     raiz = new THREE.Group(); raiz.add(r.skeleton.bones[0]);
     clips = [r.clip];
-  } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF o BVH.');
+  } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF, BVH o un .zip que los traiga.');
   if (!clips.length) throw new Error('El archivo no trae ninguna animación.');
   const huesos = buscarHuesos(raiz);
   const faltan = IMPRESCINDIBLES.filter((k) => !huesos[k]);
   if (faltan.length) throw new Error('No encuentro estos huesos del humanoide: ' + faltan.join(', ') + '. Por ahora sirven esqueletos tipo Mixamo, BVH (CMU/DAZ) o similares.');
-  return { raiz, clips, huesos, faltan, tipo: ext };
+  return { raiz, clips, huesos, faltan, tipo: ext, archivo: nombre };
 }
 
 /**

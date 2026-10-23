@@ -1,4 +1,4 @@
-# Estudio BBS — documento de traspaso (al 20/10/2026, versión v.031)
+# Estudio BBS — documento de traspaso (al 23/10/2026, versión v.039)
 
 Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo entero antes de tocar nada.
 
@@ -9,12 +9,12 @@ Para quien siga este trabajo (otra sesión de Claude o una persona). Leelo enter
   - Cuando dice **«anotá»** o lista cosas: solo las anota y muestra una **lista numerada**; no las hace hasta que dé la señal («hacelo», «inicia», «haz todo lo que quedó»).
   - Cuando dice «hacé eso», se hace todo junto, en **una sola versión**.
   - En cada respuesta final: qué se hizo, **qué NO se probó**, y la lista actualizada.
-- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.031**; la próxima es **v.032**.
+- **Subir el número de versión en cada actualización**, por mínima que sea: etiqueta `Estudio BBS <small>v.0NN - …` en `index.html` (raíz). Última: **v.039**; la próxima es **v.040**.
 - La carpeta de Minecraft del usuario es **solo lectura**: nunca se escribe en ella.
 - **No publicar** el código de «Move con webcam» (se descartó). Lo de PS Move es solo Bluetooth/WebHID.
 
 ## 2. Flujo de Git (obligatorio)
-- Se trabaja en la rama `ccr-70c0962a-mtkhx7` y se publica en `main` (GitHub Pages) con **PR + squash merge** (el usuario lo autorizó cada vez).
+- Se trabaja en la rama que indique la sesión (antes `ccr-70c0962a-mtkhx7`; el 23/10/2026 fue `claude/confident-volta-iaf6n3`) y se publica en `main` (GitHub Pages) con **PR + squash merge** (el usuario lo autorizó cada vez).
 - Después del merge: `git fetch origin main && git checkout -B ccr-70c0962a-mtkhx7 origin/main && git push -f origin ccr-70c0962a-mtkhx7` (deja la rama igual a main; lo exige el hook de «commit sin pushear»).
 - Commits terminan con las líneas de atribución (Co-Authored-By + Claude-Session) y los PR con «🤖 Generated with Claude Code» + URL de sesión (ver el recordatorio de atribución vigente).
 - El repo es `artprop/urbjfjPQb-FCFBBSIDV`. **No crear PR si no lo piden**; en este proyecto lo piden siempre al publicar.
@@ -52,6 +52,7 @@ v.024: **mano de emoticons** (punta del brazo `low_*_arm.end`): el lector `.bobj
 v.025: modo **Ojos** (ver arriba).
 v.031: **la textura PNG de los ojos sale en el diseño de tus modelos** (`player/eyes` o `eyes_1px`: todas las caras del modelo, un color liso por pieza: esclerótica, pupila de 1 o 2 colores —los píxeles de su columna—, ceja = el píxel de arriba de la pupila, piel de párpados y paredes = la más común al lado de la nariz, y las filas 8-9 y 14-15 llenas); probado: con la skin que mandó el usuario sale idéntica píxel por píxel a su textura. La vista previa muestra ese mismo modelo estándar con esa textura. Detección por contraste (`detectarPerfil`: blanco/gris afuera, iris adentro) para pieles de pelo muy oscuro. Al tocar PNG en la PC se abre la carpeta con el archivo elegido (`/pc/abrir_salida?modo=&nombre=&carpeta=`; `abrirCarpetaSalida(modo, nombre, carpeta)` en `comun/plataforma.js`).
 v.030: el Crafteo usa **tus máscaras y tus modelos**: máscara de ojos `_LosSaucera/PelosYMisc/OjosMask/AEsclerotica1x2.png` (con `shiftY` si los ojos están más abajo; la parte de los ojos baja 0,0625 por fila), modelos estándar `eyes`/`eyes_1px` con solo una textura nueva (`OjosNombre.png`, en el formato de esos modelos; probado contra el cargador del Visor), skin con ruta de `_LosSaucera`; si los ojos no son los estándar se crean modelo y máscara propios. La máscara de la boca arranca apagada. Publicar al terminar cada tanda (pedido del usuario). Supuesto sin confirmar: qué celdas cubre exactamente AEsclerotica1x2.
+v.039: **Mocap → Importar animación acepta `.zip`** (también con otro `.zip` adentro, como los de Sketchfab: usa el FBX/GLB/BVH más grande que encuentre) y ya no busca las texturas que nombra el FBX (daban errores 404 en la consola; solo se usan los huesos). Probado con «Thriller Dance By Michael Jackson» (Mixamo re-exportado por Blender 4.4, 18,8 s): se convierte y en la Vista 3D baila bien. NO probado dentro de BBS.
 v.038: **Convertidor: carpeta de destino elegible** (lista guardada en el aparato: Comida, Props de entrada; ➕/➖ para agregar o sacar; admite anidadas como `Muebles/Sillas`). En la PC sale a `Salida\convertidor\<carpeta>\<modelo>\`; con «Guardar en otra carpeta» se crean adentro de la que se elija; en el celu va en el .zip con esas carpetas. Probado con el `servir.py` real.
 v.037: Editor: al deshacer/rehacer con las cámaras automáticas se vuelve al paso de los cortes. v.036: Editor: botón **📂 Abrir film** siempre visible arriba y se puede arrastrar el .dat sobre la pantalla (antes solo estaba en 📁 Film).
 **Convertidor Armourer's → BBS (verificado, sin cambios):** las dos sillas del usuario (`Chear.obj` = formato que lee BBS: bloques, punto decimal; `modelo2.obj` = export de AW 1.20.1: píxeles, **coma decimal**, textura 16×16) dan la misma geometría (1206 caras idénticas) tras pasar `convertidor/nucleo.js` con «centrar» apagado. El Convertidor ya arregla comas y escala. Por defecto centra y apoya en el piso (la primera silla no estaba centrada). No se probó dentro de BBS.

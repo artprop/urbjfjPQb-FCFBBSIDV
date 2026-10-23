@@ -438,7 +438,7 @@ export async function importarAnimacion(file, { clip = 0, estilo = 'realista', f
     neutral: 0, torso: 1, con_giro: true, sin_giro: false, suavizado: 0.02, poses_fijas: '' };
   const an = await leerAnimacion(file.name, await file.arrayBuffer());
   const c = an.clips[clip] || an.clips[0];
-  log(`Animacion: ${file.name} (${c.name || 'sin nombre'}, ${c.duration.toFixed(1)} s)`);
+  log(`Animacion: ${an.archivo !== file.name ? `${an.archivo} (de ${file.name})` : file.name} (${c.name || 'sin nombre'}, ${c.duration.toFixed(1)} s)`);
   const pose = aPose(an, c);
   const r = mocap.procesarCuerpo(op, {
     pose, film: film ? await cargarFilm(film) : null, plantilla: await bbs.leer(f.plantilla), biblioteca: await biblioteca(), manual: [],
