@@ -1,4 +1,4 @@
-// Modo "Animaciones → BBS": una animacion 3D (FBX, GLB, BVH o .zip) pasada a un film de BBS, viendo las dos a la vez.
+// Modo "Animaciones → BBS": una animacion 3D (FBX, GLB, BVH, DAE o .zip) pasada a un film de BBS, viendo las dos a la vez.
 // Izquierda: la original con sus huesos. Derecha: el muñeco de Minecraft con el resultado. Una sola linea de tiempo.
 // La conversion es la misma de «Importar animación» del Mocap (importar.js -> puntos tipo MediaPipe -> mocap.procesarCuerpo).
 // Los huesos se reconocen solos (mocap/nucleo/esqueleto.js) y se pueden corregir a mano en el panel «Huesos».
