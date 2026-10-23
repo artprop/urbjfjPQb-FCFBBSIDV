@@ -326,6 +326,7 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
       const avisos = [], hechas = {};
       for (const lado of ['L', 'R']) {
         const nombreLado = lado === 'L' ? 'izquierda' : 'derecha';
+        if ((op.dedos_manos === 'izq' && lado === 'R') || (op.dedos_manos === 'der' && lado === 'L')) continue;   // solo la mano elegida
         if (!m.vistas[lado]) { avisos.push(`No se vio la mano ${nombreLado}: sus dedos quedan quietos.`); continue; }
         const cuerpo = String((rep.form || {}).model || '');
         const r = dedos.ponerMano(rep, lado, await manoElegida(op, lado, cuerpo), { times: m.times, curls: dedos.suavizar(m[lado], 2) },
@@ -467,7 +468,7 @@ const RUTAS = {
   'GET /api/poses_dedos': async (q) => {
     const id = dedos.modeloDedosPara(q.get('modelo') || 'dedos', q.get('cuerpo') || '');
     const out = { modelo: id };
-    for (const lado of ['L', 'R']) out[lado] = Object.keys((await cargarModeloDedos(id, lado)).poses).filter((n) => !n.startsWith(lado === 'L' ? 'R_' : 'L_')).sort();
+    for (const lado of ['L', 'R']) out[lado] = dedos.posesUsables((await cargarModeloDedos(id, lado)).poses, lado);
     return out;
   },
   'GET /api/manual': async (q) => {

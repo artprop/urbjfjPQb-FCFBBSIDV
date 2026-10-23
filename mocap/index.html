@@ -50,6 +50,7 @@
     <div class="camara-fila">
     <div class="pantalla" id="pantalla">
       <video id="cam" autoplay playsinline muted></video>
+      <canvas id="guia-dedos" class="solo-dedos" aria-hidden="true"></canvas>
       <canvas id="overlay"></canvas>
       <video id="reproductor" controls playsinline hidden></video>
       <button class="btn btn-chico cerrar-video" id="btn-cerrar-video" hidden>Volver a la cámara</button>
@@ -79,6 +80,15 @@
       </div>
       <div id="sim-escena" aria-label="Simulación en vivo"></div>
       <p class="sim-estado" id="sim-estado" role="status"></p>
+    </div>
+    <div class="dedos-lado solo-dedos" id="dedos-lado">
+      <div class="dedos-manos" role="group" aria-label="Qué manos se usan">
+        <button type="button" data-manos="ambas" aria-pressed="true">Ambas</button>
+        <button type="button" data-manos="izq" aria-pressed="false">Solo izquierda</button>
+        <button type="button" data-manos="der" aria-pressed="false">Solo derecha</button>
+      </div>
+      <canvas id="dedos-panel" class="espejo" aria-label="Dónde poner las manos y cómo se ven los dedos en vivo"></canvas>
+      <p class="sim-estado" id="dedos-guia-msg" role="status">Poné la mano abierta, con la palma hacia la cámara, como la guía.</p>
     </div>
     <div class="vivo-lado solo-cara" id="vivo-lado" hidden>
       <canvas id="vivo-lienzo" class="espejo" width="256" height="256" aria-label="Tu cara en BBS, en vivo"></canvas>
@@ -582,8 +592,9 @@
       <button class="chip-btn on" data-v="1">1x</button><button class="chip-btn" data-v="0.5">0,5x</button><button class="chip-btn" data-v="0.25">0,25x</button>
     </div>
     <div class="v3-grupo" id="v3-camara"><span>Cámara</span>
-      <button class="chip-btn" data-c="frente">Frente</button><button class="chip-btn" data-c="tres_cuartos">3/4</button><button class="chip-btn" data-c="lado">Lado</button><button class="chip-btn" data-c="atras">Atrás</button><button class="chip-btn" data-c="cara">Cara</button>
+      <button class="chip-btn" data-c="frente">Frente</button><button class="chip-btn" data-c="tres_cuartos">3/4</button><button class="chip-btn" data-c="lado">Lado</button><button class="chip-btn" data-c="atras">Atrás</button><button class="chip-btn" data-c="cara">Cara</button><button class="chip-btn solo-dedos" data-c="manos">Manos</button>
     </div>
+    <label class="check solo-dedos"><input type="checkbox" id="v3-manos-alto" checked> Manos en alto (referencia)</label>
     <label class="check"><input type="checkbox" id="v3-repetir"> Repetir</label>
     <label class="check"><input type="checkbox" id="v3-ejes"> Mostrar ejes</label>
     <button class="btn v3-rehacer" id="v3-rehacer">Convertir de nuevo</button>
