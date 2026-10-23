@@ -26,6 +26,11 @@
   body.en-modo.barra-oculta #burbuja { display: flex; }
   #burbuja:hover, #burbuja.arrastrando { opacity: 1; }
   #burbuja.arrastrando { transition: none; }
+  /* franja de arriba (solo con la barra escondida): deslizar hacia abajo desde ahí trae la barra de vuelta */
+  #tirador { display: none; position: fixed; z-index: 49; top: 0; left: 0; right: 0; height: 22px; touch-action: none; }
+  #tirador i { position: absolute; top: 5px; left: 50%; width: 44px; height: 4px; margin-left: -22px; border-radius: 2px; background: rgba(232,235,240,.5); transition: background .15s, transform .15s; }
+  #tirador.tirando i { background: var(--acento); transform: translateY(4px); }
+  body.en-modo.barra-oculta #tirador { display: block; }
   #marcos { flex: 1; position: relative; }
   #marcos iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: var(--fondo); }
   #marcos iframe.visible { display: block; }
@@ -71,9 +76,10 @@
   <div id="atajos"></div>
   <button id="btnOcultar" title="Esconder esta barra (queda una burbuja para volver a abrirla)" aria-label="Esconder la barra">⌃</button>
 </div>
-<button id="burbuja" title="Tocá para abrir el menú · arrastrá para moverla" aria-label="Abrir el menú">☰</button>
+<div id="tirador" aria-hidden="true"><i></i></div>
+<button id="burbuja" title="Tocá para abrir el menú · arrastrá para moverla (o deslizá hacia abajo desde el borde de arriba)" aria-label="Abrir el menú">☰</button>
 <main id="menu">
-  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.043 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
+  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.044 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
   <p class="sub">Elegí qué querés hacer. Podés pasar de un modo a otro sin perder lo que estabas haciendo.</p>
   <div id="tarjetas"></div>
   <p id="pie"></p>
@@ -150,6 +156,17 @@ function ponerBarra(oculta, guardar = true) {
   setTimeout(() => marcos.forEach((f) => { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch { /* otro origen */ } }), 60);
 }
 $('#btnOcultar').onclick = () => ponerBarra(true);
+// deslizar hacia abajo desde el borde de arriba: abre la barra (también sirve con el mouse)
+const T = $('#tirador');
+let tira = null;
+T.addEventListener('pointerdown', (e) => { tira = { x: e.clientX, y: e.clientY }; T.setPointerCapture(e.pointerId); T.classList.add('tirando'); });
+T.addEventListener('pointermove', (e) => {
+  if (!tira) return;
+  const dy = e.clientY - tira.y, dx = e.clientX - tira.x;
+  if (dy > 28 && dy > Math.abs(dx)) { tira = null; T.classList.remove('tirando'); ponerBarra(false); }
+});
+const sueltaTira = () => { tira = null; T.classList.remove('tirando'); };
+T.addEventListener('pointerup', sueltaTira); T.addEventListener('pointercancel', sueltaTira);
 let arr = null;
 B.addEventListener('pointerdown', (e) => { arr = { x: e.clientX, y: e.clientY, mov: false }; B.setPointerCapture(e.pointerId); });
 B.addEventListener('pointermove', (e) => {
