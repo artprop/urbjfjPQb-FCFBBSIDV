@@ -155,7 +155,7 @@ export class Escena {
     const d = this.bocaDatos;
     if (this.boca) this.boca.usar(d ? d.modelo : null, d ? d.textura : 'normal', d && d.tipo === 'pixel' ? { k: d.k, filas: d.filas } : null);
   }
-  // dedos: { L: {datos (de cargarModeloDedos), reposo: {hueso: {t,s,r}}, pistas: {hueso: [{t, tr, s, r, i}]}}, R: ... } o null
+  // dedos: { L: {datos (de cargarModeloDedos), reposo: {hueso: {t,s,r}}, pistas: {hueso: [{t, tr, s, r, i}]}, transform}, R: ... } o null
   ponerDedos(manos) { this.manosDatos = manos || null; this._armarManos(); this.ir(this.tick || 0); }
   _armarManos() {
     (this.manos || []).forEach((m) => m.raiz.parent && m.raiz.parent.remove(m.raiz));
@@ -166,7 +166,7 @@ export class Escena {
       const nombre = huesoMano(this.nombreModelo === 'emoticons_steve' ? 'emoticons' : '', lado);
       const nodo = (this.modelo.todos && this.modelo.todos[nombre]) || this.huesos[nombre];
       if (!nodo) continue;
-      const m = new Mano3D(d.datos, this.skinTex); m.lado = lado; m.d = d;
+      const m = new Mano3D(d.datos, this.skinTex, d.transform); m.lado = lado; m.d = d;
       nodo.add(m.raiz); this.manos.push(m);
     }
   }

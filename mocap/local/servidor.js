@@ -143,13 +143,13 @@ async function manosDe(nombre, op, reanalizar, log, progreso) {
   return r;
 }
 
-// modelo de dedos y poses de mano abierta / cerrada elegidas (o las de fabrica) para un lado: { cfg, abierta, cerrada }
-async function manoElegida(op, lado) {
-  const id = dedos.MODELOS_DEDOS[op.dedos_modelo] ? op.dedos_modelo : 'dedos';
+// modelo de dedos y poses de mano abierta / cerrada para un lado y el cuerpo del actor: { cfg, abierta, cerrada, transform }
+// (sin poses elegidas a mano, las ajustadas para ese cuerpo: ver nucleo/dedos.js posesMano)
+async function manoElegida(op, lado, modeloCuerpo) {
+  const id = dedos.modeloDedosPara(op.dedos_modelo || 'dedos', modeloCuerpo);
   const datos = await cargarModeloDedos(id, lado);
   const l = lado.toLowerCase();
-  const pose = (n, ext) => datos.poses[n] || datos.poses[datos.cfg.defecto[lado][ext]];
-  return { cfg: datos.cfg, abierta: pose(op['dedos_' + l + 'a'], 0), cerrada: pose(op['dedos_' + l + 'c'], 1) };
+  return { cfg: datos.cfg, ...dedos.posesMano(datos, modeloCuerpo, lado, op['dedos_' + l + 'a'], op['dedos_' + l + 'c']) };
 }
 
 async function caraDe(nombre, op, reanalizar, log, progreso, conBoca = false, conLabios = false) {
@@ -214,7 +214,7 @@ function dedosDelActor(rep) {
     if (!id || !lado) return;
     const pref = idx + '/pose/', pistas = {};
     for (const [k, v] of Object.entries(rep.animation || {})) if (k.startsWith(pref)) pistas[k.slice(pref.length)] = v;
-    out[lado] = { modelo: id, reposo: dedos.reposoParaVista((p.form || {}).pose), pistas: dedos.pistasParaVista(pistas) };
+    out[lado] = { modelo: id, reposo: dedos.reposoParaVista((p.form || {}).pose), pistas: dedos.pistasParaVista(pistas), transform: p.transform || {} };
   });
   return Object.keys(out).length ? out : null;
 }
@@ -327,8 +327,9 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
       for (const lado of ['L', 'R']) {
         const nombreLado = lado === 'L' ? 'izquierda' : 'derecha';
         if (!m.vistas[lado]) { avisos.push(`No se vio la mano ${nombreLado}: sus dedos quedan quietos.`); continue; }
-        const r = dedos.ponerMano(rep, lado, await manoElegida(op, lado), { times: m.times, curls: dedos.suavizar(m[lado], 2) },
-          { desde: op.desde, modeloCuerpo: String((rep.form || {}).model || '') });
+        const cuerpo = String((rep.form || {}).model || '');
+        const r = dedos.ponerMano(rep, lado, await manoElegida(op, lado, cuerpo), { times: m.times, curls: dedos.suavizar(m[lado], 2) },
+          { desde: op.desde, modeloCuerpo: cuerpo });
         hechas[lado] = { cuadros: m.vistas[lado], keyframes: r.keyframes };
         log(`  Mano ${nombreLado}: vista en ${m.vistas[lado]} de ${m.times.length} cuadros, ${r.keyframes} keyframes.`);
       }
@@ -404,8 +405,9 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
         for (const [lado, clave] of [['L', 'izq'], ['R', 'der']]) {
           const ms = (mv[clave] || []).filter((s) => typeof s.g === 'number');
           if (!ms.length) continue;
-          const rr = dedos.ponerMano(r.rep, lado, await manoElegida(op, lado), { times: ms.map((s) => s.t), curls: ms.map((s) => new Array(5).fill(s.g)) },
-            { desde: op.desde, modeloCuerpo: String((r.rep.form || {}).model || '') });
+          const cuerpo = String((r.rep.form || {}).model || '');
+          const rr = dedos.ponerMano(r.rep, lado, await manoElegida(op, lado, cuerpo), { times: ms.map((s) => s.t), curls: ms.map((s) => new Array(5).fill(s.g)) },
+            { desde: op.desde, modeloCuerpo: cuerpo });
           hechas[lado] = { cuadros: ms.length, keyframes: rr.keyframes };
         }
         if (Object.keys(hechas).length) { resumen.dedos = hechas; log(`  Dedos con el gatillo: ${Object.keys(hechas).map((l) => (l === 'L' ? 'mano izquierda' : 'mano derecha')).join(' y ')}.`); }
@@ -463,8 +465,8 @@ const RUTAS = {
   'GET /api/estado': async () => ({ ...ESTADO, log: ESTADO.log.slice() }),
   // nombres de las poses de un modelo de dedos, por lado (para elegir la mano abierta y la cerrada)
   'GET /api/poses_dedos': async (q) => {
-    const id = dedos.MODELOS_DEDOS[q.get('modelo')] ? q.get('modelo') : 'dedos';
-    const out = { modelo: id, defecto: dedos.MODELOS_DEDOS[id].defecto };
+    const id = dedos.modeloDedosPara(q.get('modelo') || 'dedos', q.get('cuerpo') || '');
+    const out = { modelo: id };
     for (const lado of ['L', 'R']) out[lado] = Object.keys((await cargarModeloDedos(id, lado)).poses).filter((n) => !n.startsWith(lado === 'L' ? 'R_' : 'L_')).sort();
     return out;
   },

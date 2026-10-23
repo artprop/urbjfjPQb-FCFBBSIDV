@@ -141,12 +141,14 @@ function enlazarAjustes() {
 // las poses del modelo de dedos elegido, para la mano abierta y la cerrada de cada lado
 async function pintarPosesDedos() {
   try {
-    const d = await api('/api/poses_dedos?modelo=' + encodeURIComponent(cfg.dedos_modelo || 'dedos'));
+    const cuerpo = cfg.modelo === 'emoticons_steve' ? 'emoticons/steve' : 'player/steve_bends';
+    const d = await api('/api/poses_dedos?modelo=' + encodeURIComponent(cfg.dedos_modelo || 'dedos') + '&cuerpo=' + encodeURIComponent(cuerpo));
     for (const lado of ['L', 'R']) {
-      ['a', 'c'].forEach((ext, i) => {
+      ['a', 'c'].forEach((ext) => {
         const k = 'dedos_' + lado.toLowerCase() + ext, s = $('#' + k);
-        s.innerHTML = d[lado].map((n) => `<option>${esc(n)}</option>`).join('');
-        s.value = cfg[k] && d[lado].includes(cfg[k]) ? cfg[k] : d.defecto[lado][i];
+        // '' = la pose ajustada para el cuerpo del actor (con los dedos en su lugar)
+        s.innerHTML = '<option value="">Ajustada (automática)</option>' + d[lado].map((n) => `<option>${esc(n)}</option>`).join('');
+        s.value = cfg[k] && d[lado].includes(cfg[k]) ? cfg[k] : '';
       });
     }
   } catch (e) { mostrarError(e); }
