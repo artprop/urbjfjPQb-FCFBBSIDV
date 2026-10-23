@@ -409,15 +409,28 @@ function archivosPersonaje() {
 }
 
 // ------------------------------------------------------------------ manos con dedos
-let POSES_DEDOS = {};
+let POSES_DEDOS = {}, AJUSTES_DEDOS = null;
+// «@abierta» / «@cerrada»: las poses AJUSTADAS (mocap/datos/dedos/ajustes.json) para el cuerpo elegido: los dedos en su
+// lugar y la mano derecha como espejo de la izquierda (las R_ de la biblioteca dejaban los dedos corridos)
+const AJUSTADAS = { '@abierta': 'Abierta (ajustada)', '@cerrada': 'Cerrada (ajustada)' };
 /** La pose elegida para una mano ('Izq' o 'Der'), o null si no se eligió ninguna. */
-function dedosPose(lado) { const k = $('#selDedos' + lado).value; return k && POSES_DEDOS[k] ? POSES_DEDOS[k].pose : null; }
+function dedosPose(lado) {
+  const k = $('#selDedos' + lado).value;
+  if (AJUSTADAS[k] && AJUSTES_DEDOS) {
+    const cuerpo = /alex/i.test($('#selCuerpo').value) ? 'alex_bends' : 'steve_bends';
+    const p = AJUSTES_DEDOS.dedos[cuerpo][lado === 'Izq' ? 'L' : 'R'][k.slice(1)];
+    return Object.fromEntries(Object.entries(p).map(([h, v]) => [h, { r2: [0, 0, 0], r: v.r, s: v.s, t: v.t, fix: 0.0, color: -1, lighting: 0.0 }]));
+  }
+  return k && POSES_DEDOS[k] ? POSES_DEDOS[k].pose : null;
+}
 async function cargarDedos() {
   try { POSES_DEDOS = await (await fetch('./referencia/dedos_poses.json')).json(); } catch { return; }
+  try { AJUSTES_DEDOS = await (await fetch('../mocap/datos/dedos/ajustes.json')).json(); } catch { /* sin las ajustadas */ }
   for (const [lado, pref] of [['Izq', 'L_'], ['Der', 'R_']]) {
     const sel = $('#selDedos' + lado), otro = pref === 'L_' ? 'R_' : 'L_';
-    sel.innerHTML = '<option value="">sin dedos</option>' + Object.keys(POSES_DEDOS).filter((k) => !k.startsWith(otro)).sort().map((k) => `<option value="${k}">${k}</option>`).join('');
-    try { const g = localStorage.getItem('ojos-dedos-' + lado); if (g && POSES_DEDOS[g]) sel.value = g; } catch { /* sin guardado */ }
+    sel.innerHTML = '<option value="">sin dedos</option>' + (AJUSTES_DEDOS ? Object.entries(AJUSTADAS).map(([k, n]) => `<option value="${k}">${n}</option>`).join('') : '')
+      + Object.keys(POSES_DEDOS).filter((k) => !k.startsWith(otro)).sort().map((k) => `<option value="${k}">${k}</option>`).join('');
+    try { const g = localStorage.getItem('ojos-dedos-' + lado); if (g && (POSES_DEDOS[g] || (AJUSTES_DEDOS && AJUSTADAS[g]))) sel.value = g; } catch { /* sin guardado */ }
     sel.onchange = () => { try { localStorage.setItem('ojos-dedos-' + lado, sel.value); } catch { /* sin guardado */ } };
   }
 }

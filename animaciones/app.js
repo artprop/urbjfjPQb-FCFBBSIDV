@@ -10,13 +10,15 @@ import { Escena, TICKS_POR_S } from '../mocap/escena3d.js';
 import { guardarSalida, esPC, abrirCarpetaSalida } from '../comun/plataforma.js';
 import { VistaOriginal } from './original.js';
 import { cargarModeloDedos } from '../mocap/dedos3d.js';
-import { MODELOS_DEDOS, ponerMano, suavizar, pistasParaVista, reposoParaVista } from '../mocap/nucleo/dedos.js';
+import { MODELOS_DEDOS, ponerMano, suavizar, pistasParaVista, reposoParaVista, posesMano, modeloDedosPara, cuerpoDe } from '../mocap/nucleo/dedos.js';
 import { opcionesConversion, pistasDeActor, tipoDeRig, nombreSalida, nombreParte, nombreCorto, FILAS_PANEL, ORDEN_PARTES,
   desplazamiento, ponerDesplazamiento } from './nucleo.js';
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
-const MODELOS_MC = { steve_bends: 'steve_bends', emoticons_steve: 'emoticons/steve' };
+const MODELOS_MC = { steve_bends: 'steve_bends', alex_bends: 'alex_bends', emoticons_steve: 'emoticons/steve', emoticons_alex: 'emoticons/alex' };
+// el modelo que queda en el form del actor, según lo elegido en la barra
+const MODELO_FORM = { steve_bends: 'player/steve_bends', alex_bends: 'player/alex_bends', emoticons_steve: 'emoticons/steve', emoticons_alex: 'emoticons/alex' };
 
 let an = null, archivo = '', clip = 0, resultado = null, base = null;   // base: { nombre, film } (film de BBS ya leido)
 let t = 0, dur = 0, jugando = false, ult = 0;
@@ -107,10 +109,13 @@ async function convertir() {
   try {
     const f = await datosFijos();
     const actor = base ? Number($('#selActor').value || 0) : 0;
-    const op = opcionesConversion({ estilo: $('#selEstilo').value, modelo: $('#selModelo').value, actor, hayFilm: !!base });
+    const elegido = $('#selModelo').value;
+    // la conversión conoce dos esqueletos: el de los bends y el de emoticons (steve y alex comparten cada uno)
+    const op = opcionesConversion({ estilo: $('#selEstilo').value, modelo: elegido === 'auto' ? 'auto' : elegido.startsWith('emoticons') ? 'emoticons_steve' : 'steve_bends', actor, hayFilm: !!base });
     const pose = aPose(an, c);
     const log = [];
     const r = mocap.procesarCuerpo(op, { pose, film: base ? base.film : null, plantilla: f.plantilla, biblioteca: {}, manual: [] }, (l) => log.push(l));
+    if (elegido !== 'auto') (r.rep.form ??= {}).model = MODELO_FORM[elegido];   // (alex_bends o emoticons/alex)
     const p = pistasDeActor(r.rep);
     // desplazamiento por el piso: a la posicion del actor en el film (y a la vista previa)
     const desp = $('#chkMover').checked ? desplazamiento(pose, { desde: op.desde }) : [];
@@ -119,8 +124,8 @@ async function convertir() {
     const manos = await ponerDedos(r.rep, pose, op.desde);
     mc.ponerDedos(manos.vista);
     resultado = { film: r.film, resumen: r.resumen, pistas: p, desp, dedos: manos };
-    const modelo = r.resumen.usaEmot || /emoticons/.test(p.modelo) ? 'emoticons_steve' : 'steve_bends';
-    mc.ponerModelo(modelo);
+    const modelo = /emoticons/.test(p.modelo) ? (/alex/.test(p.modelo) ? 'emoticons_alex' : 'emoticons_steve') : /alex/.test(p.modelo) ? 'alex_bends' : 'steve_bends';
+    mc.ponerModelo(modelo === 'emoticons_alex' ? 'emoticons_steve' : modelo);   // (la vista usa el muñeco emoticons de Steve para los dos)
     mc.ponerAnimacion(p.huesos);
     const kf = Object.values(r.resumen.stats).reduce((s, [, k]) => s + k, 0);
     const lejos = desp.reduce((m, d) => Math.max(m, Math.hypot(d.l, d.f)), 0);
@@ -270,49 +275,55 @@ function alTocarHueso(obj) {
 }
 
 // ---------- dedos ----------
+// modelo: 'dedos' (el del usuario) o 'fingers' (Steve o Alex según el cuerpo); poses: { modelo resuelto: { LA, LC, RA, RC } }
+// con el nombre de pose elegido a mano, o '' = la AJUSTADA (mocap/datos/dedos/ajustes.json: dedos en su lugar en ese cuerpo)
 const DEDOS_GUARDADO = 'anim_dedos';
-let dedosCfg = { modelo: 'dedos', poses: {} };   // poses: { modelo: { LA, LC, RA, RC } } (nombres de pose)
+let dedosCfg = { modelo: 'dedos', poses: {} };
 try { dedosCfg = { ...dedosCfg, ...JSON.parse(localStorage.getItem(DEDOS_GUARDADO) || '{}') }; } catch { /* sin almacenamiento */ }
+if (/^fingers_/.test(dedosCfg.modelo)) dedosCfg.modelo = 'fingers';   // (antes se elegía Steve o Alex a mano)
 $('#selDedos').value = dedosCfg.modelo || '';
 function guardarDedos() { try { localStorage.setItem(DEDOS_GUARDADO, JSON.stringify(dedosCfg)); } catch { /* sin almacenamiento */ } }
-// nombre de la pose elegida (o la de fabrica) para un modelo, lado y extremo ('A' abierta, 'C' cerrada)
-function poseElegida(id, lado, ext, poses) {
-  const n = ((dedosCfg.poses || {})[id] || {})[lado + ext];
-  if (n && poses[n]) return n;
-  const d = MODELOS_DEDOS[id].defecto[lado][ext === 'A' ? 0 : 1];
-  return poses[d] ? d : Object.keys(poses)[0];
+// el modelo del cuerpo que va a llevar el film (el del actor de base, o el elegido en la barra)
+function modeloCuerpoElegido() {
+  const v = $('#selModelo').value;
+  if (v === 'auto' && base) return String((((base.film.replays || [])[Number($('#selActor').value || 0)] || {}).form || {}).model || '');
+  return MODELO_FORM[v] || 'player/steve_bends';
 }
+const elegida = (id, k) => ((dedosCfg.poses || {})[id] || {})[k] || '';
 // escribe los dedos en el actor; devuelve { lados: ['izq.', 'der.'], vista: {L, R} para la vista 3D, o null }
 async function ponerDedos(rep, pose, desde) {
-  const id = $('#selDedos').value, out = { lados: [], vista: null };
-  if (!id || !pose.dedos || !Object.keys(pose.dedos).length) return out;
+  const sel = $('#selDedos').value, out = { lados: [], vista: null };
+  if (!sel || !pose.dedos || !Object.keys(pose.dedos).length) return out;
+  const cuerpo = String((rep.form || {}).model || ''), id = modeloDedosPara(sel, cuerpo);
   out.vista = {};
   for (const [lado, serie] of Object.entries(pose.dedos)) {
     const datos = await cargarModeloDedos(id, lado);
-    const abierta = datos.poses[poseElegida(id, lado, 'A', datos.poses)], cerrada = datos.poses[poseElegida(id, lado, 'C', datos.poses)];
-    const r = ponerMano(rep, lado, { cfg: datos.cfg, abierta, cerrada }, { times: pose.times, curls: suavizar(serie, 0) }, { desde, modeloCuerpo: String((rep.form || {}).model || '') });
-    out.vista[lado] = { datos, reposo: reposoParaVista(abierta), pistas: pistasParaVista(r.pistas) };
+    const m = posesMano(datos, cuerpo, lado, elegida(id, lado + 'A'), elegida(id, lado + 'C'));
+    const r = ponerMano(rep, lado, { cfg: datos.cfg, ...m }, { times: pose.times, curls: suavizar(serie, 0) }, { desde, modeloCuerpo: cuerpo });
+    out.vista[lado] = { datos, reposo: reposoParaVista(m.abierta), pistas: pistasParaVista(r.pistas), transform: m.transform };
     out.lados.push(lado === 'L' ? 'izq.' : 'der.');
   }
   return out;
 }
 async function pintarPanelDedos() {
-  const id = $('#selDedos').value;
-  $('#btnPosesDedos').disabled = !id;
-  if (!id) return;
+  const sel = $('#selDedos').value;
+  $('#btnPosesDedos').disabled = !sel;
+  if (!sel) return;
+  const cuerpo = modeloCuerpoElegido(), id = modeloDedosPara(sel, cuerpo);
   for (const lado of ['L', 'R']) {
     const datos = await cargarModeloDedos(id, lado);
     const otro = lado === 'L' ? 'R_' : 'L_';
     const nombres = Object.keys(datos.poses).filter((n) => !n.startsWith(otro)).sort();
     for (const ext of ['A', 'C']) {
       const s = $('#dedo' + lado + ext);
-      s.innerHTML = nombres.map((n) => `<option>${n.replace(/[<>&]/g, '')}</option>`).join('');
-      s.value = poseElegida(id, lado, ext, datos.poses);
+      s.innerHTML = '<option value="">Ajustada (automática)</option>' + nombres.map((n) => `<option>${n.replace(/[<>&]/g, '')}</option>`).join('');
+      s.value = datos.poses[elegida(id, lado + ext)] ? elegida(id, lado + ext) : '';
     }
   }
-  $('#notaDedos').textContent = an && an.clips.length && !Object.keys((aPoseDedos() || {})).length
-    ? 'Esta animación no trae huesos de dedos: elegilos en 🦴 Huesos (pulgar, índice, medio, anular, meñique) o quedan quietos.'
-    : `En BBS: el modelo ${MODELOS_DEDOS[id].id('L')}${id === 'dedos' ? '' : ' / ' + MODELOS_DEDOS[id].id('R')} tiene que estar en tus modelos (assets/models).`;
+  $('#notaDedos').textContent = (an && an.clips.length && !Object.keys(aPoseDedos()).length
+    ? 'Esta animación no trae huesos de dedos: elegilos en 🦴 Huesos (pulgar, índice, medio, anular, meñique) o quedan quietos. ' : '')
+    + `«Ajustada» deja los dedos en su lugar en ${cuerpoDe(cuerpo).replace('_', ' ')} (la mano derecha es el espejo de la izquierda). `
+    + `En BBS el modelo ${MODELOS_DEDOS[id].id('L')}${id === 'dedos' ? '' : ' y ' + MODELOS_DEDOS[id].id('R')} tiene que estar en tus modelos (assets/models).`;
 }
 const aPoseDedos = () => (an ? Object.fromEntries(['L', 'R'].filter((l) => ['pulgar', 'indice', 'medio', 'anular', 'menique'].filter((k) => an.huesos[k + l]).length >= 2).map((l) => [l, 1])) : {});
 $('#selDedos').onchange = () => { dedosCfg.modelo = $('#selDedos').value; guardarDedos(); pintarPanelDedos(); convertir(); };
@@ -320,7 +331,8 @@ $('#btnPosesDedos').onclick = () => { $('#panelDedos').hidden = !$('#panelDedos'
 $('#btnCerrarDedos').onclick = () => { $('#panelDedos').hidden = true; };
 for (const k of ['LA', 'LC', 'RA', 'RC']) {
   $('#dedo' + k).onchange = (e) => {
-    const id = $('#selDedos').value; if (!id) return;
+    const sel = $('#selDedos').value; if (!sel) return;
+    const id = modeloDedosPara(sel, modeloCuerpoElegido());
     ((dedosCfg.poses ??= {})[id] ??= {})[k] = e.target.value; guardarDedos(); reconvertir();
   };
 }
@@ -372,7 +384,7 @@ $('#btnCarpeta').onclick = () => abrirCarpetaSalida('animaciones');
 for (const id of ['#inArchivo', '#inArchivo2']) $(id).onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; abrir(f); };
 $('#selClip').onchange = (e) => { clip = Number(e.target.value); t = 0; convertir(); };
 $('#selEstilo').onchange = () => convertir();
-$('#selModelo').onchange = () => convertir();
+$('#selModelo').onchange = () => { pintarPanelDedos(); convertir(); };
 $('#selActor').onchange = () => convertir();
 $('#chkMover').onchange = () => convertir();
 $('#chkMalla').onchange = (e) => orig && orig.verMalla(e.target.checked);

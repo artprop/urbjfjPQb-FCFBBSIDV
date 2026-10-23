@@ -103,13 +103,13 @@
   <label title="Realista: copia fiel, cuadro a cuadro. Minecraft: pose a pose, como las animaciones hechas a mano."><span class="txt">Estilo</span>
     <select id="selEstilo"><option value="realista">Realista (copia fiel)</option><option value="minecraft">Minecraft (pose a pose)</option></select></label>
   <label title="El modelo de BBS al que se pasa la animación"><span class="txt">Modelo</span>
-    <select id="selModelo"><option value="steve_bends">steve_bends</option><option value="emoticons_steve">emoticons/steve</option></select></label>
+    <select id="selModelo"><option value="steve_bends">steve_bends</option><option value="alex_bends">alex_bends</option><option value="emoticons_steve">emoticons/steve</option><option value="emoticons_alex">emoticons/alex</option></select></label>
   <span id="base">
     <label class="boton" title="Opcional: meter la animación en un actor de un film tuyo (.dat) en vez de crear un film nuevo">🎞<span class="txt" id="txtBase"> Film de base…</span><input type="file" id="inBase" hidden></label>
     <select id="selActor" hidden title="Actor del film que va a bailar"></select>
     <button id="btnSinBase" hidden title="No usar film de base (crear un film nuevo)">✖</button>
   </span>
-  <span id="filaDedos"><label title="Mover los dedos: cada dedo va de tu pose de mano abierta a la cerrada según cuánto lo cierra la animación">✋<select id="selDedos"><option value="">sin dedos</option><option value="dedos">dedos (el tuyo)</option><option value="fingers_steve">Fingers (Steve)</option><option value="fingers_alex">Fingers (Alex)</option></select></label><button id="btnPosesDedos" title="Elegir las poses de mano abierta y cerrada">⚙</button></span>
+  <span id="filaDedos"><label title="Mover los dedos: cada dedo va de tu pose de mano abierta a la cerrada según cuánto lo cierra la animación">✋<select id="selDedos"><option value="">sin dedos</option><option value="dedos">dedos (el tuyo)</option><option value="fingers">Fingers (Steve o Alex según el cuerpo)</option></select></label><button id="btnPosesDedos" title="Elegir las poses de mano abierta y cerrada">⚙</button></span>
   <label title="Mover al actor por el lugar como se mueve la animación (caminar, avanzar, agacharse). Escribe su posición en el film."><input type="checkbox" id="chkMover" checked> 🚶<span class="txt"> Moverse</span></label>
   <label class="boton" title="Skin de la vista de Minecraft (PNG de 64×64; solo para mirar)">🧑<span class="txt"> Skin</span><input type="file" id="inSkin" accept="image/png" hidden></label>
   <span class="sep"></span>

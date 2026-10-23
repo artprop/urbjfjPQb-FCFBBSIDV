@@ -30,7 +30,34 @@ export const MODELOS_DEDOS = {
   },
 };
 
-/** Hueso del muñeco del que cuelga la mano: el del ítem (steve/alex_bends) o la punta del antebrazo (emoticons/steve). */
+/** 'fingers' = Fingers de Steve o de Alex según el cuerpo (los demás quedan como están). */
+export function modeloDedosPara(id, modeloCuerpo) {
+  if (id !== 'fingers') return MODELOS_DEDOS[id] ? id : 'dedos';
+  return /alex/i.test(String(modeloCuerpo)) ? 'fingers_alex' : 'fingers_steve';
+}
+
+/** Clave del cuerpo para las poses ajustadas: steve_bends, alex_bends, emoticons_steve o emoticons_alex. */
+export function cuerpoDe(modeloCuerpo) {
+  const m = String(modeloCuerpo || '').toLowerCase();
+  if (m.includes('emoticons')) return m.includes('alex') ? 'emoticons_alex' : 'emoticons_steve';
+  return m.includes('alex') ? 'alex_bends' : 'steve_bends';
+}
+
+/**
+ * Poses de una mano: { abierta, cerrada, transform }. Si no se eligió una pose a mano (''), van las AJUSTADAS para ese
+ * cuerpo y lado (mocap/datos/dedos/ajustes.json: con los dedos en su lugar y la mano derecha como espejo de la izquierda);
+ * si se eligió, la de la biblioteca del modelo, tal cual.
+ * datos: de cargarModeloDedos (con poses y ajustes); elegidaA / elegidaC: nombres de pose o ''.
+ */
+export function posesMano(datos, modeloCuerpo, lado, elegidaA = '', elegidaC = '') {
+  const aj = (datos.ajustes || {})[cuerpoDe(modeloCuerpo)];
+  const deAjuste = aj && aj[lado];
+  const pose = (n, ext) => (n && datos.poses[n] ? datos.poses[n].pose || datos.poses[n]
+    : deAjuste ? deAjuste[ext] : (datos.poses[datos.cfg.defecto[lado][ext === 'abierta' ? 0 : 1]] || {}).pose);
+  return { abierta: pose(elegidaA, 'abierta'), cerrada: pose(elegidaC, 'cerrada'), transform: deAjuste ? deAjuste.transform || {} : {} };
+}
+
+/** Hueso del muñeco del que cuelga la mano: el del ítem (steve/alex_bends) o la punta del antebrazo (emoticons). */
 export function huesoMano(modeloCuerpo, lado) {
   const l = lado === 'L' ? 'left' : 'right';
   return /emoticons/.test(String(modeloCuerpo)) ? `low_${l}_arm.end` : `${l}_arm_item`;
@@ -139,7 +166,7 @@ export function pistasMano(cfg, abierta, cerrada, times, curls, { desde = 0, tol
  * La parte de dedos de una mano del actor: la busca (colgada de esa mano) o la agrega. Devuelve su indice.
  * modeloCuerpo: el modelo del actor (para saber de qué hueso cuelga la mano).
  */
-export function parteMano(rep, cfg, lado, abierta, modeloCuerpo) {
+export function parteMano(rep, cfg, lado, abierta, modeloCuerpo, transform = {}) {
   const form = (rep.form ??= {}); const partes = (form.parts ??= []);
   const hueso = huesoMano(modeloCuerpo || form.model, lado);
   let idx = partes.findIndex((p) => p && p.bone === hueso && /dedos|fingers/i.test(String((p.form || {}).model || '')));
@@ -154,6 +181,7 @@ export function parteMano(rep, cfg, lado, abierta, modeloCuerpo) {
   // el modelo dedos toma la textura de la skin del actor; Fingers trae la suya
   p.form.texture = cfg.texturaPropia ? '' : clonar(form.texture ?? '');
   p.form.pose = { pose: clonar((abierta && abierta.pose) || abierta || {}) };
+  p.transform = clonar(transform || {});   // (vacío en los bends; en emoticons, lo que haga falta para la punta del brazo)
   return idx;
 }
 
@@ -162,7 +190,7 @@ export function parteMano(rep, cfg, lado, abierta, modeloCuerpo) {
  * mano: { cfg, abierta, cerrada } (poses del modelo), serie: { times, curls }.
  */
 export function ponerMano(rep, lado, mano, serie, { desde = 0, modeloCuerpo = '' } = {}) {
-  const idx = parteMano(rep, mano.cfg, lado, mano.abierta, modeloCuerpo);
+  const idx = parteMano(rep, mano.cfg, lado, mano.abierta, modeloCuerpo, mano.transform);
   const pistas = pistasMano(mano.cfg, mano.abierta, mano.cerrada, serie.times, serie.curls, { desde });
   rep.animation ??= {};
   for (const k of Object.keys(rep.animation)) if (k.startsWith(idx + '/pose/')) delete rep.animation[k];   // las de antes
