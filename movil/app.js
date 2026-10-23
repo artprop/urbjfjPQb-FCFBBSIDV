@@ -4,7 +4,7 @@
 import * as A from '../mocap/local/almacen.js';
 import { guardarSalida } from '../comun/plataforma.js';
 import { Escena } from './escena.js';
-import { cuaternionMundo, rumboDe, girarY, recorrido, alcance, grabacion, leerGrabacion, sinGravedad, matrizDe, frecuencia } from './nucleo.js';
+import { cuaternionMundo, rumboDe, girarY, recorrido, recortar, alcance, grabacion, leerGrabacion, sinGravedad, matrizDe, frecuencia } from './nucleo.js';
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
@@ -91,35 +91,67 @@ async function activar() {
     return;
   }
   activo = true;
+  $('#ayuda').textContent = 'Para grabar bien: dejá el celu quieto donde va a empezar, tocá ⏺, hacé el movimiento, tocá ⏹ y volvé al mismo lugar, quieto.';
   $('#btnActivar').hidden = true; $('#btnGrabar').disabled = false; aviso('');
   estado(hayMovimiento ? 'Sensores listos: movimiento y giro' : 'Sensores listos: solo giro (este aparato no da aceleración)', 'ok');
   if (!toma) vivo();
 }
 
 // ---------- grabar ----------
+// Como la pose en T del Mocap: la grabación empieza y termina con el celu QUIETO en el MISMO lugar. Por eso hay una cuenta
+// al empezar (para soltarlo quieto después de tocar la pantalla) y otra al parar (para volver al lugar y dejarlo quieto);
+// con eso el programa mide el error del sensor y hace que el recorrido termine donde empezó.
+const CUENTA = 3;   // segundos
+let cuenta = null;  // { tipo, ya, cancelar } mientras corre una cuenta regresiva
+function vibrar(ms = 180) { try { navigator.vibrate && navigator.vibrate(ms); } catch { /* sin vibración */ } }
+function cuentaRegresiva(tipo, seg, mensaje) {
+  return new Promise((ok) => {
+    let resto = seg;
+    const pintar = () => aviso(`<b style="font-size:44px;line-height:1.1;margin:0">${resto}</b>${mensaje}`);
+    const fin = (v) => { clearInterval(id); cuenta = null; aviso(''); ok(v); };
+    cuenta = { tipo, ya: () => fin(true), cancelar: () => fin(false) };
+    pintar();
+    const id = setInterval(() => { resto--; if (resto <= 0) fin(true); else pintar(); }, 1000);
+  });
+}
+function botonGrabar(estadoBoton) {
+  const b = $('#btnGrabar');
+  b.classList.toggle('grabando', estadoBoton === 'grabando'); b.classList.toggle('grabar', estadoBoton !== 'grabando');
+  b.innerHTML = estadoBoton === 'grabando' ? '⏹<span class="txt"> Parar</span>' : estadoBoton === 'cuenta' ? '✖<span class="txt"> Cancelar</span>' : '⏺<span class="txt"> Grabar</span>';
+}
 async function alternarGrabacion() {
   if (!activo) return;
-  if (!grab) {
-    grab = { muestras: [], t0: null };
-    $('#btnGrabar').classList.add('grabando'); $('#btnGrabar').innerHTML = '⏹<span class="txt"> Parar</span>';
-    $('#btnGrabar').classList.remove('grabar');
-    for (const id of ['#selToma', '#btnBorrar', '#btnExportar', '#btnPlay']) $(id).disabled = true;
-    jugando = false; $('#btnPlay').textContent = '▶'; $('#t').disabled = true;
-    toma = null; $('#selToma').value = ''; escena.ponerRecorrido([]);
-    try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch { wake = null; }   // que no se apague la pantalla
-    estado('Grabando…'); pedirDibujo();
-    return;
-  }
+  if (cuenta) { cuenta.tipo === 'fin' ? cuenta.ya() : cuenta.cancelar(); return; }   // (tocar de nuevo: parar ya / cancelar)
+  if (!grab) return empezar();
+  return terminar();
+}
+async function empezar() {
+  jugando = false; $('#btnPlay').textContent = '▶';
+  for (const id of ['#selToma', '#btnBorrar', '#btnExportar', '#btnPlay']) $(id).disabled = true;
+  $('#t').disabled = true; toma = null; $('#selToma').value = ''; escena.ponerRecorrido([]); $('#ayuda').textContent = '';
+  botonGrabar('cuenta'); chips([['Preparate', 'tit'], ['el celu tiene que estar quieto en su lugar de partida']]);
+  const sigue = await cuentaRegresiva('inicio', CUENTA, 'Dejá el celu <strong>quieto</strong> en el lugar donde va a <strong>empezar y terminar</strong>.');
+  if (!sigue) { botonGrabar('listo'); $('#selToma').disabled = false; vivo(); estado('Cancelado'); return; }
+  vibrar();
+  grab = { muestras: [], t0: null };
+  botonGrabar('grabando');
+  try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch { wake = null; }   // que no se apague la pantalla
+  estado('Grabando… hacé el movimiento y al terminar tocá ⏹ y volvé al mismo lugar'); pedirDibujo();
+}
+async function terminar() {
+  await cuentaRegresiva('fin', CUENTA, 'Volvé con el celu al <strong>mismo lugar</strong> de donde salió y dejalo <strong>quieto</strong>.');
+  vibrar(260);
   const g = grab; grab = null;
-  $('#btnGrabar').classList.remove('grabando'); $('#btnGrabar').classList.add('grabar'); $('#btnGrabar').innerHTML = '⏺<span class="txt"> Grabar</span>';
-  $('#selToma').disabled = false;
+  botonGrabar('listo'); $('#selToma').disabled = false;
   try { if (wake) { await wake.release(); wake = null; } } catch { /* ya soltada */ }
-  if (g.muestras.length < 5) { estado('La grabación quedó vacía (muy corta)', 'mal'); vivo(); return; }
+  if (!g || g.muestras.length < 5) { estado('La grabación quedó vacía (muy corta)', 'mal'); vivo(); return; }
+  // se saca el rato quieto de sobra del principio y del final (queda medio segundo de cada lado)
+  const completa = g.muestras, recortadas = recortar(completa, recorrido(completa, { cerrar: false }).quieto, 0.5);
   const n = indice.length + 1;
-  const dato = grabacion(g.muestras, { nombre: 'Toma ' + n, aparato: navigator.userAgent.slice(0, 90), hz: frecuencia(g.muestras) });
+  const dato = grabacion(recortadas, { nombre: 'Toma ' + n, aparato: navigator.userAgent.slice(0, 90), hz: frecuencia(completa) });
   const id = await guardarToma(dato);
   await pintarTomas(id);
-  abrirToma(id, dato);
+  await abrirToma(id, dato);
   estado(`Grabado: ${fmt(dato.duracion)} s`, 'ok');
 }
 
@@ -139,13 +171,14 @@ async function pintarTomas(elegida = '') {
 async function abrirToma(id, dato = null) {
   try {
     const o = leerGrabacion(dato || (await A.leerKV('movil:' + id)));
-    const rec = recorrido(o.muestras);
+    const rec = recorrido(o.muestras, { cerrar: $('#chkCerrar').checked });
     toma = { id, nombre: o.nombre || 'Grabación', muestras: o.muestras, hz: o.hz || frecuencia(o.muestras), rec, rumbo: rumboDe(o.muestras[0].q), dur: o.muestras[o.muestras.length - 1].t };
     armarRecorrido();
     t = 0; $('#t').max = String(toma.dur); $('#t').disabled = false; $('#btnPlay').disabled = false;
     for (const x of ['#btnExportar', '#btnBorrar']) $(x).disabled = !id;
     if (!id) $('#btnBorrar').disabled = true;
     aviso(''); mostrar(0);
+    $('#ayuda').textContent = 'arrastrá para girar la vista · rueda: acercar · doble toque: vista inicial';
   } catch (e) { estado('No se pudo abrir: ' + (e.message || e), 'mal'); }
 }
 function armarRecorrido() {
@@ -155,6 +188,7 @@ function armarRecorrido() {
 function vivo() {   // sin grabación elegida: el celu se ve en vivo
   toma = null; jugando = false; $('#btnPlay').textContent = '▶';
   $('#t').disabled = true; $('#btnPlay').disabled = true; $('#btnExportar').disabled = true; $('#btnBorrar').disabled = true; $('#lectura').textContent = '0,0 s';
+  $('#ayuda').textContent = activo ? 'Para grabar bien: dejá el celu quieto donde va a empezar, tocá ⏺, hacé el movimiento, tocá ⏹ y volvé al mismo lugar, quieto.' : '';
   escena.ponerRecorrido([]); pedirDibujo();
 }
 
@@ -177,8 +211,9 @@ function mostrar(tt) {
   $('#lectura').textContent = `${fmt(t)} / ${fmt(toma.dur)} s`;
   const acel = ms[i].a ? Math.hypot(...ms[i].a) : null;
   chips([[toma.nombre, 'tit'], [`${fmt(toma.hz, 0)} Hz`], acel !== null ? [`aceleración ${fmt(acel)} m/s²`] : ['sin aceleración (solo giro)', 'rojo'],
-    con && ms.some((m) => m.a) ? [`alcance ${fmt(alcance(toma.rec.pos), 2)} m (aprox.)`, toma.rec.calidad === 'ok' ? 'ok' : 'rojo'] : ['sin recorrido'],
-    ...(con && toma.rec.calidad !== 'ok' && toma.rec.calidad !== 'sin aceleración' ? [[toma.rec.calidad, 'rojo']] : [])]);
+    con && ms.some((m) => m.a) ? [`alcance ${fmt(alcance(toma.rec.pos), 2)} m (aprox.)`, toma.rec.avisos.length ? 'rojo' : 'ok'] : ['sin recorrido'],
+    ...(con && toma.rec.cierre.aplicado ? [[`cierre: terminaba a ${fmt(toma.rec.cierre.residuo * 100, 0)} cm del inicio → corregido`, 'ok']] : []),
+    ...(con ? toma.rec.avisos.map((a) => [a, 'rojo']) : [])]);
 }
 function cuadro(ahora) {
   if (!jugando || !toma) return;
@@ -200,7 +235,7 @@ function refrescar() {
     const dur = grab.muestras.length ? grab.muestras[grab.muestras.length - 1].t : 0;
     chips([['● Grabando', 'rojo tit'], [`${fmt(dur)} s`], [`${grab.muestras.length} muestras`]]);
     $('#lectura').textContent = `${fmt(dur)} s`;
-  } else if (activo) {
+  } else if (activo && !cuenta) {
     chips([['En vivo', 'tit'], [hayMovimiento ? `${fmt(ritmo.hz, 0)} datos por segundo` : 'solo giro'], ultAcel ? [`aceleración ${fmt(Math.hypot(...ultAcel))} m/s²`] : ['sin aceleración']]);
   }
 }
@@ -211,6 +246,7 @@ $('#btnGrabar').onclick = alternarGrabacion;
 $('#btnPlay').onclick = () => (jugando ? pausa() : play());
 $('#t').oninput = (e) => { pausa(); mostrar(Number(e.target.value)); };
 $('#chkRecorrido').onchange = () => { if (toma) { armarRecorrido(); mostrar(t); } };
+$('#chkCerrar').onchange = () => { if (toma) { toma.rec = recorrido(toma.muestras, { cerrar: $('#chkCerrar').checked }); armarRecorrido(); mostrar(t); } };
 $('#chkSeguir').onchange = (e) => { escena.seguir = e.target.checked; if (!e.target.checked) { escena.objetivo.set(0, 0.9, 0); escena._camara(); } pedirDibujo(); if (toma) mostrar(t); };
 $('#btnCentrar').onclick = () => {
   if (toma) { const ms = toma.muestras, i = indiceEn(ms, t); toma.rumbo = rumboDe(ms[i].q); armarRecorrido(); mostrar(t); }
