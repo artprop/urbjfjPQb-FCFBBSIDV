@@ -17,7 +17,15 @@
   #barra button { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
   #barra button.activo { background: var(--acento); color: #102010; border-color: var(--acento); font-weight: 600; }
   #barra .nombre { font-weight: 600; margin-right: 4px; }
-  #atajos { display: flex; gap: 6px; overflow-x: auto; }
+  #atajos { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; }
+  #barra #btnOcultar { flex: none; padding: 4px 9px; font-size: 16px; line-height: 1; }
+  /* barra escondida: toda la pantalla es del modo, y queda una burbuja chica que se puede arrastrar a un costado */
+  body.barra-oculta #barra { display: none !important; }
+  body.barra-oculta #marcos iframe { top: env(safe-area-inset-top, 0px); height: calc(100% - env(safe-area-inset-top, 0px)); }
+  #burbuja { display: none; position: fixed; z-index: 50; width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 1px solid var(--borde); background: rgba(32,36,45,.82); color: var(--texto); font-size: 19px; line-height: 1; cursor: pointer; touch-action: none; user-select: none; box-shadow: 0 2px 8px rgba(0,0,0,.45); opacity: .72; transition: opacity .15s, left .18s, right .18s; align-items: center; justify-content: center; }
+  body.en-modo.barra-oculta #burbuja { display: flex; }
+  #burbuja:hover, #burbuja.arrastrando { opacity: 1; }
+  #burbuja.arrastrando { transition: none; }
   #marcos { flex: 1; position: relative; }
   #marcos iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: none; background: var(--fondo); }
   #marcos iframe.visible { display: block; }
@@ -61,9 +69,11 @@
   <button id="volver" title="Volver al menú">☰ Menú</button>
   <span class="nombre">Estudio BBS</span>
   <div id="atajos"></div>
+  <button id="btnOcultar" title="Esconder esta barra (queda una burbuja para volver a abrirla)" aria-label="Esconder la barra">⌃</button>
 </div>
+<button id="burbuja" title="Tocá para abrir el menú · arrastrá para moverla" aria-label="Abrir el menú">☰</button>
 <main id="menu">
-  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.042 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
+  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.043 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
   <p class="sub">Elegí qué querés hacer. Podés pasar de un modo a otro sin perder lo que estabas haciendo.</p>
   <div id="tarjetas"></div>
   <p id="pie"></p>
@@ -76,7 +86,7 @@ const MODOS = [
   { id: 'mocap', ico: '🎥', nombre: 'Mocap', texto: 'Pasá un video tuyo (cuerpo, ojos y boca) a un film de BBS.' },
   { id: 'director', ico: '🎬', nombre: 'Director', texto: 'Bocas, parpadeos y miradas solos, y el guion de escena.', notaCelu: 'En el celu la boca sale simple; exacta solo en la PC.' },
   { id: 'editor', ico: '🎞', nombre: 'Editor', texto: 'Animá personajes, poses y cámaras como en BBS, también desde el celu. Con guion de escena y cámaras automáticas (pestaña Director).' },
-  { id: 'animaciones', ico: '🦴', nombre: 'Animaciones → BBS', texto: 'Pasá una animación 3D de cualquier esqueleto humanoide (FBX, GLB, BVH o .zip: Mixamo, Sketchfab, Blender, Unreal…) a un film de BBS, viendo la original y la de Minecraft lado a lado.' },
+  { id: 'animaciones', ico: '🦴', nombre: 'Animaciones → BBS', texto: 'Pasá una animación 3D de cualquier esqueleto humanoide (FBX, GLB, BVH, DAE o .zip: Mixamo, Sketchfab, Blender, Unreal…) a un film de BBS, viendo la original y la de Minecraft lado a lado.' },
   { id: 'convertidor', ico: '🧱', nombre: "Armourer's → BBS", texto: "Arregla los .obj que exporta Armourer's Workshop para usarlos como modelo en BBS." },
   { id: 'ojos', ico: '🧩', nombre: 'Crafteo', texto: 'Armá lo que le falta a tu personaje desde su skin: ojos, cejas, máscaras de borrado y más.' },
 ];
@@ -108,6 +118,7 @@ function abrir(id, guardar = true) {
   }
   for (const [k, x] of marcos) x.classList.toggle('visible', k === id);
   for (const b of $('#atajos').children) b.classList.toggle('activo', b.dataset.modo === id);
+  $('#burbuja').textContent = m.ico;   // la burbuja muestra en qué modo estás
   document.body.classList.add('en-modo');
   document.title = m.nombre + ' · Estudio BBS';
   if (guardar && location.hash !== '#' + id) history.pushState(null, '', '#' + id);
@@ -121,6 +132,45 @@ function menu(guardar = true) {
   if (guardar && location.hash) history.pushState(null, '', location.pathname);
 }
 $('#volver').onclick = () => menu();
+
+// ---- barra de arriba escondible: se cierra a una burbuja chica que se puede mover (se acuerda dónde la dejaste) ----
+const B = $('#burbuja');
+let pos = { lado: 'r', y: 0.45 };
+try { pos = { ...pos, ...JSON.parse(localStorage.getItem('estudio_burbuja') || '{}') }; } catch { /* sin almacenamiento */ }
+function ubicarBurbuja() {
+  const alto = Math.max(1, innerHeight - 38 - 16);
+  B.style.top = Math.round(8 + Math.min(1, Math.max(0, pos.y)) * alto) + 'px';
+  B.style.left = pos.lado === 'l' ? '6px' : 'auto'; B.style.right = pos.lado === 'r' ? '6px' : 'auto';
+}
+function ponerBarra(oculta, guardar = true) {
+  document.body.classList.toggle('barra-oculta', oculta);
+  if (guardar) { try { localStorage.setItem('estudio_barra_oculta', oculta ? '1' : '0'); } catch { /* sin almacenamiento */ } }
+  ubicarBurbuja();
+  // los modos dentro de los iframes se acomodan solos al cambiar el alto; se avisa por si alguno mide a mano
+  setTimeout(() => marcos.forEach((f) => { try { f.contentWindow.dispatchEvent(new Event('resize')); } catch { /* otro origen */ } }), 60);
+}
+$('#btnOcultar').onclick = () => ponerBarra(true);
+let arr = null;
+B.addEventListener('pointerdown', (e) => { arr = { x: e.clientX, y: e.clientY, mov: false }; B.setPointerCapture(e.pointerId); });
+B.addEventListener('pointermove', (e) => {
+  if (!arr) return;
+  if (!arr.mov && Math.hypot(e.clientX - arr.x, e.clientY - arr.y) < 7) return;
+  arr.mov = true; B.classList.add('arrastrando');
+  B.style.left = Math.min(innerWidth - 44, Math.max(6, e.clientX - 19)) + 'px'; B.style.right = 'auto';
+  B.style.top = Math.min(innerHeight - 46, Math.max(8, e.clientY - 19)) + 'px';
+});
+B.addEventListener('pointerup', (e) => {
+  if (!arr) return;
+  const mov = arr.mov; arr = null; B.classList.remove('arrastrando');
+  if (!mov) return ponerBarra(false);
+  pos = { lado: e.clientX < innerWidth / 2 ? 'l' : 'r', y: (e.clientY - 19 - 8) / Math.max(1, innerHeight - 38 - 16) };   // se pega al costado más cercano
+  try { localStorage.setItem('estudio_burbuja', JSON.stringify(pos)); } catch { /* sin almacenamiento */ }
+  ubicarBurbuja();
+});
+B.addEventListener('pointercancel', () => { arr = null; B.classList.remove('arrastrando'); ubicarBurbuja(); });
+addEventListener('resize', ubicarBurbuja);
+let oculta = false; try { oculta = localStorage.getItem('estudio_barra_oculta') === '1'; } catch { /* sin almacenamiento */ }
+ponerBarra(oculta, false);
 addEventListener('popstate', () => (location.hash ? abrir(location.hash.slice(1), false) : menu(false)));
 addEventListener('message', (e) => {   // un modo puede pedir pasar a otro: postMessage({estudio:true, abrir:'visor'})
   if (e.origin === location.origin && e.data && e.data.estudio && e.data.abrir) abrir(e.data.abrir);

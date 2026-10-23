@@ -1,4 +1,4 @@
-// Importar animacion: lee la animacion de un modelo humanoide (FBX de Mixamo, GLB/GLTF, BVH) y la convierte en los
+// Importar animacion: lee la animacion de un modelo humanoide (FBX de Mixamo, GLB/GLTF, BVH, DAE/Collada) y la convierte en los
 // mismos 33 puntos que da MediaPipe al mirar un video. Asi pasa por el mismo camino que el Mocap (retarget, estilos,
 // film de BBS) sin rehacer nada: es como si una camara perfecta filmara al modelo de frente.
 import * as THREE from '../three.module.min.js';
@@ -41,7 +41,7 @@ export function aplicarMapa(an, manual = {}) {
 }
 
 // Un .zip (como los que se bajan de Sketchfab, a veces con otro .zip adentro): se busca la animacion que trae.
-const EXT_ANIM = /\.(fbx|glb|bvh)$/i;
+const EXT_ANIM = /\.(fbx|glb|gltf|bvh|dae)$/i;
 function sacarDeZip(bytes, unzipSync, prof = 0) {
   const arch = unzipSync(bytes);
   const cands = [];
@@ -67,7 +67,7 @@ export async function cargarAnimacion(nombre, bytes) {
     const { unzipSync } = await import(LIB + '../libs/fflate.module.js');
     const u8 = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
     const r = sacarDeZip(u8, unzipSync);
-    if (!r) throw new Error('El .zip no trae ninguna animación (FBX, GLB o BVH).');
+    if (!r) throw new Error('El .zip no trae ninguna animación (FBX, GLB, BVH o DAE).');
     const an = await cargarAnimacion(r.nombre, r.bytes);
     an.archivo = r.nombre;
     return an;
@@ -86,12 +86,19 @@ export async function cargarAnimacion(nombre, bytes) {
     const data = ext === 'gltf' ? new TextDecoder().decode(buf) : buf;
     const g = await new GLTFLoader().parseAsync(data, '');
     raiz = g.scene; clips = g.animations || [];
+  } else if (ext === 'dae') {
+    const { ColladaLoader } = await import(LIB + 'ColladaLoader.js');
+    const m = new THREE.LoadingManager();   // solo hacen falta los huesos: no se buscan las texturas que nombra el archivo
+    m.setURLModifier((u) => (/^(data|blob):/.test(u) ? u : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='));
+    const c = new ColladaLoader(m).parse(new TextDecoder().decode(buf), '');
+    raiz = c.scene; clips = raiz.animations || [];
+    // Collada trae el eje vertical y la escala en el propio archivo (ya aplicados por el lector): nada más que hacer
   } else if (ext === 'bvh') {
     const { BVHLoader } = await import(LIB + 'BVHLoader.js');
     const r = new BVHLoader().parse(new TextDecoder().decode(buf));
     raiz = new THREE.Group(); raiz.add(r.skeleton.bones[0]);
     clips = [r.clip];
-  } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF, BVH o un .zip que los traiga.');
+  } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF, BVH, DAE (Collada) o un .zip que los traiga.');
   if (!clips.length) throw new Error('El archivo no trae ninguna animación.');
   return prepararAnimacion(raiz, clips, ext, nombre);
 }
