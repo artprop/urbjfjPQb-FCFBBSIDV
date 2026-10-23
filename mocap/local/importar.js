@@ -57,15 +57,22 @@ function sacarDeZip(bytes, unzipSync, prof = 0) {
   return cands.sort((a, b) => b.bytes.length - a.bytes.length)[0] || null;   // la mas grande suele ser la de verdad
 }
 
-/** Lee el archivo y devuelve { raiz, clips, huesos, faltan, tipo, archivo }. */
+/** Lee el archivo y devuelve { raiz, clips, huesos, faltan, tipo, archivo }. Falla si faltan huesos imprescindibles. */
 export async function leerAnimacion(nombre, bytes) {
-  let ext = String(nombre).toLowerCase().split('.').pop();
+  const an = await cargarAnimacion(nombre, bytes);
+  if (an.faltan.length) throw new Error('No encuentro estos huesos del humanoide: ' + an.faltan.join(', ') + '. Por ahora sirven esqueletos tipo Mixamo, BVH (CMU/DAZ) o similares.');
+  return an;
+}
+
+/** Igual que leerAnimacion, pero no falla si faltan huesos (para poder mostrar el esqueleto igual). */
+export async function cargarAnimacion(nombre, bytes) {
+  const ext = String(nombre).toLowerCase().split('.').pop();
   if (ext === 'zip') {
     const { unzipSync } = await import(LIB + '../libs/fflate.module.js');
     const u8 = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
     const r = sacarDeZip(u8, unzipSync);
     if (!r) throw new Error('El .zip no trae ninguna animación (FBX, GLB o BVH).');
-    const an = await leerAnimacion(r.nombre, r.bytes);
+    const an = await cargarAnimacion(r.nombre, r.bytes);
     return { ...an, archivo: r.nombre };
   }
   const buf = bytes instanceof ArrayBuffer ? bytes : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
@@ -91,7 +98,6 @@ export async function leerAnimacion(nombre, bytes) {
   if (!clips.length) throw new Error('El archivo no trae ninguna animación.');
   const huesos = buscarHuesos(raiz);
   const faltan = IMPRESCINDIBLES.filter((k) => !huesos[k]);
-  if (faltan.length) throw new Error('No encuentro estos huesos del humanoide: ' + faltan.join(', ') + '. Por ahora sirven esqueletos tipo Mixamo, BVH (CMU/DAZ) o similares.');
   return { raiz, clips, huesos, faltan, tipo: ext, archivo: nombre };
 }
 
@@ -119,6 +125,11 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
   const alto = cab0.distanceTo(cad0) || 1;
   const esc = 0.55 / alto;                                           // cadera a cabeza ~ 55 cm, como una persona
   const qCab0 = quat(H.head);
+  // hombros pegados al pecho: si el modelo encoge los hombros (las clavículas se mueven mucho, como en la pose zombi),
+  // la línea entre hombros se achica y se tuerce, y el torso convertido daba vueltas. Se usan dos puntos fijos al hueso
+  // del pecho (el padre del cuello) y los brazos se corren lo mismo, así no cambia ni su dirección ni el doblez del codo.
+  const pecho = [H.neck && H.neck.parent, H.head && H.head.parent].find((o) => o && o.isBone && o !== H.hips) || null;
+  const enPecho = pecho && { L: pecho.worldToLocal(pos(H.brazoL)), R: pecho.worldToLocal(pos(H.brazoR)) };
 
   const world = [], vis = [], times = [];
   const aMP = (p, cadera) => { const d = p.clone().sub(cadera).multiplyScalar(esc); return [d.dot(izq), -d.dot(arriba), -d.dot(frente)]; };
@@ -138,9 +149,12 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
     P[7] = cara(0, 0.01, 0.075); P[8] = cara(0, 0.01, -0.075);
     P[9] = cara(0.09, -0.04, 0.025); P[10] = cara(0.09, -0.04, -0.025);
     for (const [lado, k] of [['L', 0], ['R', 1]]) {
-      const hombro = pos(H['brazo' + lado]), codo = pos(H['antebrazo' + lado]), muneca = pos(H['mano' + lado]);
+      const real = pos(H['brazo' + lado]);
+      const hombro = enPecho ? pecho.localToWorld(enPecho[lado].clone()) : real;
+      const corrido = hombro.clone().sub(real);   // lo que se movió el hombro: el brazo entero se corre igual
+      const codo = pos(H['antebrazo' + lado]).add(corrido), muneca = pos(H['mano' + lado]).add(corrido);
       const dirMano = muneca.clone().sub(codo).normalize();
-      const dedo = (n, extra) => (H[n + lado] ? pos(H[n + lado]) : muneca.clone().addScaledVector(dirMano, extra * m));
+      const dedo = (n, extra) => (H[n + lado] ? pos(H[n + lado]).add(corrido) : muneca.clone().addScaledVector(dirMano, extra * m));
       P[11 + k] = hombro; P[13 + k] = codo; P[15 + k] = muneca;
       P[17 + k] = dedo('menique', 0.07); P[19 + k] = dedo('indice', 0.08); P[21 + k] = dedo('pulgar', 0.05);
       const muslo = pos(H['muslo' + lado]), rodilla = pos(H['pierna' + lado]), tobillo = pos(H['pie' + lado]);

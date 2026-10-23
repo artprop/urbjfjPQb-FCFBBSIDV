@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animaciones → BBS</title>
+<link rel="icon" href="../icono.svg">
+<style>
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e06b6b; --azul: #3b82f6; --hueso: #8fb3ff; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--fondo); color: var(--texto); font: 14px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; }
+  button, .boton, select { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 7px; padding: 5px 10px; }
+  button, .boton { cursor: pointer; white-space: nowrap; }
+  button:hover, .boton:hover { border-color: var(--acento); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.principal { background: var(--azul); border-color: var(--azul); font-weight: 600; }
+  select { padding: 4px 6px; max-width: 13em; }
+  /* barra de arriba: todo lo que se toca, en una o dos filas */
+  #barra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+  #barra b.titulo { font-size: 15px; margin-right: 4px; }
+  #barra label { display: flex; align-items: center; gap: 4px; color: var(--suave); font-size: 13px; }
+  #barra .sep { flex: 1; }
+  #nombreArchivo { color: var(--suave); font-size: 13px; max-width: 18em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #base { display: flex; align-items: center; gap: 4px; }
+  /* las dos vistas, una al lado de la otra */
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--borde); }
+  .vista { position: relative; min-height: 0; min-width: 0; background: #111317; }
+  .vista canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .cap { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; pointer-events: none; z-index: 2; }
+  .cap > * { pointer-events: auto; }
+  .cap .tit { background: rgba(23,26,33,.85); border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+  .cap .det { background: rgba(23,26,33,.85); border-radius: 6px; padding: 2px 8px; color: var(--suave); font-size: 12.5px; }
+  .cap label { background: rgba(23,26,33,.85); border-radius: 6px; padding: 2px 8px; font-size: 12.5px; color: var(--suave); }
+  .leyenda { position: absolute; left: 8px; bottom: 8px; font-size: 12px; color: var(--suave); background: rgba(23,26,33,.8); border-radius: 6px; padding: 2px 8px; pointer-events: none; z-index: 2; }
+  .leyenda i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 3px 0 6px; vertical-align: -1px; }
+  .vacio { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; color: var(--suave); z-index: 3; background: #111317; }
+  .vacio b { color: var(--texto); font-size: 16px; }
+  #vOrig.encima .vacio, #vOrig.encima { outline: 3px dashed var(--acento); outline-offset: -6px; }
+  #avisos { position: absolute; left: 8px; right: 8px; bottom: 30px; z-index: 2; display: flex; flex-direction: column; gap: 3px; pointer-events: none; }
+  #avisos div { background: rgba(23,26,33,.88); border-radius: 6px; padding: 3px 8px; font-size: 12.5px; color: var(--aviso); }
+  .mal { color: var(--error) !important; } .ok { color: var(--acento) !important; }
+  /* linea de tiempo comun a las dos vistas */
+  #tiempo { display: flex; align-items: center; gap: 8px; padding: 6px 10px; padding-bottom: max(6px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--borde); }
+  #tiempo input[type=range] { flex: 1; min-width: 60px; accent-color: var(--acento); }
+  #lectura { font-variant-numeric: tabular-nums; color: var(--suave); font-size: 13px; min-width: 9.5em; text-align: right; }
+  #estado { font-size: 13px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+  /* celu parado: una vista arriba de la otra, barra mas compacta */
+  @media (max-aspect-ratio: 1/1) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    #barra { padding: 5px 8px; gap: 5px 6px; }
+    #barra b.titulo { display: none; }
+    #barra .txt { display: none; }
+    #nombreArchivo { max-width: 9em; }
+    select { max-width: 9.5em; }
+    #estado { max-width: 100%; }
+    #lectura { min-width: 0; }
+  }
+</style>
+</head>
+<body>
+<header id="barra">
+  <b class="titulo">🦴 Animaciones → BBS</b>
+  <label class="boton" title="FBX (Mixamo, Blender…), GLB, BVH, o el .zip tal como lo bajaste">📂<span class="txt"> Abrir animación</span><input type="file" id="inArchivo" hidden></label>
+  <span id="nombreArchivo"></span>
+  <label hidden id="filaClip"><span class="txt">Clip</span> <select id="selClip"></select></label>
+  <label title="Realista: copia fiel, cuadro a cuadro. Minecraft: pose a pose, como las animaciones hechas a mano."><span class="txt">Estilo</span>
+    <select id="selEstilo"><option value="realista">Realista (copia fiel)</option><option value="minecraft">Minecraft (pose a pose)</option></select></label>
+  <label title="El modelo de BBS al que se pasa la animación"><span class="txt">Modelo</span>
+    <select id="selModelo"><option value="steve_bends">steve_bends</option><option value="emoticons_steve">emoticons/steve</option></select></label>
+  <span id="base">
+    <label class="boton" title="Opcional: meter la animación en un actor de un film tuyo (.dat) en vez de crear un film nuevo">🎞<span class="txt" id="txtBase"> Film de base…</span><input type="file" id="inBase" hidden></label>
+    <select id="selActor" hidden title="Actor del film que va a bailar"></select>
+    <button id="btnSinBase" hidden title="No usar film de base (crear un film nuevo)">✖</button>
+  </span>
+  <label class="boton" title="Skin de la vista de Minecraft (PNG de 64×64; solo para mirar)">🧑<span class="txt"> Skin</span><input type="file" id="inSkin" accept="image/png" hidden></label>
+  <span class="sep"></span>
+  <button id="btnGuardar" class="principal" disabled>💾 Guardar film</button>
+  <button id="btnCarpeta" hidden title="Abrir la carpeta Salida\animaciones">📂</button>
+</header>
+<main>
+  <section class="vista" id="vOrig">
+    <div class="cap"><span class="tit">Original</span><span class="det" id="detOrig"></span>
+      <label><input type="checkbox" id="chkMalla" checked> Malla</label></div>
+    <div class="leyenda" id="leyOrig" hidden><i style="background:var(--hueso)"></i>huesos<i style="background:var(--acento)"></i>los que pasan a Minecraft</div>
+    <div class="vacio" id="vacioOrig">
+      <b>Soltá acá una animación 3D</b>
+      <span>FBX (Mixamo, Blender…), GLB, BVH, o el .zip tal como lo bajaste (Sketchfab, Mixamo…)</span>
+      <label class="boton principal">📂 Abrir animación<input type="file" id="inArchivo2" hidden></label>
+    </div>
+  </section>
+  <section class="vista" id="vMC">
+    <div class="cap"><span class="tit">Minecraft</span><span class="det" id="detMC"></span></div>
+    <div id="avisos"></div>
+    <div class="leyenda">arrastrá para girar · rueda para acercar · doble toque: de frente</div>
+    <div class="vacio" id="vacioMC"><span>Acá vas a ver la animación pasada a Minecraft, lista para guardar como film de BBS.</span></div>
+  </section>
+</main>
+<footer id="tiempo">
+  <button id="btnPlay" disabled title="Reproducir / pausa (barra espaciadora)">▶</button>
+  <input type="range" id="t" min="0" max="1" step="0.01" value="0" disabled aria-label="Momento de la animación">
+  <span id="lectura">0,0 s · tick 0</span>
+  <select id="selVel" title="Velocidad"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option></select>
+  <span id="estado"></span>
+</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>

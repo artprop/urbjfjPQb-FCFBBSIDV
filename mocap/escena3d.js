@@ -7,7 +7,7 @@ import { Boca3D, capasEn, grillaEn } from './boca3d.js';
 import { crearModelo } from './modelo3d.js';
 
 const TICKS_POR_S = 20;
-const SKIN_DEFECTO = './skin_default.png';
+const SKIN_DEFECTO = new URL('./skin_default.png', import.meta.url).href;   // junto a este archivo (sirve desde otros modos)
 
 // interpolacion entre keyframes (como BBS): cada keyframe manda en el tramo que empieza en el
 const CURVAS = {
