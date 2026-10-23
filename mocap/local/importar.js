@@ -4,6 +4,7 @@
 import * as THREE from '../three.module.min.js';
 
 import { reconocer, firma as firmaEsqueleto, IMPRESCINDIBLES, PARTES } from '../nucleo/esqueleto.js';
+import { curlsDeMano, DEDOS } from '../nucleo/dedos.js';
 
 const LIB = '../importar_lib/loaders/';
 export { IMPRESCINDIBLES, PARTES };
@@ -17,7 +18,7 @@ function listarHuesos(raiz) {
   const idx = new Map(objs.map((o, i) => [o, i]));
   return objs.map((o) => {
     let p = o.parent; while (p && !idx.has(p)) p = p.parent;
-    return { nombre: o.name || '', padre: p ? idx.get(p) : -1, pos: o.getWorldPosition(new THREE.Vector3()).toArray(), obj: o };
+    return { nombre: o.name || '', padre: p ? idx.get(p) : -1, pos: o.getWorldPosition(new THREE.Vector3()).toArray(), quat: o.getWorldQuaternion(new THREE.Quaternion()), obj: o };
   });
 }
 
@@ -26,7 +27,9 @@ export function aplicarMapa(an, manual = {}) {
   const mapa = { ...an.auto.mapa }, origen = { ...an.auto.origen };
   for (const [k, nombre] of Object.entries(manual || {})) {
     if (!PARTES.includes(k)) continue;
-    const i = nombre ? an.esqueleto.findIndex((h) => h.nombre === nombre) : -1;
+    // (primero entre los huesos del personaje elegido: dos personajes pueden tener huesos con el mismo nombre)
+    const miembros = an.personajes ? an.personajes[an.personaje].miembros : an.esqueleto.map((_, j) => j);
+    const i = nombre ? (miembros.find((j) => an.esqueleto[j].nombre === nombre) ?? -1) : -1;
     if (nombre && i < 0) continue;   // ese hueso no está en este modelo
     if (i >= 0) mapa[k] = i; else delete mapa[k];
     origen[k] = 'manual';
@@ -90,16 +93,52 @@ export async function cargarAnimacion(nombre, bytes) {
     clips = [r.clip];
   } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF, BVH o un .zip que los traiga.');
   if (!clips.length) throw new Error('El archivo no trae ninguna animación.');
+  return prepararAnimacion(raiz, clips, ext, nombre);
+}
+
+/** Arma el objeto de la animación a partir de la escena ya leída: huesos, personajes y reconocimiento. */
+export function prepararAnimacion(raiz, clips, tipo = '', archivo = '') {
   const esqueleto = listarHuesos(raiz);
-  const auto = reconocer(esqueleto);
-  const an = { raiz, clips, esqueleto, auto, firma: firmaEsqueleto(esqueleto), tipo: ext, archivo: nombre };
+  const an = { raiz, clips, esqueleto, tipo, archivo, personajes: personajes(esqueleto) };
+  // varios personajes en el mismo archivo: de entrada, el que mejor se reconoce como humanoide (y el más grande)
+  const mejor = an.personajes.reduce((m, p, i, a) => (p.faltan < a[m].faltan || (p.faltan === a[m].faltan && p.huesos > a[m].huesos) ? i : m), 0);
+  return elegirPersonaje(an, mejor);
+}
+
+// Cada esqueleto suelto del archivo (un hueso sin padre y todo lo que cuelga de él) que puede ser un personaje.
+function personajes(H) {
+  const hijos = H.map(() => []); H.forEach((h, i) => { if (h.padre >= 0) hijos[h.padre].push(i); });
+  const out = [];
+  H.forEach((h, i) => {
+    if (h.padre >= 0) return;
+    const miembros = []; const pila = [i];
+    while (pila.length) { const k = pila.pop(); miembros.push(k); pila.push(...hijos[k]); }
+    miembros.sort((a, b) => a - b);
+    const sub = miembros.map((k) => ({ ...H[k], padre: miembros.indexOf(H[k].padre) }));
+    const { mapa } = reconocer(sub);
+    out.push({ raiz: i, nombre: H[i].nombre || 'Personaje ' + (out.length + 1), huesos: miembros.length, miembros, faltan: IMPRESCINDIBLES.filter((k) => mapa[k] === undefined).length });
+  });
+  const utiles = out.filter((p) => p.huesos >= 10);
+  return utiles.length ? utiles : out.length ? out : [{ raiz: -1, nombre: 'Personaje', huesos: H.length, miembros: H.map((_, i) => i), faltan: IMPRESCINDIBLES.length }];
+}
+
+/** Usa el personaje k del archivo (si trae varios): reconoce sus huesos y deja el mapa automático en an.auto. */
+export function elegirPersonaje(an, k) {
+  const p = an.personajes[k] || an.personajes[0];
+  an.personaje = an.personajes.indexOf(p);
+  const sub = p.miembros.map((i) => ({ ...an.esqueleto[i], padre: p.miembros.indexOf(an.esqueleto[i].padre) }));
+  const r = reconocer(sub);
+  const global = (m) => Object.fromEntries(Object.entries(m).map(([parte, i]) => [parte, p.miembros[i]]));
+  an.auto = { mapa: global(r.mapa), origen: r.origen };
+  an.firma = firmaEsqueleto(sub);
   return aplicarMapa(an);
 }
 
 /**
  * Pasa una animacion a "pose" como la de analizarPose(): { world (N x 33 x 3, metros, MediaPipe), vis, times, offset }.
  * fps = cuadros por segundo con que se muestrea (el Mocap despues lo pasa a ticks de BBS).
- * Ademas: mov (N x [izquierda, arriba, adelante]) = cuanto se movio la cadera desde el comienzo, medido en largos de
+ * Ademas: dedos ({ L, R }: N x [pulgar, indice, medio, anular, menique], de 0 = estirado a 1 = cerrado; si hay huesos de dedos),
+ * mov (N x [izquierda, arriba, adelante]) = cuanto se movio la cadera desde el comienzo, medido en largos de
  * pierna (muslo + pierna), para pasar el desplazamiento por el piso a la posicion del actor.
  */
 export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) {
@@ -130,6 +169,21 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
   const largoPierna = ['L', 'R'].reduce((s, l) => s + pos(H['muslo' + l]).distanceTo(pos(H['pierna' + l])) + pos(H['pierna' + l]).distanceTo(pos(H['pie' + l])), 0) / 2 || 1;
   const cadIni = pos(H.musloL).add(pos(H.musloR)).multiplyScalar(0.5);
   const mov = [];
+  // giro de brazos y muslos sobre su eje: hace falta saber hacia donde mira la "espalda" de cada hueso (el lado contrario
+  // a donde se dobla el codo, o hacia donde se dobla la rodilla). Se aprende de la misma animacion: en los cuadros con el
+  // codo bien doblado, la bisagra queda a la vista; promediada en el marco del hueso es fija. Sin eso, la de la pose de reposo.
+  const LARGOS = [['left_arm', 'brazoL', 'antebrazoL', 'manoL', -1], ['right_arm', 'brazoR', 'antebrazoR', 'manoR', -1],
+    ['left_leg', 'musloL', 'piernaL', 'pieL', 1], ['right_leg', 'musloR', 'piernaR', 'pieR', 1]];
+  const muestras = Object.fromEntries(LARGOS.map(([k]) => [k, []]));   // [quat del hueso, espalda medida o null]
+  // dedos: cada uno es su primer hueso y los que cuelgan de él (hasta 4 puntos); de ahi sale cuanto esta cerrado
+  const cadena = (o) => { const c = []; for (let x = o; x && c.length < 4; x = x.children.find((h) => h.isBone || h.isObject3D && h.children.length)) c.push(x); return c; };
+  const cadenas = {};
+  for (const l of ['L', 'R']) {
+    const cs = Object.fromEntries(DEDOS.map((k) => [k, H[k + l] ? cadena(H[k + l]) : null]));
+    if (H['mano' + l] && Object.values(cs).filter(Boolean).length >= 2) cadenas[l] = cs;
+  }
+  const dedos = Object.fromEntries(Object.keys(cadenas).map((l) => [l, []]));
+  const aDir = (d) => [d.dot(izq), -d.dot(arriba), -d.dot(frente)];
 
   const world = [], vis = [], times = [];
   const aMP = (p, cadera) => { const d = p.clone().sub(cadera).multiplyScalar(esc); return [d.dot(izq), -d.dot(arriba), -d.dot(frente)]; };
@@ -138,6 +192,16 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
     const cad = pos(H.musloL).add(pos(H.musloR)).multiplyScalar(0.5);
     const dc = cad.clone().sub(cadIni).divideScalar(largoPierna);
     mov.push([dc.dot(izq), dc.dot(arriba), dc.dot(frente)]);
+    for (const [l, cs] of Object.entries(cadenas)) {
+      const pt = (o) => pos(o).toArray();
+      dedos[l].push(curlsDeMano({ muneca: pt(H['mano' + l]), dedos: Object.fromEntries(DEDOS.map((k) => [k, cs[k] ? cs[k].map(pt) : null])) }));
+    }
+    for (const [k, a, b, c, signo] of LARGOS) {
+      const d = pos(H[b]).sub(pos(H[a])).normalize(), f = pos(H[c]).sub(pos(H[b])).normalize();
+      const perp = f.clone().addScaledVector(d, -f.dot(d));
+      const doblado = Math.acos(Math.max(-1, Math.min(1, d.dot(f)))) > 0.5 && perp.lengthSq() > 1e-6;
+      muestras[k].push([quat(H[a]), doblado ? perp.normalize().multiplyScalar(signo) : null]);
+    }
     const P = new Array(33);
     // cabeza: puntos de la cara puestos alrededor del hueso de la cabeza, girados con ella
     const giro = quat(H.head).multiply(qCab0.clone().invert());
@@ -172,5 +236,18 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
     times.push(t - desde);
   }
   mixer.stopAllAction(); mixer.uncacheRoot(an.raiz);
-  return { world, vis, times, offset: 0, mov };
+  const giros = {};
+  const izqR = pos(H.musloL).sub(pos(H.musloR)); izqR.y = 0; izqR.normalize();   // (para la pose de reposo, de respaldo)
+  for (const [k, a] of LARGOS) {
+    const suma = new THREE.Vector3(); let n = 0;
+    for (const [q, e] of muestras[k]) if (e) { suma.add(e.clone().applyQuaternion(q.clone().invert())); n++; }
+    let local = n >= 5 && suma.length() > 0.5 * n ? suma.normalize() : null;
+    if (!local) {
+      const h = an.esqueleto.find((x) => x.obj === H[a]);
+      if (!h || !h.quat) continue;
+      local = new THREE.Vector3().crossVectors(arriba, izqR).normalize().applyQuaternion(h.quat.clone().invert());
+    }
+    giros[k] = muestras[k].map(([q]) => aDir(local.clone().applyQuaternion(q)));
+  }
+  return { world, vis, times, offset: 0, mov, giros, dedos };
 }

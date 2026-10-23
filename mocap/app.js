@@ -2,7 +2,7 @@
 import { crearVista } from './vista.js';
 // Toda la logica corre en el navegador (PC y celular): las rutas /api/... las responde local/servidor.js
 import { api, post, urlToma, importarFilm, exportarFilm, clipsDeAnimacion, importarAnimacion } from './local/servidor.js';
-import { landmarkerPose } from './local/deteccion.js';
+import { landmarkerPose, landmarkerManos, dedosDeResultado } from './local/deteccion.js';
 import { iniciarVivo, prender as prenderVivo, sincronizar as sincronizarVivo, estaPrendido as vivoPrendido, gestoActual } from './envivo.js';
 import { iniciarMuecas } from './muecas_ui.js';
 import { paqueteZip } from './paquete_modelos.js';
@@ -40,7 +40,8 @@ const SLIDERS = {
   boca_sens: ['#out-boca-sens', () => `${Math.round(cfg.boca_sens * 100)} %`],
   boca_min_ticks: ['#out-boca-min', () => `${cfg.boca_min_ticks} ticks`],
 };
-const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'cara_arrugas', 'boca_labios', 'boca_muecas', 'usar_move'];
+const CHECKS = ['sin_piernas', 'sin_giro', 'espejo', 'ojos_cejas', 'cara_ojos', 'cara_boca', 'cara_arrugas', 'boca_labios', 'boca_muecas', 'usar_move', 'dedos_move'];
+const POSES_DEDOS = ['dedos_la', 'dedos_lc', 'dedos_ra', 'dedos_rc'];
 let guardarTimer = null, pendiente = {};
 // junta los cambios y los guarda un instante despues (no se pierde ninguno si se tocan varios ajustes seguidos)
 function guardar(campos) {
@@ -76,6 +77,8 @@ function pintarAjustes() {
   const elegidas = (cfg.partes || '').split(',').map((s) => s.trim());
   document.querySelectorAll('#partes input').forEach((c) => (c.checked = elegidas.includes(c.dataset.parte)));
   $('#poses_fijas').value = (cfg.poses_fijas || '').split(';').map((s) => s.trim()).filter(Boolean).join('\n');
+  $('#dedos_modelo').value = cfg.dedos_modelo || 'dedos';
+  pintarPosesDedos();
   ponerModo(cfg.estilo || 'minecraft', false);
 }
 
@@ -126,12 +129,33 @@ function enlazarAjustes() {
     guardarPoses();
   });
   document.querySelectorAll('#modos button').forEach((b) => b.addEventListener('click', () => ponerModoApp(b.dataset.modo)));
+  $('#dedos_modelo').addEventListener('change', (e) => {
+    cfg.dedos_modelo = e.target.value;
+    for (const k of POSES_DEDOS) cfg[k] = '';   // otro modelo, otras poses: vuelven las de fabrica
+    guardar({ dedos_modelo: cfg.dedos_modelo, ...Object.fromEntries(POSES_DEDOS.map((k) => [k, ''])) });
+    pintarPosesDedos();
+  });
+  for (const k of POSES_DEDOS) $('#' + k).addEventListener('change', (e) => { cfg[k] = e.target.value; guardar({ [k]: cfg[k] }); });
+}
+
+// las poses del modelo de dedos elegido, para la mano abierta y la cerrada de cada lado
+async function pintarPosesDedos() {
+  try {
+    const d = await api('/api/poses_dedos?modelo=' + encodeURIComponent(cfg.dedos_modelo || 'dedos'));
+    for (const lado of ['L', 'R']) {
+      ['a', 'c'].forEach((ext, i) => {
+        const k = 'dedos_' + lado.toLowerCase() + ext, s = $('#' + k);
+        s.innerHTML = d[lado].map((n) => `<option>${esc(n)}</option>`).join('');
+        s.value = cfg[k] && d[lado].includes(cfg[k]) ? cfg[k] : d.defecto[lado][i];
+      });
+    }
+  } catch (e) { mostrarError(e); }
 }
 
 /* ---------- modo: cuerpo o cara (ojos) ---------- */
-const textoConvertir = () => (cfg.modo === 'cara' ? 'Convertir la cara' : 'Convertir a animación');
+const textoConvertir = () => (cfg.modo === 'cara' ? 'Convertir la cara' : cfg.modo === 'dedos' ? 'Convertir los dedos' : 'Convertir a animación');
 function ponerModoApp(modo, save = true) {
-  cfg.modo = modo === 'cara' ? 'cara' : 'cuerpo';
+  cfg.modo = ['cara', 'dedos'].includes(modo) ? modo : 'cuerpo';
   document.body.dataset.modo = cfg.modo;
   document.querySelectorAll('#modos button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.modo === cfg.modo)));
   if (!$('#btn-convertir').disabled || $('#btn-convertir').textContent.startsWith('Convertir')) $('#btn-convertir').textContent = textoConvertir();
@@ -169,7 +193,8 @@ async function actualizarDestino() {
     selA.innerHTML = '<option value="0">Tu actor</option>'; selA.disabled = true;
     $('#destino-ayuda').textContent = cfg.modo === 'cara'
       ? 'Sin film propio: se arma un film nuevo con steve_bends, tu skin y las partes de la cara (ojos, boca y arrugas; los modelos están en «Ojos y boca con tu cara»). Después lo exportás.'
-      : 'Se crea un film nuevo con tu actor en steve_bends.';
+      : cfg.modo === 'dedos' ? 'Sin film propio: se arma un film nuevo con steve_bends, tu skin y las dos manos con dedos. Después lo exportás.'
+        : 'Se crea un film nuevo con tu actor en steve_bends.';
     return;
   }
   selA.disabled = true; selA.innerHTML = '<option>Cargando…</option>';
@@ -331,7 +356,8 @@ function bucle(ts) {
   if (v.readyState >= 2) {
     if (c.width !== v.videoWidth) { c.width = v.videoWidth; c.height = v.videoHeight; }
     const ctx = c.getContext('2d');
-    if (landmarker && ts - ultimaDeteccion > 45) {
+    if (cfg.modo === 'dedos') bucleDedos(ts, v, c);
+    else if (landmarker && ts - ultimaDeteccion > 45) {
       ultimaDeteccion = ts;
       const r = landmarker.detectForVideo(v, ++relojEsqueleto);
       ctx.clearRect(0, 0, c.width, c.height);
@@ -353,6 +379,41 @@ function bucle(ts) {
     }
   }
   requestAnimationFrame(bucle);
+}
+
+// modo Dedos: las manos que ve la camara, dibujadas encima, y cuánto cierra cada dedo (lo mismo que va a leer la conversion)
+let manosVivo = null, pidiendoManos = false, ultimaManos = 0, relojManos = 0;
+const CONEX_MANO = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]];
+function bucleDedos(ts, v, c) {
+  if (!manosVivo) {
+    if (!pidiendoManos) {
+      pidiendoManos = true;
+      landmarkerManos('vivo').then((l) => { manosVivo = l; }).catch((e) => { $('#dedos-vivo-msg').textContent = 'No se pudo iniciar el detector de manos: ' + e.message; });
+    }
+    return;
+  }
+  if (ts - ultimaManos < 60) return;
+  ultimaManos = ts;
+  const r = manosVivo.detectForVideo(v, ++relojManos);
+  const ctx = c.getContext('2d'); ctx.clearRect(0, 0, c.width, c.height);
+  ctx.lineWidth = Math.max(2, c.width / 320); ctx.lineCap = 'round'; ctx.strokeStyle = '#6fb24a';
+  for (const lm of r.landmarks || []) {
+    for (const [a, b] of CONEX_MANO) { ctx.beginPath(); ctx.moveTo(lm[a].x * c.width, lm[a].y * c.height); ctx.lineTo(lm[b].x * c.width, lm[b].y * c.height); ctx.stroke(); }
+  }
+  pintarDedosVivo(dedosDeResultado(r));
+}
+function pintarDedosVivo(d) {
+  const caja = $('#dedos-vivo');
+  if (!caja.querySelector('.barra')) {
+    for (const [lado, nombre] of [['L', 'Izq.'], ['R', 'Der.']]) {
+      caja.insertAdjacentHTML('beforeend', `<span>${nombre}</span>` + [0, 1, 2, 3, 4].map((k) => `<span class="barra"><i data-l="${lado}" data-k="${k}"></i></span>`).join(''));
+    }
+  }
+  caja.querySelectorAll('.barra i').forEach((i) => {
+    const v = d[i.dataset.l]; i.style.width = v ? Math.round(v[i.dataset.k] * 100) + '%' : '0';
+    i.style.opacity = v ? 1 : 0.25;
+  });
+  $('#dedos-vivo-msg').textContent = d.L || d.R ? `Veo ${[d.L && 'la mano izquierda', d.R && 'la derecha'].filter(Boolean).join(' y ')}. La barra llena = dedo cerrado.` : 'No veo ninguna mano: levantalas hacia la cámara.';
 }
 
 /* ---------- grabacion ---------- */
@@ -452,6 +513,7 @@ function mostrarResultado(r) {
     ${omit.length ? `<p class="ayuda">Sin animar porque no se veían: ${esc(omit.join(', '))}.</p>` : ''}
     ${r.ojos ? `<p>Ojos (${esc(r.ojos.modelo)}): ${r.ojos.parpadeos} parpadeos, ${r.ojos.cambios_mirada} cambios de mirada, ${r.ojos.cambios_cejas} de cejas.</p>` : ''}
     ${r.boca ? `<p>Boca (${esc(r.boca.modelo)}): ${r.boca.cambios} cambios de forma.</p>` : ''}
+    ${r.dedos ? `<p>Dedos: ${Object.entries(r.dedos).map(([l, d]) => `mano ${l === 'L' ? 'izquierda' : 'derecha'} (${d.keyframes} keyframes)`).join(', ')}.</p>` : ''}
     ${(r.avisos || []).map((a) => `<p class="ayuda">${esc(a)}</p>`).join('')}
     <p class="ruta">${esc(r.carpeta)}</p>
     <button class="btn btn-chico" id="btn-abrir-res">${r.enCarpeta ? 'Descargar copia' : 'Exportar .dat'}</button>

@@ -52,15 +52,22 @@ function swing(a, b) {
 // Rotacion de un hueso largo (brazo o pierna) y angulo de su articulacion. bendSign: -1 codo, +1 rodilla.
 // umbral: [desde, ancho] en radianes del doblez a partir del cual manda el plano del doblez (con video conviene alto:
 // con codos casi rectos el plano es puro ruido; con una animacion importada los datos son limpios y puede ser bajo).
-export function limb(dLocal, fLocal, bendSign, umbral = UMBRAL_VIDEO) {
+// zLocal (opcional): hacia donde mira la "espalda" del hueso, si se sabe (animacion importada: sale del giro del hueso
+// original). Sin eso se adivina con el giro minimo desde abajo, que se da vuelta de golpe con el brazo arriba o recto.
+export function limb(dLocal, fLocal, bendSign, umbral = UMBRAL_VIDEO, zLocal = null) {
   const d = M.unit(dLocal), f = M.unit(fLocal);
   const bend = Math.acos(M.clip(M.dot(d, f), -1, 1));
-  const zRef = M.mv(swing(DOWN, d), BACK);
+  let zRef = M.mv(swing(DOWN, d), BACK);
+  if (zLocal) { const zp = M.sub(zLocal, M.mul(d, M.dot(zLocal, d))); if (M.norm(zp) > 1e-6) zRef = M.unit(zp); }
   const perp = M.sub(f, M.mul(d, M.dot(f, d)));
-  const w = M.clip((bend - umbral[0]) / umbral[1], 0, 1);
+  let w = M.clip((bend - umbral[0]) / umbral[1], 0, 1);
   let z = zRef;
   if (M.norm(perp) > 1e-6 && w > 0) {
     const zBend = M.mul(M.unit(perp), bendSign);
+    // con el giro real del hueso: el plano del codo solo manda si se parece (codo de bisagra); si el codo del original se
+    // tuerce (codo casi cerrado, movimientos rapidos) se queda el giro real y el antebrazo se aproxima: si no, el brazo
+    // daria vueltas de golpe para clavar el antebrazo
+    if (zLocal) w *= M.clip((M.dot(zBend, zRef) - Math.cos(1.05)) / (Math.cos(0.52) - Math.cos(1.05)), 0, 1);
     z = M.unit(M.add(M.mul(zBend, w), M.mul(zRef, 1 - w)));
   }
   const y = M.mul(d, -1);
@@ -78,7 +85,7 @@ export function pelvisYTorso(P) {
   return [frame(hx, UP), frame(M.sub(P[R_SH], P[L_SH]), M.sub(shMid, hipMid))];
 }
 
-export function solveFrame(P, torsoW = null, umbral = UMBRAL_VIDEO) {
+export function solveFrame(P, torsoW = null, umbral = UMBRAL_VIDEO, giros = null) {
   const out = {};
   const [pelvis, torsoMedido] = pelvisYTorso(P);
   out.anchor = pelvis;
@@ -94,13 +101,15 @@ export function solveFrame(P, torsoW = null, umbral = UMBRAL_VIDEO) {
 
   const tT = M.T(torsoW), pT = M.T(pelvis);
   for (const [side, sh, el, wr] of [['right', R_SH, R_EL, R_WR], ['left', L_SH, L_EL, L_WR]]) {
-    const [R, bend] = limb(M.mv(tT, M.sub(P[el], P[sh])), M.mv(tT, M.sub(P[wr], P[el])), -1, umbral);
+    const g = giros && giros[side + '_arm'];
+    const [R, bend] = limb(M.mv(tT, M.sub(P[el], P[sh])), M.mv(tT, M.sub(P[wr], P[el])), -1, umbral, g ? M.mv(tT, g) : null);
     out[side + '_arm'] = R;
     out[side + '_elbow'] = M.fromRotvec([bend, 0, 0]);
     out[side + '_hand'] = mano(R, bend, M.mv(tT, M.sub(P[side === 'right' ? R_INDEX : L_INDEX], P[wr])), M.mv(tT, M.sub(P[side === 'right' ? R_PINKY : L_PINKY], P[wr])));
   }
   for (const [side, hp, kn, an] of [['right', R_HIP, R_KN, R_AN], ['left', L_HIP, L_KN, L_AN]]) {
-    const [R, bend] = limb(M.mv(pT, M.sub(P[kn], P[hp])), M.mv(pT, M.sub(P[an], P[kn])), +1, umbral);
+    const g = giros && giros[side + '_leg'];
+    const [R, bend] = limb(M.mv(pT, M.sub(P[kn], P[hp])), M.mv(pT, M.sub(P[an], P[kn])), +1, umbral, g ? M.mv(pT, g) : null);
     out[side + '_leg'] = R;
     out[side + '_knee'] = M.fromRotvec([-bend, 0, 0]);
   }
@@ -157,7 +166,9 @@ export function compute(world, vis, times, o = {}) {
   const smoothS = o.smooth_s ?? 0.06, visMin = o.vis_min ?? 0.5, neutralS = o.neutral_s ?? 1.0;
   let neutralBones = o.neutral_bones ?? ['head', 'low_body'];
   const minCoverage = o.min_coverage ?? 0.4, holdFrames = o.hold_frames ?? 3;
-  const limpio = Boolean(o.limpio);   // datos sin ruido (animacion importada): sin mediana y codos/rodillas con umbral bajo
+  const limpio = Boolean(o.limpio);
+  // giros: { left_arm: N x [x,y,z] (ejes de MediaPipe), ... } la espalda de cada hueso largo, si se sabe (animacion importada)
+  const giros = o.giros ? Object.fromEntries(Object.entries(o.giros).map(([k, v]) => [k, v.map((g) => [-g[0], -g[1], g[2]])])) : null;   // datos sin ruido (animacion importada): sin mediana y codos/rodillas con umbral bajo
   const torso = o.torso ?? null, torsoActivo = o.torso_activo ?? true, torsoSuaveS = o.torso_suave_s ?? 0.4;
   const bones = o.bones || BONES;
   const N = times.length, report = [];
@@ -202,7 +213,8 @@ export function compute(world, vis, times, o = {}) {
 
   const mats = {}; for (const b of bones) mats[b] = new Array(N);
   for (let i = 0; i < N; i++) {
-    const sol = solveFrame(P[i], torsoW ? torsoW[i] : null, limpio ? UMBRAL_LIMPIO : UMBRAL_VIDEO);
+    const sol = solveFrame(P[i], torsoW ? torsoW[i] : null, limpio ? UMBRAL_LIMPIO : UMBRAL_VIDEO,
+      giros && Object.fromEntries(Object.entries(giros).map(([k, v]) => [k, v[i]])));
     for (const b of bones) mats[b][i] = sol[b];
   }
 

@@ -2,13 +2,15 @@
 // Izquierda: la original con sus huesos. Derecha: el muñeco de Minecraft con el resultado. Una sola linea de tiempo.
 // La conversion es la misma de «Importar animación» del Mocap (importar.js -> puntos tipo MediaPipe -> mocap.procesarCuerpo).
 // Los huesos se reconocen solos (mocap/nucleo/esqueleto.js) y se pueden corregir a mano en el panel «Huesos».
-import { cargarAnimacion, aPose, aplicarMapa, PARTES } from '../mocap/local/importar.js';
+import { cargarAnimacion, aPose, aplicarMapa, elegirPersonaje, PARTES } from '../mocap/local/importar.js';
 import * as mocap from '../mocap/nucleo/mocap.js';
 import * as bbs from '../mocap/nucleo/bbsdat.js';
 import * as emoticons from '../mocap/nucleo/emoticons.js';
 import { Escena, TICKS_POR_S } from '../mocap/escena3d.js';
 import { guardarSalida, esPC, abrirCarpetaSalida } from '../comun/plataforma.js';
 import { VistaOriginal } from './original.js';
+import { cargarModeloDedos } from '../mocap/dedos3d.js';
+import { MODELOS_DEDOS, ponerMano, suavizar, pistasParaVista, reposoParaVista } from '../mocap/nucleo/dedos.js';
 import { opcionesConversion, pistasDeActor, tipoDeRig, nombreSalida, nombreParte, nombreCorto, FILAS_PANEL, ORDEN_PARTES,
   desplazamiento, ponerDesplazamiento } from './nucleo.js';
 
@@ -46,6 +48,7 @@ function iniciarVistas() {
     orig = new VistaOriginal($('#vOrig'));
     orig.alElegir = (h) => an && alTocarHueso(h);
     mc = new Escena($('#vMC'));
+    mc.usarOjos('ninguno');   // sin los dos cuadritos azules de ojos (el film no lleva ojos)
     let skin = null; try { skin = localStorage.getItem('anim_skin'); } catch { /* sin almacenamiento */ }
     if (skin) mc.ponerSkin(skin).catch(() => {});
     return true;
@@ -72,9 +75,11 @@ async function abrir(f) {
   $('#vacioOrig').hidden = true; $('#leyOrig').hidden = false;
   orig.poner(an, an.clips[clip]); orig.verMalla($('#chkMalla').checked);
   $('#chkMalla').parentElement.hidden = !orig.mallas.length;   // un BVH no trae malla, solo huesos
-  // lo que el usuario ya habia corregido a mano en este mismo esqueleto
-  manual = {}; try { manual = JSON.parse(localStorage.getItem('anim_mapa:' + an.firma) || '{}'); } catch { /* sin almacenamiento */ }
-  aplicarMapa(an, manual); orig.actualizarUsados();
+  // varios personajes en el archivo: se puede elegir cuál
+  $('#filaPersonaje').hidden = an.personajes.length < 2;
+  $('#selPersonaje').innerHTML = an.personajes.map((p, i) => `<option value="${i}">${nombreCorto(p.nombre).replace(/[<>&]/g, '') || 'Personaje ' + (i + 1)} (${p.huesos} huesos)</option>`).join('');
+  $('#selPersonaje').value = String(an.personaje);
+  cargarMapaManual();
   const rig = tipoDeRig(orig.esqueleto.bones.map((b) => b.name), an.tipo);
   $('#detOrig').textContent = `${rig} · ${orig.nHuesos} huesos · ${an.tipo.toUpperCase()}`;
   $('#btnHuesos').hidden = false; pintarHuesos();
@@ -92,7 +97,7 @@ async function convertir() {
     const lista = an.faltan.map(nombreParte).join(', ');
     $('#vacioMC').hidden = false;
     $('#vacioMC').innerHTML = `<b class="mal">Faltan partes del cuerpo</b><span>No encontré: ${lista}.</span><span>Abrí <b>🦴 Huesos</b> y elegí cuál es cada una (tocando el hueso en la vista de la izquierda).</span>`;
-    mc.ponerAnimacion({});
+    mc.ponerAnimacion({}); mc.ponerDedos(null);
     $('#detMC').textContent = '';
     estado('Faltan huesos del humanoide', 'mal');
     ir(0); return;
@@ -110,14 +115,17 @@ async function convertir() {
     // desplazamiento por el piso: a la posicion del actor en el film (y a la vista previa)
     const desp = $('#chkMover').checked ? desplazamiento(pose, { desde: op.desde }) : [];
     const kfMov = desp.length ? ponerDesplazamiento(r.rep, desp) : 0;
-    resultado = { film: r.film, resumen: r.resumen, pistas: p, desp };
+    // dedos: cada mano de la animación (si trae huesos de dedos) a la parte de dedos del actor
+    const manos = await ponerDedos(r.rep, pose, op.desde);
+    mc.ponerDedos(manos.vista);
+    resultado = { film: r.film, resumen: r.resumen, pistas: p, desp, dedos: manos };
     const modelo = r.resumen.usaEmot || /emoticons/.test(p.modelo) ? 'emoticons_steve' : 'steve_bends';
     mc.ponerModelo(modelo);
     mc.ponerAnimacion(p.huesos);
     const kf = Object.values(r.resumen.stats).reduce((s, [, k]) => s + k, 0);
     const lejos = desp.reduce((m, d) => Math.max(m, Math.hypot(d.l, d.f)), 0);
     $('#detMC').textContent = `${MODELOS_MC[modelo]} · ${Math.round(dur * TICKS_POR_S)} ticks · ${kf} keyframes` + (r.resumen.poses ? ` · ${r.resumen.poses} poses` : '')
-      + (kfMov && lejos > 0.05 ? ` · se mueve hasta ${fmt(lejos)} bloques` : '');
+      + (kfMov && lejos > 0.05 ? ` · se mueve hasta ${fmt(lejos)} bloques` : '') + (manos.lados.length ? ` · dedos ${manos.lados.join(' y ')}` : '');
     $('#vacioMC').hidden = true;
     avisos(r.resumen.avisos || []);
     $('#btnGuardar').disabled = false;
@@ -198,7 +206,7 @@ function pintarHuesos() {
   $('#btnHuesos').textContent = nf ? `🦴 Huesos (${nf} faltan)` : '🦴 Huesos';
   $('#btnHuesos').classList.toggle('falta', nf > 0);
 }
-function abrirPanel(parte = null) { $('#panelHuesos').hidden = false; elegirParte(parte || parteActiva || ORDEN_PARTES[0]); }
+function abrirPanel(parte = null) { $('#panelDedos').hidden = true; $('#panelHuesos').hidden = false; elegirParte(parte || parteActiva || ORDEN_PARTES[0]); }
 function cerrarPanel() { $('#panelHuesos').hidden = true; parteActiva = null; orig && orig.marcarActivo(null); }
 function elegirParte(k) {
   parteActiva = k;
@@ -214,6 +222,17 @@ function asignar(k, i) {
   elegirParte(k);
   reconvertir();
 }
+// lo que el usuario ya habia corregido a mano en este mismo esqueleto
+function cargarMapaManual() {
+  manual = {}; try { manual = JSON.parse(localStorage.getItem('anim_mapa:' + an.firma) || '{}'); } catch { /* sin almacenamiento */ }
+  aplicarMapa(an, manual); orig.actualizarUsados();
+}
+$('#selPersonaje').onchange = (e) => {
+  if (!an) return;
+  elegirPersonaje(an, Number(e.target.value));
+  cargarMapaManual(); orig.poner(an, an.clips[clip]); orig.verMalla($('#chkMalla').checked); orig.actualizarUsados();
+  pintarHuesos(); convertir();
+};
 function guardarMapa() {
   try {
     if (Object.keys(manual).length) localStorage.setItem('anim_mapa:' + an.firma, JSON.stringify(manual));
@@ -249,6 +268,63 @@ function alTocarHueso(obj) {
   if (sig) elegirParte(sig);
   estado(`${nombreParte(k)} = ${an.esqueleto[i].nombre}`);
 }
+
+// ---------- dedos ----------
+const DEDOS_GUARDADO = 'anim_dedos';
+let dedosCfg = { modelo: 'dedos', poses: {} };   // poses: { modelo: { LA, LC, RA, RC } } (nombres de pose)
+try { dedosCfg = { ...dedosCfg, ...JSON.parse(localStorage.getItem(DEDOS_GUARDADO) || '{}') }; } catch { /* sin almacenamiento */ }
+$('#selDedos').value = dedosCfg.modelo || '';
+function guardarDedos() { try { localStorage.setItem(DEDOS_GUARDADO, JSON.stringify(dedosCfg)); } catch { /* sin almacenamiento */ } }
+// nombre de la pose elegida (o la de fabrica) para un modelo, lado y extremo ('A' abierta, 'C' cerrada)
+function poseElegida(id, lado, ext, poses) {
+  const n = ((dedosCfg.poses || {})[id] || {})[lado + ext];
+  if (n && poses[n]) return n;
+  const d = MODELOS_DEDOS[id].defecto[lado][ext === 'A' ? 0 : 1];
+  return poses[d] ? d : Object.keys(poses)[0];
+}
+// escribe los dedos en el actor; devuelve { lados: ['izq.', 'der.'], vista: {L, R} para la vista 3D, o null }
+async function ponerDedos(rep, pose, desde) {
+  const id = $('#selDedos').value, out = { lados: [], vista: null };
+  if (!id || !pose.dedos || !Object.keys(pose.dedos).length) return out;
+  out.vista = {};
+  for (const [lado, serie] of Object.entries(pose.dedos)) {
+    const datos = await cargarModeloDedos(id, lado);
+    const abierta = datos.poses[poseElegida(id, lado, 'A', datos.poses)], cerrada = datos.poses[poseElegida(id, lado, 'C', datos.poses)];
+    const r = ponerMano(rep, lado, { cfg: datos.cfg, abierta, cerrada }, { times: pose.times, curls: suavizar(serie, 0) }, { desde, modeloCuerpo: String((rep.form || {}).model || '') });
+    out.vista[lado] = { datos, reposo: reposoParaVista(abierta), pistas: pistasParaVista(r.pistas) };
+    out.lados.push(lado === 'L' ? 'izq.' : 'der.');
+  }
+  return out;
+}
+async function pintarPanelDedos() {
+  const id = $('#selDedos').value;
+  $('#btnPosesDedos').disabled = !id;
+  if (!id) return;
+  for (const lado of ['L', 'R']) {
+    const datos = await cargarModeloDedos(id, lado);
+    const otro = lado === 'L' ? 'R_' : 'L_';
+    const nombres = Object.keys(datos.poses).filter((n) => !n.startsWith(otro)).sort();
+    for (const ext of ['A', 'C']) {
+      const s = $('#dedo' + lado + ext);
+      s.innerHTML = nombres.map((n) => `<option>${n.replace(/[<>&]/g, '')}</option>`).join('');
+      s.value = poseElegida(id, lado, ext, datos.poses);
+    }
+  }
+  $('#notaDedos').textContent = an && an.clips.length && !Object.keys((aPoseDedos() || {})).length
+    ? 'Esta animación no trae huesos de dedos: elegilos en 🦴 Huesos (pulgar, índice, medio, anular, meñique) o quedan quietos.'
+    : `En BBS: el modelo ${MODELOS_DEDOS[id].id('L')}${id === 'dedos' ? '' : ' / ' + MODELOS_DEDOS[id].id('R')} tiene que estar en tus modelos (assets/models).`;
+}
+const aPoseDedos = () => (an ? Object.fromEntries(['L', 'R'].filter((l) => ['pulgar', 'indice', 'medio', 'anular', 'menique'].filter((k) => an.huesos[k + l]).length >= 2).map((l) => [l, 1])) : {});
+$('#selDedos').onchange = () => { dedosCfg.modelo = $('#selDedos').value; guardarDedos(); pintarPanelDedos(); convertir(); };
+$('#btnPosesDedos').onclick = () => { $('#panelDedos').hidden = !$('#panelDedos').hidden; if (!$('#panelDedos').hidden) { cerrarPanel(); pintarPanelDedos(); } };
+$('#btnCerrarDedos').onclick = () => { $('#panelDedos').hidden = true; };
+for (const k of ['LA', 'LC', 'RA', 'RC']) {
+  $('#dedo' + k).onchange = (e) => {
+    const id = $('#selDedos').value; if (!id) return;
+    ((dedosCfg.poses ??= {})[id] ??= {})[k] = e.target.value; guardarDedos(); reconvertir();
+  };
+}
+pintarPanelDedos();
 
 // ---------- film de base (opcional) ----------
 $('#inBase').onchange = async (e) => {

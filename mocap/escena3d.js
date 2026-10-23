@@ -5,6 +5,8 @@ import * as THREE from './three.module.min.js';
 import { Ojos3D } from './ojos3d.js';
 import { Boca3D, capasEn, grillaEn } from './boca3d.js';
 import { crearModelo } from './modelo3d.js';
+import { Mano3D } from './dedos3d.js';
+import { huesoMano } from './nucleo/dedos.js';
 
 const TICKS_POR_S = 20;
 const SKIN_DEFECTO = new URL('./skin_default.png', import.meta.url).href;   // junto a este archivo (sirve desde otros modos)
@@ -92,6 +94,7 @@ export class Escena {
     this.boca = this.huesos.pielCabeza ? new Boca3D(this.huesos.head) : { usar() {}, aplicar() {}, aplicarGrilla() {} };
     this.boca.alCambiar = () => this.dibujar();
     this._elegirBoca();
+    this._armarManos();
     if (this.listo) this.ir(this.tick || 0);
   }
   vista(nombre) {
@@ -141,7 +144,7 @@ export class Escena {
     return new Promise((ok, mal) => new THREE.TextureLoader().load(url, (tex) => {
       const im = tex.image;
       if (im.width !== 64 || im.height !== 64) { tex.dispose(); return mal(new Error(`La skin tiene que ser de 64×64 píxeles (esta es de ${im.width}×${im.height}).`)); }
-      this.skinTex = tex; this.modelo.ponerTextura(tex); this.ojos.ponerTextura(tex); this.dibujar(); ok(tex);
+      this.skinTex = tex; this.modelo.ponerTextura(tex); this.ojos.ponerTextura(tex); (this.manos || []).forEach((m) => m.ponerSkin(tex)); this.dibujar(); ok(tex);
     }, undefined, () => mal(new Error('No se pudo leer la skin.'))));
   }
   // pose fija de la biblioteca ({hueso: [rx,ry,rz]}) o null para volver a la animacion
@@ -151,6 +154,31 @@ export class Escena {
   _elegirBoca() {
     const d = this.bocaDatos;
     if (this.boca) this.boca.usar(d ? d.modelo : null, d ? d.textura : 'normal', d && d.tipo === 'pixel' ? { k: d.k, filas: d.filas } : null);
+  }
+  // dedos: { L: {datos (de cargarModeloDedos), reposo: {hueso: {t,s,r}}, pistas: {hueso: [{t, tr, s, r, i}]}}, R: ... } o null
+  ponerDedos(manos) { this.manosDatos = manos || null; this._armarManos(); this.ir(this.tick || 0); }
+  _armarManos() {
+    (this.manos || []).forEach((m) => m.raiz.parent && m.raiz.parent.remove(m.raiz));
+    this.manos = [];
+    if (!this.manosDatos || !this.modelo) return;
+    for (const [lado, d] of Object.entries(this.manosDatos)) {
+      if (!d) continue;
+      const nombre = huesoMano(this.nombreModelo === 'emoticons_steve' ? 'emoticons' : '', lado);
+      const nodo = (this.modelo.todos && this.modelo.todos[nombre]) || this.huesos[nombre];
+      if (!nodo) continue;
+      const m = new Mano3D(d.datos, this.skinTex); m.lado = lado; m.d = d;
+      nodo.add(m.raiz); this.manos.push(m);
+    }
+  }
+  _dedos(tick) {
+    for (const m of this.manos || []) {
+      const st = {};
+      for (const b of new Set([...Object.keys(m.d.reposo || {}), ...Object.keys(m.d.pistas || {})])) {
+        const kfs = (m.d.pistas || {})[b];
+        st[b] = kfs && kfs.length ? { t: muestrearArr(kfs, tick, 'tr'), s: muestrearArr(kfs, tick, 's'), r: muestrearArr(kfs, tick, 'r') } : m.d.reposo[b];
+      }
+      m.aplicar(st);
+    }
   }
   usarOjos(modoOjos) { this.modoOjos = modoOjos; this._elegirOjos(); this.ir(this.tick || 0); }
   _elegirOjos() {
@@ -173,6 +201,7 @@ export class Escena {
   ir(tick) {
     this.tick = tick;
     this._ojos(tick);
+    this._dedos(tick);
     if (this.bocaDatos) {
       if (this.bocaDatos.tipo === 'pixel') this.boca.aplicarGrilla(grillaEn(this.bocaDatos, tick));
       else this.boca.aplicar(capasEn(this.bocaDatos, tick));

@@ -1,5 +1,6 @@
 // Pestaña "Vista 3D": el muñeco de bloques + el video de la toma, con una sola linea de tiempo.
 import { Escena, TICKS_POR_S } from './escena3d.js';
+import { cargarModeloDedos } from './dedos3d.js';
 
 const $ = (s) => document.querySelector(s);
 const fmt = (n, d = 1) => Number(n).toFixed(d).replace('.', ',');
@@ -94,6 +95,14 @@ export function crearVista(ctx) {
     escena.ponerModelo(modeloElegido());
     escena.ponerBoca(datos.boca);
     escena.ponerAnimacion(datos.huesos, datos.cara, $('#v3-ojos').value);
+    // manos con dedos (si el actor las tiene): se cargan sus modelos y se cuelgan de las manos del muñeco
+    escena.ponerDedos(null);
+    if (datos.dedos) {
+      const pedido = datos;
+      Promise.all(Object.entries(datos.dedos).map(async ([l, d]) => [l, { ...d, datos: await cargarModeloDedos(d.modelo, l) }]))
+        .then((manos) => { if (datos === pedido) escena.ponerDedos(Object.fromEntries(manos)); })
+        .catch((e) => console.warn('dedos:', e));
+    }
     if (ctx.modo && ctx.modo() !== modoVista) {   // al cambiar entre cuerpo y cara, la camara se acomoda sola
       modoVista = ctx.modo(); escena.vista(modoVista === 'cara' ? 'cara' : 'frente');
     }
