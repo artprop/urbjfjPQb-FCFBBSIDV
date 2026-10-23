@@ -33,6 +33,7 @@ export const MANOS = Object.keys(NEEDS_MANOS);
 const GIRO_MAX_MUNECA = 1.3;   // radianes (~75 grados): la muñeca no dobla más
 
 const UP = [0, 1, 0], DOWN = [0, -1, 0], BACK = [0, 0, 1];
+export const UMBRAL_VIDEO = [0.15, 0.35], UMBRAL_LIMPIO = [0.03, 0.08];
 
 function frame(x, yHint) {
   x = M.unit(x);
@@ -49,12 +50,14 @@ function swing(a, b) {
 }
 
 // Rotacion de un hueso largo (brazo o pierna) y angulo de su articulacion. bendSign: -1 codo, +1 rodilla.
-export function limb(dLocal, fLocal, bendSign) {
+// umbral: [desde, ancho] en radianes del doblez a partir del cual manda el plano del doblez (con video conviene alto:
+// con codos casi rectos el plano es puro ruido; con una animacion importada los datos son limpios y puede ser bajo).
+export function limb(dLocal, fLocal, bendSign, umbral = UMBRAL_VIDEO) {
   const d = M.unit(dLocal), f = M.unit(fLocal);
   const bend = Math.acos(M.clip(M.dot(d, f), -1, 1));
   const zRef = M.mv(swing(DOWN, d), BACK);
   const perp = M.sub(f, M.mul(d, M.dot(f, d)));
-  const w = M.clip((bend - 0.15) / 0.35, 0, 1);
+  const w = M.clip((bend - umbral[0]) / umbral[1], 0, 1);
   let z = zRef;
   if (M.norm(perp) > 1e-6 && w > 0) {
     const zBend = M.mul(M.unit(perp), bendSign);
@@ -75,7 +78,7 @@ export function pelvisYTorso(P) {
   return [frame(hx, UP), frame(M.sub(P[R_SH], P[L_SH]), M.sub(shMid, hipMid))];
 }
 
-export function solveFrame(P, torsoW = null) {
+export function solveFrame(P, torsoW = null, umbral = UMBRAL_VIDEO) {
   const out = {};
   const [pelvis, torsoMedido] = pelvisYTorso(P);
   out.anchor = pelvis;
@@ -91,13 +94,13 @@ export function solveFrame(P, torsoW = null) {
 
   const tT = M.T(torsoW), pT = M.T(pelvis);
   for (const [side, sh, el, wr] of [['right', R_SH, R_EL, R_WR], ['left', L_SH, L_EL, L_WR]]) {
-    const [R, bend] = limb(M.mv(tT, M.sub(P[el], P[sh])), M.mv(tT, M.sub(P[wr], P[el])), -1);
+    const [R, bend] = limb(M.mv(tT, M.sub(P[el], P[sh])), M.mv(tT, M.sub(P[wr], P[el])), -1, umbral);
     out[side + '_arm'] = R;
     out[side + '_elbow'] = M.fromRotvec([bend, 0, 0]);
     out[side + '_hand'] = mano(R, bend, M.mv(tT, M.sub(P[side === 'right' ? R_INDEX : L_INDEX], P[wr])), M.mv(tT, M.sub(P[side === 'right' ? R_PINKY : L_PINKY], P[wr])));
   }
   for (const [side, hp, kn, an] of [['right', R_HIP, R_KN, R_AN], ['left', L_HIP, L_KN, L_AN]]) {
-    const [R, bend] = limb(M.mv(pT, M.sub(P[kn], P[hp])), M.mv(pT, M.sub(P[an], P[kn])), +1);
+    const [R, bend] = limb(M.mv(pT, M.sub(P[kn], P[hp])), M.mv(pT, M.sub(P[an], P[kn])), +1, umbral);
     out[side + '_leg'] = R;
     out[side + '_knee'] = M.fromRotvec([-bend, 0, 0]);
   }
@@ -154,6 +157,7 @@ export function compute(world, vis, times, o = {}) {
   const smoothS = o.smooth_s ?? 0.06, visMin = o.vis_min ?? 0.5, neutralS = o.neutral_s ?? 1.0;
   let neutralBones = o.neutral_bones ?? ['head', 'low_body'];
   const minCoverage = o.min_coverage ?? 0.4, holdFrames = o.hold_frames ?? 3;
+  const limpio = Boolean(o.limpio);   // datos sin ruido (animacion importada): sin mediana y codos/rodillas con umbral bajo
   const torso = o.torso ?? null, torsoActivo = o.torso_activo ?? true, torsoSuaveS = o.torso_suave_s ?? 0.4;
   const bones = o.bones || BONES;
   const N = times.length, report = [];
@@ -166,7 +170,7 @@ export function compute(world, vis, times, o = {}) {
   const P = Array.from({ length: N }, () => Array.from({ length: 33 }, () => [0, 0, 0]));
   for (let k = 0; k < 33; k++) for (let c = 0; c < 3; c++) {
     let serie = Float64Array.from(world, (f) => f[k][c]);
-    if (N >= 5) serie = M.median1d(serie, 5);
+    if (N >= 5 && !limpio) serie = M.median1d(serie, 5);
     serie = M.gaussian1d(serie, sigma, pesos);
     for (let i = 0; i < N; i++) P[i][k][c] = c < 2 ? -serie[i] : serie[i];   // ejes de MediaPipe -> BBS
   }
@@ -198,7 +202,7 @@ export function compute(world, vis, times, o = {}) {
 
   const mats = {}; for (const b of bones) mats[b] = new Array(N);
   for (let i = 0; i < N; i++) {
-    const sol = solveFrame(P[i], torsoW ? torsoW[i] : null);
+    const sol = solveFrame(P[i], torsoW ? torsoW[i] : null, limpio ? UMBRAL_LIMPIO : UMBRAL_VIDEO);
     for (const b of bones) mats[b][i] = sol[b];
   }
 

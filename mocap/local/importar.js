@@ -3,55 +3,80 @@
 // film de BBS) sin rehacer nada: es como si una camara perfecta filmara al modelo de frente.
 import * as THREE from '../three.module.min.js';
 
+import { reconocer, firma as firmaEsqueleto, IMPRESCINDIBLES, PARTES } from '../nucleo/esqueleto.js';
+
 const LIB = '../importar_lib/loaders/';
-const norm = (s) => String(s).replace(/^.*[:|]/, '').replace(/^mixamorig\d*/i, '').replace(/[\s_.\-]/g, '').toLowerCase();
+export { IMPRESCINDIBLES, PARTES };
 
-// nombres posibles de cada hueso (ya normalizados). {L} = izquierdo, {R} = derecho
-const NOMBRES = {
-  hips: ['hips', 'hip', 'pelvis', 'bip01pelvis', 'root'],
-  neck: ['neck', 'neck1', 'neck01'],
-  head: ['head'],
-  brazo: ['{l}arm', '{l}upperarm', '{l}shldr', 'upperarm{s}', 'arm{s}', '{l}shoulderjoint', 'bip01{l}upperarm'],
-  antebrazo: ['{l}forearm', '{l}lowerarm', 'lowerarm{s}', 'forearm{s}', '{l}elbow', 'bip01{l}forearm'],
-  mano: ['{l}hand', 'hand{s}', '{l}wrist', 'bip01{l}hand'],
-  muslo: ['{l}upleg', '{l}thigh', '{l}upperleg', 'thigh{s}', 'upperleg{s}', '{l}hip', 'bip01{l}thigh'],
-  pierna: ['{l}leg', '{l}shin', '{l}lowerleg', '{l}calf', 'calf{s}', 'lowerleg{s}', 'shin{s}', '{l}knee', 'bip01{l}calf'],
-  pie: ['{l}foot', 'foot{s}', '{l}ankle', 'bip01{l}foot'],
-  dedo_pie: ['{l}toebase', '{l}toe', '{l}toes', 'toe{s}', 'ball{s}', 'bip01{l}toe0'],
-  indice: ['{l}handindex1', '{l}index1', 'index01{s}', '{l}handindex2', 'indexfinger1{s}'],
-  menique: ['{l}handpinky1', '{l}pinky1', 'pinky01{s}', '{l}handring1', '{l}mid1'],
-  pulgar: ['{l}handthumb2', '{l}thumb2', 'thumb02{s}', '{l}handthumb1', '{l}thumb1'],
-};
-const LADOS = { L: { l: ['left', 'l'], s: ['l', 'left'] }, R: { l: ['right', 'r'], s: ['r', 'right'] } };
-
-function buscarHuesos(raiz) {
-  const todos = [];
-  raiz.traverse((o) => { if (o.isBone || o.type === 'Bone' || (o.isObject3D && o.children.length && !o.isMesh && !o.isSkinnedMesh)) todos.push(o); });
-  const porNombre = new Map();
-  for (const o of todos) { const k = norm(o.name); if (k && !porNombre.has(k)) porNombre.set(k, o); }
-  const uno = (cands) => { for (const c of cands) if (porNombre.has(c)) return porNombre.get(c); return null; };
-  const h = {};
-  for (const k of ['hips', 'neck', 'head']) h[k] = uno(NOMBRES[k]);
-  for (const [lado, v] of Object.entries(LADOS)) {
-    for (const k of Object.keys(NOMBRES)) {
-      if (['hips', 'neck', 'head'].includes(k)) continue;
-      const cands = NOMBRES[k].flatMap((p) => (p.includes('{l}') ? v.l.map((x) => p.replace('{l}', x)) : p.includes('{s}') ? v.s.map((x) => p.replace('{s}', x)) : [p]));
-      h[k + lado] = uno(cands);
-    }
-  }
-  return h;
+// Los huesos del modelo, en la pose de reposo (antes de animar): [{ nombre, padre, pos, obj }]
+function listarHuesos(raiz) {
+  raiz.updateMatrixWorld(true);
+  const objs = [];
+  raiz.traverse((o) => { if (o.isBone) objs.push(o); });
+  if (!objs.length) raiz.traverse((o) => { if (o !== raiz && o.isObject3D && !o.isMesh && !o.isSkinnedMesh && !o.isCamera && !o.isLight) objs.push(o); });
+  const idx = new Map(objs.map((o, i) => [o, i]));
+  return objs.map((o) => {
+    let p = o.parent; while (p && !idx.has(p)) p = p.parent;
+    return { nombre: o.name || '', padre: p ? idx.get(p) : -1, pos: o.getWorldPosition(new THREE.Vector3()).toArray(), obj: o };
+  });
 }
 
-export const IMPRESCINDIBLES = ['hips', 'head', 'brazoL', 'antebrazoL', 'manoL', 'brazoR', 'antebrazoR', 'manoR', 'musloL', 'piernaL', 'pieL', 'musloR', 'piernaR', 'pieR'];
+/** Pone en an.huesos lo reconocido + lo que el usuario eligió a mano ({parte: nombre del hueso, o '' = ninguno}). */
+export function aplicarMapa(an, manual = {}) {
+  const mapa = { ...an.auto.mapa }, origen = { ...an.auto.origen };
+  for (const [k, nombre] of Object.entries(manual || {})) {
+    if (!PARTES.includes(k)) continue;
+    const i = nombre ? an.esqueleto.findIndex((h) => h.nombre === nombre) : -1;
+    if (nombre && i < 0) continue;   // ese hueso no está en este modelo
+    if (i >= 0) mapa[k] = i; else delete mapa[k];
+    origen[k] = 'manual';
+  }
+  an.mapa = mapa; an.origen = origen;
+  an.huesos = Object.fromEntries(PARTES.map((k) => [k, mapa[k] !== undefined ? an.esqueleto[mapa[k]].obj : null]));
+  an.faltan = IMPRESCINDIBLES.filter((k) => !an.huesos[k]);
+  return an;
+}
 
-/** Lee el archivo y devuelve { raiz, clips, huesos, faltan, tipo }. */
+// Un .zip (como los que se bajan de Sketchfab, a veces con otro .zip adentro): se busca la animacion que trae.
+const EXT_ANIM = /\.(fbx|glb|bvh)$/i;
+function sacarDeZip(bytes, unzipSync, prof = 0) {
+  const arch = unzipSync(bytes);
+  const cands = [];
+  for (const [n, d] of Object.entries(arch)) {
+    if (/(^|\/)__MACOSX\//.test(n)) continue;
+    if (EXT_ANIM.test(n)) cands.push({ nombre: n.split('/').pop(), bytes: d });
+    else if (/\.zip$/i.test(n) && prof < 3) { try { const r = sacarDeZip(d, unzipSync, prof + 1); if (r) cands.push(r); } catch { /* zip roto: se saltea */ } }
+  }
+  return cands.sort((a, b) => b.bytes.length - a.bytes.length)[0] || null;   // la mas grande suele ser la de verdad
+}
+
+/** Lee el archivo y devuelve { raiz, clips, huesos, faltan, tipo, archivo }. Falla si faltan huesos imprescindibles. */
 export async function leerAnimacion(nombre, bytes) {
+  const an = await cargarAnimacion(nombre, bytes);
+  if (an.faltan.length) throw new Error('No encuentro estos huesos del humanoide: ' + an.faltan.join(', ') + '. Por ahora sirven esqueletos tipo Mixamo, BVH (CMU/DAZ) o similares.');
+  return an;
+}
+
+/** Igual que leerAnimacion, pero no falla si faltan huesos (para poder mostrar el esqueleto igual). */
+export async function cargarAnimacion(nombre, bytes) {
   const ext = String(nombre).toLowerCase().split('.').pop();
+  if (ext === 'zip') {
+    const { unzipSync } = await import(LIB + '../libs/fflate.module.js');
+    const u8 = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+    const r = sacarDeZip(u8, unzipSync);
+    if (!r) throw new Error('El .zip no trae ninguna animación (FBX, GLB o BVH).');
+    const an = await cargarAnimacion(r.nombre, r.bytes);
+    an.archivo = r.nombre;
+    return an;
+  }
   const buf = bytes instanceof ArrayBuffer ? bytes : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   let raiz, clips;
   if (ext === 'fbx') {
     const { FBXLoader } = await import(LIB + 'FBXLoader.js');
-    raiz = new FBXLoader().parse(buf, '');
+    // solo hacen falta los huesos: las texturas que nombra el FBX (que no vienen adentro) no se buscan
+    const sinTexturas = new THREE.LoadingManager();
+    sinTexturas.setURLModifier((u) => (/^(data|blob):/.test(u) ? u : 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='));
+    raiz = new FBXLoader(sinTexturas).parse(buf, '');
     clips = raiz.animations || [];
   } else if (ext === 'glb' || ext === 'gltf') {
     const { GLTFLoader } = await import(LIB + 'GLTFLoader.js');
@@ -63,17 +88,19 @@ export async function leerAnimacion(nombre, bytes) {
     const r = new BVHLoader().parse(new TextDecoder().decode(buf));
     raiz = new THREE.Group(); raiz.add(r.skeleton.bones[0]);
     clips = [r.clip];
-  } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF o BVH.');
+  } else throw new Error('Formato no soportado: usá FBX, GLB, GLTF, BVH o un .zip que los traiga.');
   if (!clips.length) throw new Error('El archivo no trae ninguna animación.');
-  const huesos = buscarHuesos(raiz);
-  const faltan = IMPRESCINDIBLES.filter((k) => !huesos[k]);
-  if (faltan.length) throw new Error('No encuentro estos huesos del humanoide: ' + faltan.join(', ') + '. Por ahora sirven esqueletos tipo Mixamo, BVH (CMU/DAZ) o similares.');
-  return { raiz, clips, huesos, faltan, tipo: ext };
+  const esqueleto = listarHuesos(raiz);
+  const auto = reconocer(esqueleto);
+  const an = { raiz, clips, esqueleto, auto, firma: firmaEsqueleto(esqueleto), tipo: ext, archivo: nombre };
+  return aplicarMapa(an);
 }
 
 /**
  * Pasa una animacion a "pose" como la de analizarPose(): { world (N x 33 x 3, metros, MediaPipe), vis, times, offset }.
  * fps = cuadros por segundo con que se muestrea (el Mocap despues lo pasa a ticks de BBS).
+ * Ademas: mov (N x [izquierda, arriba, adelante]) = cuanto se movio la cadera desde el comienzo, medido en largos de
+ * pierna (muslo + pierna), para pasar el desplazamiento por el piso a la posicion del actor.
  */
 export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) {
   const c = typeof clip === 'number' ? an.clips[clip] : clip;
@@ -95,12 +122,22 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
   const alto = cab0.distanceTo(cad0) || 1;
   const esc = 0.55 / alto;                                           // cadera a cabeza ~ 55 cm, como una persona
   const qCab0 = quat(H.head);
+  // hombros pegados al pecho: si el modelo encoge los hombros (las clavículas se mueven mucho, como en la pose zombi),
+  // la línea entre hombros se achica y se tuerce, y el torso convertido daba vueltas. Se usan dos puntos fijos al hueso
+  // del pecho (el padre del cuello) y los brazos se corren lo mismo, así no cambia ni su dirección ni el doblez del codo.
+  const pecho = [H.neck && H.neck.parent, H.head && H.head.parent].find((o) => o && o.isBone && o !== H.hips) || null;
+  const enPecho = pecho && { L: pecho.worldToLocal(pos(H.brazoL)), R: pecho.worldToLocal(pos(H.brazoR)) };
+  const largoPierna = ['L', 'R'].reduce((s, l) => s + pos(H['muslo' + l]).distanceTo(pos(H['pierna' + l])) + pos(H['pierna' + l]).distanceTo(pos(H['pie' + l])), 0) / 2 || 1;
+  const cadIni = pos(H.musloL).add(pos(H.musloR)).multiplyScalar(0.5);
+  const mov = [];
 
   const world = [], vis = [], times = [];
   const aMP = (p, cadera) => { const d = p.clone().sub(cadera).multiplyScalar(esc); return [d.dot(izq), -d.dot(arriba), -d.dot(frente)]; };
   for (let t = desde; t <= fin + 1e-6; t += 1 / fps) {
     muestra(Math.min(t, c.duration - 1e-4));
     const cad = pos(H.musloL).add(pos(H.musloR)).multiplyScalar(0.5);
+    const dc = cad.clone().sub(cadIni).divideScalar(largoPierna);
+    mov.push([dc.dot(izq), dc.dot(arriba), dc.dot(frente)]);
     const P = new Array(33);
     // cabeza: puntos de la cara puestos alrededor del hueso de la cabeza, girados con ella
     const giro = quat(H.head).multiply(qCab0.clone().invert());
@@ -114,9 +151,12 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
     P[7] = cara(0, 0.01, 0.075); P[8] = cara(0, 0.01, -0.075);
     P[9] = cara(0.09, -0.04, 0.025); P[10] = cara(0.09, -0.04, -0.025);
     for (const [lado, k] of [['L', 0], ['R', 1]]) {
-      const hombro = pos(H['brazo' + lado]), codo = pos(H['antebrazo' + lado]), muneca = pos(H['mano' + lado]);
+      const real = pos(H['brazo' + lado]);
+      const hombro = enPecho ? pecho.localToWorld(enPecho[lado].clone()) : real;
+      const corrido = hombro.clone().sub(real);   // lo que se movió el hombro: el brazo entero se corre igual
+      const codo = pos(H['antebrazo' + lado]).add(corrido), muneca = pos(H['mano' + lado]).add(corrido);
       const dirMano = muneca.clone().sub(codo).normalize();
-      const dedo = (n, extra) => (H[n + lado] ? pos(H[n + lado]) : muneca.clone().addScaledVector(dirMano, extra * m));
+      const dedo = (n, extra) => (H[n + lado] ? pos(H[n + lado]).add(corrido) : muneca.clone().addScaledVector(dirMano, extra * m));
       P[11 + k] = hombro; P[13 + k] = codo; P[15 + k] = muneca;
       P[17 + k] = dedo('menique', 0.07); P[19 + k] = dedo('indice', 0.08); P[21 + k] = dedo('pulgar', 0.05);
       const muslo = pos(H['muslo' + lado]), rodilla = pos(H['pierna' + lado]), tobillo = pos(H['pie' + lado]);
@@ -132,5 +172,5 @@ export function aPose(an, clip = 0, { fps = 30, desde = 0, hasta = null } = {}) 
     times.push(t - desde);
   }
   mixer.stopAllAction(); mixer.uncacheRoot(an.raiz);
-  return { world, vis, times, offset: 0 };
+  return { world, vis, times, offset: 0, mov };
 }

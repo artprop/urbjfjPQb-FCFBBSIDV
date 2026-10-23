@@ -38,9 +38,16 @@ export const OPCIONES = {
   partes: 'torso,cabeza,brazo_izq,brazo_der,pierna_izq,pierna_der', torso: 0.4, poses_fijas: '',
   modo: 'cuerpo', ojos: false, ojos_mirada: 1.0, ojos_parpadeo: 0.5, ojos_cejas: true,
   cara_ojos: true, cara_boca: true, boca_sens: 1.0, boca_min_ticks: 2,
+  limpio: false,      // datos sin ruido (animacion importada de un modelo 3D): ver retarget.compute
   usar_move: false,   // controles PlayStation Move en vez del cuerpo con la camara (ver nucleo/psmove.js)
   ojos_modo: 'poses', boca_labios: true, boca_muecas: false, cara_arrugas: false, arrugas_escala: 2, modelo_boca: 'Man_2', boca_estilo: 'clasico',   // ojos_modo: 'poses' (prediseñadas, a saltos) o 'vivo' (siguen tu cara)
 };
+
+// Para una animacion importada de un modelo 3D (FBX, GLB, BVH): los datos no tienen ruido, asi que van sin los filtros
+// pensados para video (torso amortiguado, mediana, suavizado, codos con umbral alto) y simplificando poco: queda fiel.
+// Medido con el Thriller (Mixamo): brazos y piernas a 0 grados del original (mediana y percentil 90), torso a ~4.
+export const OPCIONES_IMPORTADA = { modo: 'cuerpo', desde: 0, neutral: 0, torso: null, con_giro: true, sin_giro: false,
+  suavizado: 0.0001, simplificar_grados: 0.5, limpio: true, poses_fijas: '' };
 
 /**
  * Convierte el cuerpo del video en pistas y las escribe en un film.
@@ -68,7 +75,7 @@ export function procesarCuerpo(opIn, datos, log = () => {}) {
   const neutral = op.neutral > 0 ? ['head', 'low_body', 'anchor'] : [];
   const smooth = ['realista', 'manual'].includes(op.estilo) ? op.suavizado : Math.max(op.suavizado, 0.08);
   let { result, report } = rt.compute(world, vis, times, {
-    smooth_s: smooth, neutral_s: op.neutral, neutral_bones: neutral, bones, torso: op.torso, torso_activo: elegidas.has('torso'),
+    smooth_s: smooth, neutral_s: op.neutral, neutral_bones: neutral, bones, torso: op.torso, torso_activo: elegidas.has('torso'), limpio: op.limpio,
   });
   if (!Object.keys(result).length) throw new Error('Ninguna parte del cuerpo se vio lo suficiente. Alejate de la camara o mejora la luz.');
 
