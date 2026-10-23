@@ -32,9 +32,11 @@
   .chips .tit { color: var(--texto); font-weight: 600; }
   .chips .rojo { color: #ffb4b4; } .chips .ok { color: var(--acento); }
   .ayuda { position: absolute; left: 8px; bottom: 8px; font-size: 12px; color: var(--suave); background: rgba(23,26,33,.8); border-radius: 6px; padding: 2px 8px; pointer-events: none; z-index: 2; }
+  .ayuda:empty { display: none; }
   #aviso { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: min(92%, 440px); z-index: 3; text-align: center; background: rgba(23,26,33,.94); border: 1px solid var(--borde); border-radius: 12px; padding: 14px 16px; color: var(--suave); }
   #aviso b { color: var(--texto); font-size: 16px; display: block; margin-bottom: 4px; }
   #aviso .mal { color: var(--error); }
+  #aviso strong { color: var(--texto); }
   #tiempo { display: flex; align-items: center; gap: 8px; padding: 6px 10px; padding-bottom: max(6px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--borde); }
   #tiempo input[type=range] { flex: 1; min-width: 60px; accent-color: var(--acento); }
   #lectura { font-variant-numeric: tabular-nums; color: var(--suave); font-size: 13px; min-width: 7em; text-align: right; }
@@ -61,13 +63,14 @@
   <span class="sep"></span>
   <button id="btnCentrar" title="Que lo que apunta hacia adelante mire hacia el frente de la pantalla">🎯<span class="txt"> Centrar</span></button>
   <label class="chk" title="Mostrar por dónde se movió el celular (aproximado: se calcula con la aceleración)"><input type="checkbox" id="chkRecorrido" checked>🧭<span class="txt"> Recorrido</span></label>
+  <label class="chk" title="Si empezaste y terminaste con el celu quieto en el mismo lugar, el recorrido se corrige para que vuelva al punto de partida"><input type="checkbox" id="chkCerrar" checked>🔁<span class="txt"> Cerrar</span></label>
   <label class="chk" title="La cámara sigue al celular"><input type="checkbox" id="chkSeguir">🎥<span class="txt"> Seguir</span></label>
 </header>
 <main>
   <div id="vista"></div>
   <div class="chips" id="chips"></div>
   <div id="aviso"><b>Sensores apagados</b>Tocá <b style="display:inline">📡 Activar sensores</b> (en el celular) para ver cómo se mueve el celu en 3D y grabarlo. Si estás en la compu, abrí una grabación con 📂.</div>
-  <div class="ayuda">arrastrá para girar la vista · rueda: acercar · doble toque: vista inicial</div>
+  <div class="ayuda" id="ayuda">arrastrá para girar la vista · rueda: acercar · doble toque: vista inicial</div>
 </main>
 <footer id="tiempo">
   <button id="btnPlay" disabled title="Reproducir / pausa (barra espaciadora)">▶</button>
