@@ -11,7 +11,15 @@
 .modos button { border: 0; background: transparent; padding: 9px 16px; border-radius: 7px; cursor: pointer; font-weight: 700; color: var(--texto-suave); }
 .modos button:hover { background: var(--panel-alto); }
 .modos button[aria-selected="true"] { background: var(--pasto-osc); color: #fff; box-shadow: inset 0 -3px 0 var(--pasto); }
-body[data-modo="cuerpo"] .solo-cara, body[data-modo="cara"] .solo-cuerpo { display: none !important; }
+body[data-modo="cuerpo"] .solo-cara, body[data-modo="cuerpo"] .solo-dedos,
+body[data-modo="cara"] .solo-cuerpo, body[data-modo="cara"] .solo-dedos,
+body[data-modo="dedos"] .solo-cuerpo, body[data-modo="dedos"] .solo-cara { display: none !important; }
+.dedos-poses { display: grid; grid-template-columns: max-content 1fr 1fr; gap: 6px 8px; align-items: center; }
+.dedos-poses select { width: 100%; min-width: 0; }
+.dedos-poses .tit { font-size: 12px; opacity: .75; }
+.dedos-vivo { display: grid; grid-template-columns: max-content repeat(5, 1fr); gap: 3px 6px; align-items: center; font-size: 12px; }
+.dedos-vivo span.barra { height: 8px; border-radius: 4px; background: rgba(255,255,255,.12); overflow: hidden; }
+.dedos-vivo span.barra i { display: block; height: 100%; background: var(--acento, #6fb24a); width: 0; }
 @media (max-width: 700px) { .modos { width: 100%; } .modos button { flex: 1; } }
 
 /* vista 3D */

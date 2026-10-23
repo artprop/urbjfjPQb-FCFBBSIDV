@@ -20,6 +20,7 @@
   <nav class="modos" id="modos" aria-label="Qué animar">
     <button data-modo="cuerpo" aria-selected="true">Cuerpo</button>
     <button data-modo="cara" aria-selected="false">Cara (ojos y boca)</button>
+    <button data-modo="dedos" aria-selected="false">Dedos (manos)</button>
   </nav>
   <nav class="vistas" aria-label="Pantallas">
     <button data-vista="grabar" aria-selected="true">Grabar y convertir</button>
@@ -95,6 +96,7 @@
     <details class="vivo solo-cuerpo" id="psmove-panel">
       <summary>🎮 Controles PlayStation Move</summary>
       <label class="check"><input type="checkbox" id="usar_move"> Usar los controles Move en vez de mi cuerpo (se animan los brazos)</label>
+      <label class="check"><input type="checkbox" id="dedos_move"> El gatillo cierra los dedos de esa mano (el modelo de dedos y las poses de mano abierta y cerrada se eligen en el modo «Dedos»)</label>
       <div class="vivo-cab">
         <button type="button" class="btn btn-chico" id="psm-conectar">Conectar controles…</button>
       </div>
@@ -343,6 +345,27 @@
           </label>
         </div>
       </details>
+    </div>
+
+    <div class="paso solo-dedos" id="paso-dedos" data-panel="ajustes" data-ptab="ajustes">
+      <div class="paso-cab"><h2><span class="num">2</span>Dedos con tus manos</h2></div>
+      <p class="ayuda">Levantá las manos hacia la cámara (de cerca, con luz, las palmas o el dorso hacia ella) y abrí y cerrá los dedos. Cada dedo va de tu pose de <b>mano abierta</b> a la <b>cerrada</b> según cuánto lo cerrás. Las manos con dedos se agregan al actor del paso 3 (o a un film nuevo con steve_bends); el resto del film no se toca.</p>
+      <div class="campo">
+        <div class="campo-cab"><label for="dedos_modelo">Modelo de dedos</label></div>
+        <select id="dedos_modelo"><option value="dedos">dedos (el tuyo: player/dedos, con tu skin)</option><option value="fingers_steve">Fingers (Steve)</option><option value="fingers_alex">Fingers (Alex)</option></select>
+        <p class="ayuda">En BBS el modelo tiene que estar en tus modelos (assets/models). Fingers va como Fingers/Steve_left, Fingers/Steve_right, etc.</p>
+      </div>
+      <div class="campo dedos-poses">
+        <span></span><span class="tit">Mano abierta</span><span class="tit">Mano cerrada</span>
+        <span>Mano izq.</span><select id="dedos_la"></select><select id="dedos_lc"></select>
+        <span>Mano der.</span><select id="dedos_ra"></select><select id="dedos_rc"></select>
+      </div>
+      <p class="ayuda">Las mismas poses usa el gatillo de los controles Move (modo Cuerpo): suelto = abierta, apretado = cerrada.</p>
+      <div class="campo">
+        <div class="campo-cab"><label>Lo que ve la cámara ahora</label></div>
+        <div class="dedos-vivo" id="dedos-vivo"><span></span><span>pulgar</span><span>índice</span><span>medio</span><span>anular</span><span>meñique</span></div>
+        <p class="ayuda" id="dedos-vivo-msg">Prendé la cámara para ver cuánto cierra cada dedo.</p>
+      </div>
     </div>
 
     <div class="paso solo-cara" id="paso-ojos" data-panel="ajustes" data-ptab="ajustes">

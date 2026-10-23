@@ -13,7 +13,9 @@ import * as bocaPx from '../nucleo/boca_pixel.js';
 import * as muecasMod from '../nucleo/muecas.js';
 import * as arrugasMod from '../nucleo/arrugas.js';
 import { filmCara } from '../nucleo/proyecto_defecto.js';
-import { analizarPose, analizarCara } from './deteccion.js';
+import { analizarPose, analizarCara, analizarManos } from './deteccion.js';
+import * as dedos from '../nucleo/dedos.js';
+import { cargarModeloDedos } from '../dedos3d.js';
 import * as psmove from '../nucleo/psmove.js';
 import { leerAnimacion, aPose } from './importar.js';
 
@@ -131,6 +133,25 @@ async function poseDe(nombre, op, reanalizar, log, progreso) {
   await A.guardarKV(k, r);
   return r;
 }
+async function manosDe(nombre, op, reanalizar, log, progreso) {
+  const k = `manos${op.espejo ? '_espejo' : ''}:${nombre}`;
+  const g = !reanalizar && (await A.leerKV(k));
+  if (g) { log('Usando el analisis de manos ya guardado de este video.'); return g; }
+  const t = await toma(nombre);
+  const r = await analizarManos(t.blob, { espejo: op.espejo, progreso, log, duracion: t.info.duracion || 0 });
+  await A.guardarKV(k, r);
+  return r;
+}
+
+// modelo de dedos y poses de mano abierta / cerrada elegidas (o las de fabrica) para un lado: { cfg, abierta, cerrada }
+async function manoElegida(op, lado) {
+  const id = dedos.MODELOS_DEDOS[op.dedos_modelo] ? op.dedos_modelo : 'dedos';
+  const datos = await cargarModeloDedos(id, lado);
+  const l = lado.toLowerCase();
+  const pose = (n, ext) => datos.poses[n] || datos.poses[datos.cfg.defecto[lado][ext]];
+  return { cfg: datos.cfg, abierta: pose(op['dedos_' + l + 'a'], 0), cerrada: pose(op['dedos_' + l + 'c'], 1) };
+}
+
 async function caraDe(nombre, op, reanalizar, log, progreso, conBoca = false, conLabios = false) {
   const k = `cara${op.espejo ? '_espejo' : ''}:${nombre}`;
   const g = !reanalizar && (await A.leerKV(k));
@@ -181,6 +202,21 @@ function caraDelActor(rep) {
     return { parte: idx, modelo: String(fm.model || ''), reposo, pistas };
   }
   return null;
+}
+
+// dedos del actor para la vista 3D: { L: {modelo (clave de MODELOS_DEDOS), reposo, pistas}, R } o null
+function dedosDelActor(rep) {
+  const out = {};
+  ((rep.form && rep.form.parts) || []).forEach((p, idx) => {
+    const m = String((p.form || {}).model || ''), hueso = String(p.bone || '');
+    const id = /(^|\/)dedos$/i.test(m) ? 'dedos' : /fingers\/alex/i.test(m) ? 'fingers_alex' : /fingers/i.test(m) ? 'fingers_steve' : null;
+    const lado = /left/.test(hueso) ? 'L' : /right/.test(hueso) ? 'R' : null;
+    if (!id || !lado) return;
+    const pref = idx + '/pose/', pistas = {};
+    for (const [k, v] of Object.entries(rep.animation || {})) if (k.startsWith(pref)) pistas[k.slice(pref.length)] = v;
+    out[lado] = { modelo: id, reposo: dedos.reposoParaVista((p.form || {}).pose), pistas: dedos.pistasParaVista(pistas) };
+  });
+  return Object.keys(out).length ? out : null;
 }
 
 // boca del actor para la vista 3D: { parte, modelo, reposo: {capa: visible}, pistas: {capa: [{t, v}]} } o null
@@ -250,10 +286,12 @@ async function animacion(nombreToma, film, actor) {
   const cara = caraDelActor(rep);
   if (cara) for (const kfs of Object.values(cara.pistas)) for (const k of kfs) ticks = Math.max(ticks, k.t);
   const bocaA = bocaDelActor(rep);
+  const dedosA = dedosDelActor(rep);
+  if (dedosA) for (const d of Object.values(dedosA)) for (const kfs of Object.values(d.pistas)) for (const k of kfs) ticks = Math.max(ticks, k.t);
   if (bocaA) for (const kfs of Object.values(bocaA.pistas)) for (const k of kfs) ticks = Math.max(ticks, k.t);
   const esDeLaToma = filmPedido === '' || filmPedido === info.convertida;
   const video = nombreToma && esDeLaToma ? nombreToma : '';
-  return { film, actor, modelo: String((rep.form || {}).model || ''), huesos, cara, boca: bocaA, ticks, desde: Number(info.desde || 0), video, duracion_video: info.duracion };
+  return { film, actor, modelo: String((rep.form || {}).model || ''), huesos, cara, boca: bocaA, dedos: dedosA, ticks, desde: Number(info.desde || 0), video, duracion_video: info.duracion };
 }
 
 // ---------- conversion ----------
@@ -275,7 +313,31 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
     let film = filmNombre ? await cargarFilm(filmNombre) : null;
     let filmNuevo, resumen, destino;
 
-    if (op.modo === 'cara') {
+    if (op.modo === 'dedos') {
+      // dedos con la camara: las manos levantadas hacia la camara; cada dedo va de la pose abierta a la cerrada
+      const sinFilm = !film;
+      if (sinFilm) { film = await bbs.leer(f.plantilla); log('Film nuevo: actor steve_bends con tu skin y las dos manos con dedos.'); }
+      log(`Video: ${nombreToma}  (modo dedos)`);
+      const reps = film.replays;
+      if (!(actor >= 0 && actor < reps.length)) throw new Error(`El film tiene ${reps.length} actores: el numero de actor va de 0 a ${reps.length - 1}.`);
+      const m = await manosDe(nombreToma, op, reanalizar, log, prog);
+      filmNuevo = bbs.clonar(film);
+      const rep = filmNuevo.replays[actor];
+      const avisos = [], hechas = {};
+      for (const lado of ['L', 'R']) {
+        const nombreLado = lado === 'L' ? 'izquierda' : 'derecha';
+        if (!m.vistas[lado]) { avisos.push(`No se vio la mano ${nombreLado}: sus dedos quedan quietos.`); continue; }
+        const r = dedos.ponerMano(rep, lado, await manoElegida(op, lado), { times: m.times, curls: dedos.suavizar(m[lado], 2) },
+          { desde: op.desde, modeloCuerpo: String((rep.form || {}).model || '') });
+        hechas[lado] = { cuadros: m.vistas[lado], keyframes: r.keyframes };
+        log(`  Mano ${nombreLado}: vista en ${m.vistas[lado]} de ${m.times.length} cuadros, ${r.keyframes} keyframes.`);
+      }
+      const dur = m.times.length ? m.times[m.times.length - 1] : 0;
+      destino = (sinFilm ? 'dedos_' + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '') : filmNombre.replace(/\.dat$/i, '')) + '_dedos.dat';
+      resumen = { duracion: dur, stats: {}, poses: null, omitidos: [], avisos, dedos: hechas };
+      log(''); log(`LISTO  (dedos con tus manos, modelo ${dedos.MODELOS_DEDOS[op.dedos_modelo] ? dedos.MODELOS_DEDOS[op.dedos_modelo].nombre : 'dedos'})`);
+      log(`  Duracion: ${dur.toFixed(1)} s  (${Math.trunc(dur * TICKS)} ticks), empieza en el tick ${op.desde}`);
+    } else if (op.modo === 'cara') {
       if (!op.cara_ojos && !op.cara_boca) throw new Error('Marcá "Animar los ojos" o "Animar la boca" (o las dos).');
       const sinFilm = !film;   // sin film propio (por ejemplo en el celu): se usa el proyecto por defecto, con steve_bends, tu skin y las partes de cara
       if (sinFilm) { film = filmCara(await bbs.leer(f.plantilla), op); log('Proyecto por defecto: actor steve_bends con tu skin y las partes de la cara.'); }
@@ -335,6 +397,20 @@ async function trabajo(nombreToma, filmNombre, actor, desde, reanalizar) {
         pose, film, plantilla: await bbs.leer(f.plantilla), biblioteca: await biblioteca(), manual: manualPoses,
       }, log);
       filmNuevo = r.film; resumen = { ...r.resumen, ojos: null };
+      // controles Move: el gatillo de cada control cierra los dedos de esa mano
+      if (op.usar_move && op.dedos_move) {
+        const mv = (await A.leerKV('psmove:' + nombreToma)) || {};
+        const hechas = {};
+        for (const [lado, clave] of [['L', 'izq'], ['R', 'der']]) {
+          const ms = (mv[clave] || []).filter((s) => typeof s.g === 'number');
+          if (!ms.length) continue;
+          const rr = dedos.ponerMano(r.rep, lado, await manoElegida(op, lado), { times: ms.map((s) => s.t), curls: ms.map((s) => new Array(5).fill(s.g)) },
+            { desde: op.desde, modeloCuerpo: String((r.rep.form || {}).model || '') });
+          hechas[lado] = { cuadros: ms.length, keyframes: rr.keyframes };
+        }
+        if (Object.keys(hechas).length) { resumen.dedos = hechas; log(`  Dedos con el gatillo: ${Object.keys(hechas).map((l) => (l === 'L' ? 'mano izquierda' : 'mano derecha')).join(' y ')}.`); }
+        else if ((mv.izq || mv.der)) resumen.avisos.push('Los dedos no se movieron: esta toma se grabó antes de que se guardara el gatillo del Move. Grabala de nuevo.');
+      }
       if (op.ojos) {
         const parte = ojos.parteOjos(r.rep);
         if (!parte) resumen.avisos.push('Los ojos no se animaron: el actor de ese film no tiene parte de ojos (eyes o eyes_1px). Elegi un film cuyo actor ya tenga los ojos puestos.');
@@ -385,6 +461,13 @@ const RUTAS = {
   'GET /api/actores': async (q) => actores(q.get('film')),
   'GET /api/animacion': async (q) => animacion(q.get('toma') || '', q.get('film') || '', q.get('actor') === null || q.get('actor') === '' ? null : Number(q.get('actor'))),
   'GET /api/estado': async () => ({ ...ESTADO, log: ESTADO.log.slice() }),
+  // nombres de las poses de un modelo de dedos, por lado (para elegir la mano abierta y la cerrada)
+  'GET /api/poses_dedos': async (q) => {
+    const id = dedos.MODELOS_DEDOS[q.get('modelo')] ? q.get('modelo') : 'dedos';
+    const out = { modelo: id, defecto: dedos.MODELOS_DEDOS[id].defecto };
+    for (const lado of ['L', 'R']) out[lado] = Object.keys((await cargarModeloDedos(id, lado)).poses).filter((n) => !n.startsWith(lado === 'L' ? 'R_' : 'L_')).sort();
+    return out;
+  },
   'GET /api/manual': async (q) => {
     const poses = q.get('toma') ? manual.normalizar((await A.leerKV('manual:' + q.get('toma'))) || []) : [];
     return { poses, disposicion: manual.disposicion(poses) };

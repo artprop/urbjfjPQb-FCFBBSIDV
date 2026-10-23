@@ -40,6 +40,9 @@ export const OPCIONES = {
   cara_ojos: true, cara_boca: true, boca_sens: 1.0, boca_min_ticks: 2,
   limpio: false,      // datos sin ruido (animacion importada de un modelo 3D): ver retarget.compute
   usar_move: false,   // controles PlayStation Move en vez del cuerpo con la camara (ver nucleo/psmove.js)
+  // dedos (ver nucleo/dedos.js): modelo de dedos y poses de mano abierta / cerrada de cada lado ('' = las de fabrica);
+  // dedos_move: el gatillo del Move cierra la mano (de la abierta a la cerrada)
+  dedos_modelo: 'dedos', dedos_la: '', dedos_lc: '', dedos_ra: '', dedos_rc: '', dedos_move: true,
   ojos_modo: 'poses', boca_labios: true, boca_muecas: false, cara_arrugas: false, arrugas_escala: 2, modelo_boca: 'Man_2', boca_estilo: 'clasico',   // ojos_modo: 'poses' (prediseñadas, a saltos) o 'vivo' (siguen tu cara)
 };
 
@@ -75,7 +78,7 @@ export function procesarCuerpo(opIn, datos, log = () => {}) {
   const neutral = op.neutral > 0 ? ['head', 'low_body', 'anchor'] : [];
   const smooth = ['realista', 'manual'].includes(op.estilo) ? op.suavizado : Math.max(op.suavizado, 0.08);
   let { result, report } = rt.compute(world, vis, times, {
-    smooth_s: smooth, neutral_s: op.neutral, neutral_bones: neutral, bones, torso: op.torso, torso_activo: elegidas.has('torso'), limpio: op.limpio,
+    smooth_s: smooth, neutral_s: op.neutral, neutral_bones: neutral, bones, torso: op.torso, torso_activo: elegidas.has('torso'), limpio: op.limpio, giros: datos.pose.giros,
   });
   if (!Object.keys(result).length) throw new Error('Ninguna parte del cuerpo se vio lo suficiente. Alejate de la camara o mejora la luz.');
 

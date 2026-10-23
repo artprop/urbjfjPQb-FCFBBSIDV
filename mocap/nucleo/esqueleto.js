@@ -5,7 +5,7 @@
 // No sabe nada de three.js: recibe [{ nombre, padre (indice o -1), pos: [x, y, z] en la pose de reposo }].
 
 export const CENTRO = ['hips', 'neck', 'head'];
-export const LADO = ['brazo', 'antebrazo', 'mano', 'muslo', 'pierna', 'pie', 'dedo_pie', 'indice', 'menique', 'pulgar'];
+export const LADO = ['brazo', 'antebrazo', 'mano', 'muslo', 'pierna', 'pie', 'dedo_pie', 'pulgar', 'indice', 'medio', 'anular', 'menique'];
 export const PARTES = [...CENTRO, ...['L', 'R'].flatMap((l) => LADO.map((p) => p + l))];
 export const IMPRESCINDIBLES = ['hips', 'head', 'brazoL', 'antebrazoL', 'manoL', 'brazoR', 'antebrazoR', 'manoR',
   'musloL', 'piernaL', 'pieL', 'musloR', 'piernaR', 'pieR'];
@@ -22,9 +22,12 @@ const SINONIMOS = {
   pierna: ['lowerleg', 'shin', 'calf', 'leg', 'knee', 'ひざ', '膝'],
   pie: ['ankle', 'foot', '足首'],   // si hay los dos (Second Life), «foot» es la punta
   dedo_pie: ['toebase', 'toe', 'toes', 'toe0', 'ball', 'つま先'],
+  // dedos: el primer hueso de cada uno (en el pulgar, el de la base de la mano)
+  pulgar: ['handthumb1', 'thumb1', 'thumb01', 'thumbfinger1', 'finger0', '親指０', '親指１', 'handthumb2', 'thumb2'],
   indice: ['handindex1', 'index1', 'index01', 'indexfinger1', 'finger1', '人指１', '人差指１'],
-  menique: ['handpinky1', 'pinky1', 'pinky01', 'little1', 'littlefinger1', 'finger4', 'handring1', 'ring1', 'ring01', '小指１'],
-  pulgar: ['handthumb2', 'thumb2', 'thumb02', 'handthumb1', 'thumb1', 'thumb01', 'finger0', '親指１'],
+  medio: ['handmiddle1', 'middle1', 'middle01', 'middlefinger1', 'finger2', '中指１'],
+  anular: ['handring1', 'ring1', 'ring01', 'ringfinger1', 'finger3', '薬指１'],
+  menique: ['handpinky1', 'pinky1', 'pinky01', 'little1', 'littlefinger1', 'finger4', '小指１'],
 };
 // palabras que no dicen nada de la parte (prefijos de cada programa)
 const RELLENO = new Set(['bip', 'bip01', 'bip001', 'def', 'org', 'mch', 'j', 'cc', 'base', 'valvebiped', 'bn', 'b', 'm', 'sk', 'c', 'rig', 'armature', 'mixamorig']);

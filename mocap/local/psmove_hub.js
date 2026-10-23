@@ -63,7 +63,8 @@ class Concentrador {
     // datos para la toma: a unos 60 por segundo
     if (this.toma && e.estado.d && r.t - e._ultRec >= 1 / 60) {
       e._ultRec = r.t;
-      (this.toma[e.mano] = this.toma[e.mano] || []).push({ t: +(r.t - this.toma.t0).toFixed(4), d: e.estado.d.map((x) => +x.toFixed(4)) });
+      // d: orientacion; g: gatillo de 0 (suelto) a 1 (apretado), para cerrar los dedos
+      (this.toma[e.mano] = this.toma[e.mano] || []).push({ t: +(r.t - this.toma.t0).toFixed(4), d: e.estado.d.map((x) => +x.toFixed(4)), g: +(e.estado.gatillo / 255).toFixed(3) });
     }
     this._cambio();
   }

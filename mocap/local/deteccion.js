@@ -1,9 +1,10 @@
-// Deteccion con MediaPipe dentro del navegador (PC y celular, sin internet): cuerpo (PoseLandmarker) y cara
-// (FaceLandmarker) sobre un video. Hace lo mismo que pose_video.py y cara_video.py del programa de PC.
+// Deteccion con MediaPipe dentro del navegador (PC y celular, sin internet): cuerpo (PoseLandmarker), cara
+// (FaceLandmarker) y manos (HandLandmarker) sobre un video. Hace lo mismo que pose_video.py y cara_video.py del programa de PC.
 import { PUNTOS } from '../nucleo/ojos.js';
 import { PUNTOS_BOCA } from '../nucleo/boca.js';
 import { PUNTOS_LABIOS } from '../nucleo/boca_pixel.js';
 import { recorrerCuadros } from './cuadros.js';
+import { curlsDeMano, DEDOS } from '../nucleo/dedos.js';
 
 const BASE = new URL('..', import.meta.url).href;   // carpeta www/
 const MODELOS = { rapida: 'pose_landmarker_lite.task', normal: 'pose_landmarker_full.task', alta: 'pose_landmarker_heavy.task' };
@@ -20,7 +21,7 @@ async function cargarVision() {
 
 async function crear(tipo, opciones) {
   const v = await cargarVision();
-  const Clase = tipo === 'cara' ? v.FaceLandmarker : v.PoseLandmarker;
+  const Clase = tipo === 'cara' ? v.FaceLandmarker : tipo === 'manos' ? v.HandLandmarker : v.PoseLandmarker;
   try {
     return await Clase.createFromOptions(archivos, { ...opciones, baseOptions: { ...opciones.baseOptions, delegate: 'GPU' } });
   } catch (e) {
@@ -51,6 +52,35 @@ async function landmarkerCara() {
     });
   }
   return cache.cara;
+}
+
+// Manos: hasta 2. modo 'VIDEO' para analizar tomas; 'vivo' es otra instancia (con su propio reloj) para la camara.
+export async function landmarkerManos(modo = 'VIDEO') {
+  const k = 'manos_' + modo;
+  if (!cache[k]) {
+    cache[k] = crear('manos', {
+      baseOptions: { modelAssetPath: BASE + 'modelos/hand_landmarker.task' },
+      runningMode: 'VIDEO', numHands: 2, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+    });
+  }
+  return cache[k];
+}
+
+/**
+ * Lo que se ve de las manos en un resultado de HandLandmarker: { L: [pulgar..menique] o null, R: ... } (0 = estirado,
+ * 1 = cerrado), con L/R = mano izquierda/derecha DE LA PERSONA. MediaPipe supone la imagen espejada (selfie): en un video
+ * sin espejar (como los analiza el Mocap) su «Left» es la mano derecha de la persona.
+ */
+export function dedosDeResultado(r, espejada = false) {
+  const out = { L: null, R: null };
+  (r.worldLandmarks || []).forEach((w, i) => {
+    const etiqueta = (((r.handednesses || r.handedness || [])[i] || [])[0] || {}).categoryName;
+    if (!etiqueta) return;
+    const lado = (etiqueta === 'Left') === espejada ? 'L' : 'R';
+    const P = w.map((p) => [p.x, p.y, p.z]);
+    out[lado] = curlsDeMano({ muneca: P[0], dedos: Object.fromEntries(DEDOS.map((k, j) => [k, j === 0 ? [P[1], P[2], P[3], P[4]] : [1, 2, 3, 4].map((q) => P[j * 4 + q])])) });
+  });
+  return out;
 }
 
 // Otra instancia para la boca en vivo (camara): usa su propio reloj y no se mezcla con el analisis de videos.
@@ -198,4 +228,21 @@ export async function analizarCara(blob, { espejo = false, progreso = null, log 
   log(`Cara: ${n} cuadros en ${Math.round((performance.now() - t0) / 1000)} s; detectada en ${detectada}.`);
   if (!detectada) throw new Error('No se detecto ninguna cara en el video.');
   return { times, bs: bss, nombres: nombres || Array.from({ length: 52 }, (_, k) => 'bs' + k), pts: ptss, boca: bocas, labios, aspecto, ok: oks, offset: 0 };
+}
+
+/** Manos: { times, L: N x 5 (o null en los cuadros sin esa mano), R, vistas: {L, R} cuadros con cada mano, offset: 0 }. */
+export async function analizarManos(blob, { espejo = false, progreso = null, log = () => {}, duracion = 0 } = {}) {
+  const lm = await landmarkerManos('VIDEO');
+  const times = [], L = [], R = [];
+  let msPrev = -1;
+  const t0 = performance.now();
+  const n = await recorrer(blob, espejo, (lienzo, t) => {
+    const ms = Math.max(msPrev + 1, Math.round(t * 1000)); msPrev = ms;
+    const d = dedosDeResultado(lm.detectForVideo(lienzo, ms));
+    times.push(t); L.push(d.L); R.push(d.R);
+  }, progreso, duracion, log);
+  const vistas = { L: L.filter(Boolean).length, R: R.filter(Boolean).length };
+  log(`Manos: ${n} cuadros en ${Math.round((performance.now() - t0) / 1000)} s; izquierda vista en ${vistas.L}, derecha en ${vistas.R}.`);
+  if (!vistas.L && !vistas.R) throw new Error('No se detecto ninguna mano en el video. Mostrá las manos a la cámara, de cerca y con luz.');
+  return { times, L, R, vistas, offset: 0 };
 }

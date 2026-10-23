@@ -59,6 +59,15 @@
   #panelHuesos .pie select { flex: 1; min-width: 8em; max-width: none; }
   #panelHuesos .ley { font-size: 12px; color: var(--suave); }
   #panelHuesos .ley i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 3px 0 8px; }
+  .panelFlota { position: absolute; inset: 0; z-index: 4; background: rgba(23,26,33,.97); display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; overflow: auto; }
+  .panelFlota .cab { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .panelFlota .cab span { color: var(--suave); font-size: 12.5px; flex: 1; min-width: 12em; }
+  .grillaDedos { display: grid; grid-template-columns: max-content 1fr 1fr; gap: 6px 8px; align-items: center; font-size: 13px; }
+  .grillaDedos select { max-width: none; width: 100%; }
+  .grillaDedos .tit { color: var(--suave); font-size: 12px; }
+  .grillaDedos .et { color: var(--suave); }
+  .panelFlota .nota { color: var(--suave); font-size: 12.5px; margin: 0; }
+  #filaDedos { display: flex; align-items: center; gap: 2px; }
   #btnHuesos.falta { border-color: var(--error); color: #ffb4b4; }
   /* linea de tiempo comun a las dos vistas */
   #tiempo { display: flex; align-items: center; gap: 8px; padding: 6px 10px; padding-bottom: max(6px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--borde); }
@@ -89,6 +98,7 @@
   <b class="titulo">🦴 Animaciones → BBS</b>
   <label class="boton" title="FBX (Mixamo, Blender…), GLB, BVH, o el .zip tal como lo bajaste">📂<span class="txt"> Abrir animación</span><input type="file" id="inArchivo" hidden></label>
   <span id="nombreArchivo"></span>
+  <label hidden id="filaPersonaje" title="Este archivo trae varios personajes: elegí cuál pasar a Minecraft"><span class="txt">Personaje</span> <select id="selPersonaje"></select></label>
   <label hidden id="filaClip"><span class="txt">Clip</span> <select id="selClip"></select></label>
   <label title="Realista: copia fiel, cuadro a cuadro. Minecraft: pose a pose, como las animaciones hechas a mano."><span class="txt">Estilo</span>
     <select id="selEstilo"><option value="realista">Realista (copia fiel)</option><option value="minecraft">Minecraft (pose a pose)</option></select></label>
@@ -99,6 +109,7 @@
     <select id="selActor" hidden title="Actor del film que va a bailar"></select>
     <button id="btnSinBase" hidden title="No usar film de base (crear un film nuevo)">✖</button>
   </span>
+  <span id="filaDedos"><label title="Mover los dedos: cada dedo va de tu pose de mano abierta a la cerrada según cuánto lo cierra la animación">✋<select id="selDedos"><option value="">sin dedos</option><option value="dedos">dedos (el tuyo)</option><option value="fingers_steve">Fingers (Steve)</option><option value="fingers_alex">Fingers (Alex)</option></select></label><button id="btnPosesDedos" title="Elegir las poses de mano abierta y cerrada">⚙</button></span>
   <label title="Mover al actor por el lugar como se mueve la animación (caminar, avanzar, agacharse). Escribe su posición en el film."><input type="checkbox" id="chkMover" checked> 🚶<span class="txt"> Moverse</span></label>
   <label class="boton" title="Skin de la vista de Minecraft (PNG de 64×64; solo para mirar)">🧑<span class="txt"> Skin</span><input type="file" id="inSkin" accept="image/png" hidden></label>
   <span class="sep"></span>
@@ -130,6 +141,15 @@
         <button id="btnAuto" title="Volver a lo que reconoció el programa (borra lo que elegiste a mano)">↺ Automático</button>
       </div>
       <div class="ley">Reconocido por<i class="o-nombre"></i>el nombre<i class="o-forma"></i>la forma del esqueleto<i class="o-manual"></i>a mano<i class="o-falta"></i>falta</div>
+    </div>
+    <div id="panelDedos" class="panelFlota" hidden>
+      <div class="cab"><b>✋ Dedos</b><span>Cada dedo va de la pose <b>abierta</b> a la <b>cerrada</b> según cuánto lo cierra la animación. Las poses son las de tu modelo de dedos.</span><button id="btnCerrarDedos" class="principal">✓ Listo</button></div>
+      <div class="grillaDedos">
+        <span></span><span class="tit">Abierta</span><span class="tit">Cerrada</span>
+        <span class="et">Mano izq.</span><select id="dedoLA"></select><select id="dedoLC"></select>
+        <span class="et">Mano der.</span><select id="dedoRA"></select><select id="dedoRC"></select>
+      </div>
+      <p class="nota" id="notaDedos"></p>
     </div>
     <div class="vacio" id="vacioMC"><span>Acá vas a ver la animación pasada a Minecraft, lista para guardar como film de BBS.</span></div>
   </section>

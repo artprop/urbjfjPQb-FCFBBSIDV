@@ -18,13 +18,13 @@ export const HUESOS_MC = ['anchor', 'low_body', 'head', 'right_arm', 'right_elbo
 
 // nombres para mostrar de las partes que se buscan en la animacion original (claves de mocap/nucleo/esqueleto.js)
 export const NOMBRE_PARTE = { hips: 'Cadera', neck: 'Cuello', head: 'Cabeza', brazo: 'Brazo', antebrazo: 'Antebrazo', mano: 'Mano',
-  indice: 'Dedo índice', menique: 'Dedo meñique', muslo: 'Muslo', pierna: 'Pierna', pie: 'Pie', dedo_pie: 'Punta del pie' };
+  pulgar: 'Pulgar', indice: 'Índice', medio: 'Medio', anular: 'Anular', menique: 'Meñique', muslo: 'Muslo', pierna: 'Pierna', pie: 'Pie', dedo_pie: 'Punta del pie' };
 export function nombreParte(k) {
   const m = k.match(/^(.+?)([LR])$/);
   return m ? `${NOMBRE_PARTE[m[1]] || m[1]} ${m[2] === 'L' ? 'izq.' : 'der.'}` : NOMBRE_PARTE[k] || k;
 }
 // orden del panel de huesos: [parte del centro] o [parte, con lado]
-export const FILAS_PANEL = [['head'], ['neck'], ['hips'], ['brazo', 1], ['antebrazo', 1], ['mano', 1], ['indice', 1], ['menique', 1],
+export const FILAS_PANEL = [['head'], ['neck'], ['hips'], ['brazo', 1], ['antebrazo', 1], ['mano', 1], ['pulgar', 1], ['indice', 1], ['medio', 1], ['anular', 1], ['menique', 1],
   ['muslo', 1], ['pierna', 1], ['pie', 1], ['dedo_pie', 1]];
 /** Las partes en el orden en que se eligen (para pasar sola a la siguiente después de tocar un hueso). */
 export const ORDEN_PARTES = FILAS_PANEL.flatMap(([p, lado]) => (lado ? [p + 'L', p + 'R'] : [p]));
