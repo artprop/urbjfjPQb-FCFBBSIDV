@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Celu en movimiento</title>
+<link rel="icon" href="../icono.svg">
+<style>
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e06b6b; --azul: #3b82f6; --rojo: #e0443a; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--fondo); color: var(--texto); font: 14px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; }
+  button, .boton, select { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 7px; padding: 5px 10px; }
+  button, .boton { cursor: pointer; white-space: nowrap; }
+  button:hover, .boton:hover { border-color: var(--acento); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.principal { background: var(--azul); border-color: var(--azul); font-weight: 600; }
+  button.grabar { background: var(--rojo); border-color: var(--rojo); font-weight: 600; }
+  button.grabando { background: #fff; color: var(--rojo); border-color: var(--rojo); animation: latido 1s infinite; }
+  @keyframes latido { 50% { box-shadow: 0 0 0 4px rgba(224,68,58,.35); } }
+  select { max-width: 11em; padding: 4px 6px; }
+  #barra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+  #barra b.titulo { font-size: 15px; margin-right: 4px; }
+  #barra label.chk { display: flex; align-items: center; gap: 4px; color: var(--suave); font-size: 13px; }
+  #barra .sep { flex: 1; }
+  main { flex: 1; min-height: 0; position: relative; background: #111317; }
+  #vista { position: absolute; inset: 0; }
+  #vista canvas { display: block; }
+  .chips { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px 6px; pointer-events: none; z-index: 2; }
+  .chips span { background: rgba(23,26,33,.86); border-radius: 6px; padding: 2px 8px; font-size: 12.5px; color: var(--suave); }
+  .chips .tit { color: var(--texto); font-weight: 600; }
+  .chips .rojo { color: #ffb4b4; } .chips .ok { color: var(--acento); }
+  .ayuda { position: absolute; left: 8px; bottom: 8px; font-size: 12px; color: var(--suave); background: rgba(23,26,33,.8); border-radius: 6px; padding: 2px 8px; pointer-events: none; z-index: 2; }
+  #aviso { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); width: min(92%, 440px); z-index: 3; text-align: center; background: rgba(23,26,33,.94); border: 1px solid var(--borde); border-radius: 12px; padding: 14px 16px; color: var(--suave); }
+  #aviso b { color: var(--texto); font-size: 16px; display: block; margin-bottom: 4px; }
+  #aviso .mal { color: var(--error); }
+  #tiempo { display: flex; align-items: center; gap: 8px; padding: 6px 10px; padding-bottom: max(6px, env(safe-area-inset-bottom)); background: var(--panel); border-top: 1px solid var(--borde); }
+  #tiempo input[type=range] { flex: 1; min-width: 60px; accent-color: var(--acento); }
+  #lectura { font-variant-numeric: tabular-nums; color: var(--suave); font-size: 13px; min-width: 7em; text-align: right; }
+  #estado { font-size: 13px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw; }
+  .mal { color: var(--error) !important; } .ok { color: var(--acento) !important; }
+  @media (max-width: 700px), (max-height: 460px) {
+    #barra b.titulo, #barra .txt { display: none; }
+    select { max-width: 8.5em; }
+    #estado { display: none; }
+    #lectura { min-width: 0; }
+  }
+  @media (max-height: 460px) { #barra { padding: 3px 8px; } #tiempo { padding: 3px 8px; } .ayuda { display: none; } #aviso { top: 50%; padding: 8px 12px; } }
+</style>
+</head>
+<body>
+<header id="barra">
+  <b class="titulo">📱 Celu en movimiento</b>
+  <button id="btnActivar" class="principal" title="Pedir permiso para leer los sensores de movimiento del celular">📡<span class="txt"> Activar sensores</span></button>
+  <button id="btnGrabar" class="grabar" disabled title="Grabar el movimiento del celular (de nuevo para parar)">⏺<span class="txt"> Grabar</span></button>
+  <select id="selToma" title="Tus grabaciones (quedan guardadas en este aparato)"></select>
+  <button id="btnExportar" disabled title="Guardar la grabación como archivo (.json) para pasarla a otro aparato">⬇<span class="txt"> Exportar</span></button>
+  <label class="boton" title="Abrir una grabación (.json) hecha en otro aparato">📂<span class="txt"> Abrir</span><input type="file" id="inArchivo" accept=".json,application/json" hidden></label>
+  <button id="btnBorrar" disabled title="Borrar la grabación elegida">🗑</button>
+  <span class="sep"></span>
+  <button id="btnCentrar" title="Que lo que apunta hacia adelante mire hacia el frente de la pantalla">🎯<span class="txt"> Centrar</span></button>
+  <label class="chk" title="Mostrar por dónde se movió el celular (aproximado: se calcula con la aceleración)"><input type="checkbox" id="chkRecorrido" checked>🧭<span class="txt"> Recorrido</span></label>
+  <label class="chk" title="La cámara sigue al celular"><input type="checkbox" id="chkSeguir">🎥<span class="txt"> Seguir</span></label>
+</header>
+<main>
+  <div id="vista"></div>
+  <div class="chips" id="chips"></div>
+  <div id="aviso"><b>Sensores apagados</b>Tocá <b style="display:inline">📡 Activar sensores</b> (en el celular) para ver cómo se mueve el celu en 3D y grabarlo. Si estás en la compu, abrí una grabación con 📂.</div>
+  <div class="ayuda">arrastrá para girar la vista · rueda: acercar · doble toque: vista inicial</div>
+</main>
+<footer id="tiempo">
+  <button id="btnPlay" disabled title="Reproducir / pausa (barra espaciadora)">▶</button>
+  <input type="range" id="t" min="0" max="1" step="0.001" value="0" disabled aria-label="Momento de la grabación">
+  <span id="lectura">0,0 s</span>
+  <select id="selVel" title="Velocidad"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+  <span id="estado"></span>
+</footer>
+<script type="module" src="app.js"></script>
+</body>
+</html>
