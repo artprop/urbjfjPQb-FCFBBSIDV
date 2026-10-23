@@ -53,7 +53,7 @@
     #atajos button { padding: 4px 10px; font-size: 18px; }
     #atajos .txt { display: none; }
     #atajos button.activo .txt { display: inline; font-size: 15px; }
-    /* celu: los 8 modos juntos en una sola pantalla, sin scrollear */
+    /* celu: los 9 modos juntos en una sola pantalla, sin scrollear */
     #menu { padding: 12px 10px; padding-top: max(12px, env(safe-area-inset-top)); }
     #menu h1 { font-size: 20px; margin-bottom: 2px; }
     #menu h1 img { width: 28px; height: 28px; }
@@ -66,6 +66,7 @@
     .tarjeta .nota { display: none; }
     #pie { margin-top: 10px; font-size: 11.5px; }
     @media (max-height: 660px) { #menu .sub, #pie { display: none; } .tarjeta span { -webkit-line-clamp: 2; } }
+    @media (max-height: 700px) { #menu { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: 8px; } #tarjetas { gap: 6px; } .tarjeta { padding: 7px 9px; } .tarjeta .ico { font-size: 21px; } .tarjeta b { font-size: 14px; } }
   }
 </style>
 </head>
@@ -79,7 +80,7 @@
 <div id="tirador" aria-hidden="true"><i></i></div>
 <button id="burbuja" title="Tocá para abrir el menú · arrastrá para moverla (o deslizá hacia abajo desde el borde de arriba)" aria-label="Abrir el menú">☰</button>
 <main id="menu">
-  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.045 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
+  <h1><img src="icono.svg" alt="">Estudio BBS <small style="font-size:14px;font-weight:400;color:#9aa3b2">v.046 - <script>document.write(location.hostname.endsWith('github.io') ? 'web' : 'interna')</script></small></h1>
   <p class="sub">Elegí qué querés hacer. Podés pasar de un modo a otro sin perder lo que estabas haciendo.</p>
   <div id="tarjetas"></div>
   <p id="pie"></p>
@@ -93,6 +94,7 @@ const MODOS = [
   { id: 'director', ico: '🎬', nombre: 'Director', texto: 'Bocas, parpadeos y miradas solos, y el guion de escena.', notaCelu: 'En el celu la boca sale simple; exacta solo en la PC.' },
   { id: 'editor', ico: '🎞', nombre: 'Editor', texto: 'Animá personajes, poses y cámaras como en BBS, también desde el celu. Con guion de escena y cámaras automáticas (pestaña Director).' },
   { id: 'animaciones', ico: '🦴', nombre: 'Animaciones → BBS', texto: 'Pasá una animación 3D de cualquier esqueleto humanoide (FBX, GLB, BVH, DAE o .zip: Mixamo, Sketchfab, Blender, Unreal…) a un film de BBS, viendo la original y la de Minecraft lado a lado.' },
+  { id: 'movil', ico: '📱', nombre: 'Celu en movimiento', texto: 'Grabá cómo movés el celular (giro y aceleración) y mirá la repetición en 3D.' },
   { id: 'convertidor', ico: '🧱', nombre: "Armourer's → BBS", texto: "Arregla los .obj que exporta Armourer's Workshop para usarlos como modelo en BBS." },
   { id: 'ojos', ico: '🧩', nombre: 'Crafteo', texto: 'Armá lo que le falta a tu personaje desde su skin: ojos, cejas, máscaras de borrado y más.' },
 ];
@@ -119,7 +121,7 @@ function abrir(id, guardar = true) {
   if (!f) {   // cada modo se carga la primera vez que se abre y después queda vivo
     f = document.createElement('iframe');
     f.src = `${id}/index.html`; f.title = m.nombre;
-    f.allow = 'camera; microphone; fullscreen; clipboard-read; clipboard-write; web-share; hid';
+    f.allow = 'camera; microphone; fullscreen; clipboard-read; clipboard-write; web-share; hid; accelerometer; gyroscope; magnetometer';
     $('#marcos').append(f); marcos.set(id, f);
   }
   for (const [k, x] of marcos) x.classList.toggle('visible', k === id);
