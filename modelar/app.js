@@ -9,6 +9,9 @@ import { juntarCajas, armarTextura } from './nucleo/cajas.js';
 import { armarBBModel, armarBBS, cubosDeVoxeles } from './nucleo/bbmodel.js';
 import { solidoDe } from './nucleo/ajuste.js';
 import { cubosGirados, CARAS_L } from './nucleo/giradas.js';
+import { bbsABBModel } from './nucleo/geo.js';
+import { analizarMod } from './nucleo/mods.js';
+import { mallaBBS } from './mod.js';
 import { Vista } from './vista.js';
 import { guardarSalida } from '../comun/plataforma.js';
 
@@ -35,12 +38,17 @@ async function abrir(archivo) {
   try {
     estado('Leyendo ' + archivo.name + '…'); await espera();
     let bytes = new Uint8Array(await archivo.arrayBuffer()), nombre = archivo.name;
-    if (/\.zip$/i.test(nombre) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
+    if (/\.json$/i.test(nombre)) return abrirMod({ [nombre]: bytes }, nombre);   // un .geo.json o model.bbs.json suelto
+    if (/\.(zip|jar)$/i.test(nombre) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
       const { unzipSync } = await import('../mocap/importar_lib/libs/fflate.module.js');
-      const glbs = Object.entries(unzipSync(bytes)).filter(([n]) => /\.glb$/i.test(n)).sort((a, b) => b[1].length - a[1].length);
-      if (!glbs.length) throw new Error('El .zip no trae ningún .glb.');
+      const todo = unzipSync(bytes);
+      // un mod (.jar) o un zip con modelos de Blockbench/BBS: se miran sus modelos
+      if (Object.keys(todo).some((n) => /\.geo\.json$|\.bbs\.json$/i.test(n))) return abrirMod(todo, nombre);
+      const glbs = Object.entries(todo).filter(([n]) => /\.glb$/i.test(n)).sort((a, b) => b[1].length - a[1].length);
+      if (!glbs.length) throw new Error('El archivo no trae ningún .glb ni modelos de Blockbench (.geo.json).');
       [nombre, bytes] = glbs[0];
     }
+    document.body.dataset.modo = 'glb';
     const { partes, imagenes } = leerGLB(bytes);
     if (!partes.length) throw new Error('El archivo no trae mallas.');
     estado('Leyendo las texturas…'); await espera();
@@ -69,6 +77,93 @@ function pintarPartes() {
   const p = $('#panelPartes');
   p.innerHTML = '<b>Partes</b>' + modelo.partes.map((x, i) => `<label><input type="checkbox" data-i="${i}" ${visibles[i] ? 'checked' : ''}> ${nombreCorto(x.nombre)}</label>`).join('');
   p.querySelectorAll('input').forEach((c) => c.addEventListener('change', () => { visibles[Number(c.dataset.i)] = c.checked; convertirPronto(); }));
+}
+
+/* ---------- los modelos de un mod (.jar) o de Blockbench (.geo.json / model.bbs.json): buscar, mirar y exportar ---------- */
+let mod = null;   // { nombre, modelos (analizarMod), texturas: { ruta: bytes }, animaciones, lienzos: Map, actual }
+const tamPNG = (b) => (b.length > 24 && b[1] === 0x50 ? [(b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0] : [0, 0]);
+async function abrirMod(archivos, nombre) {
+  pararAjuste(); modelo = null; resultado = null;
+  const a = analizarMod(archivos);
+  if (!a.modelos.length) throw new Error('No encontré modelos (.geo.json o model.bbs.json) en ' + nombre + '. (Los mods que dibujan sus personajes desde el código, sin GeckoLib, no traen modelos para sacar.)');
+  mod = { nombre: nombre.split('/').pop().replace(/\.[^.]+$/, ''), ...a, lienzos: new Map(), actual: 0 };
+  document.body.dataset.modo = 'mod';
+  $('#nombreArchivo').textContent = nombre.split('/').pop();
+  $('#vacioOrig').hidden = true; $('#panelPartes').hidden = true; estado('');
+  $('#lmTitulo').textContent = `${a.modelos.length} modelo${a.modelos.length > 1 ? 's' : ''}`; $('#lmTodos').checked = false;
+  $('#lmItems').innerHTML = a.modelos.map((m, i) => {
+    const cubos = Object.values(m.bbs.model.groups).reduce((s, g) => s + (g.cubes || []).length, 0);
+    return `<div class="lm-item" data-i="${i}"><input type="checkbox" data-i="${i}" title="Exportar este"><div><div class="n">${esc(m.nombre)}</div>
+      <div class="d">${cubos} cubos · ${m.texturas.length} textura${m.texturas.length === 1 ? '' : 's'}${m.animaciones.length ? ` · ${m.animaciones.length} animación${m.animaciones.length > 1 ? 'es' : ''}` : ''}</div></div></div>`;
+  }).join('');
+  $('#lmItems').querySelectorAll('.lm-item').forEach((it) => it.addEventListener('click', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    elegirModelo(Number(it.dataset.i));
+    if (innerWidth < innerHeight) { $('#listaMod').classList.add('plegada'); $('#lmPlegar').textContent = '▸'; }   // en el celu, la lista se achica para ver el modelo
+  }));
+  $('#lmItems').querySelectorAll('input').forEach((c) => c.addEventListener('change', contarTildados));
+  contarTildados();
+  await elegirModelo(0);
+}
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const tildados = () => [...$('#lmItems').querySelectorAll('input:checked')].map((c) => Number(c.dataset.i));
+function contarTildados() { const n = tildados().length; $('#btnExportar').textContent = n ? `📦 Exportar ${n}` : '📦 Exportar este'; }
+async function elegirModelo(i) {
+  mod.actual = i;
+  $('#lmItems').querySelectorAll('.lm-item').forEach((it) => it.classList.toggle('activo', Number(it.dataset.i) === i));
+  const m = mod.modelos[i];
+  // sus texturas primero; después (por las dudas) las demás del archivo
+  const otras = Object.keys(mod.texturas).filter((r) => !m.texturas.includes(r));
+  const op = (r) => { const [w, h] = tamPNG(mod.texturas[r]); return `<option value="${esc(r)}">${esc(r.split('/').pop())}${w ? ` (${w}×${h})` : ''}</option>`; };
+  $('#selModTex').innerHTML = m.texturas.map(op).join('') + '<option value="">(sin textura)</option>' + (otras.length ? `<optgroup label="Otras del archivo">${otras.map(op).join('')}</optgroup>` : '');
+  $('#selModTex').value = m.texturas[0] || '';
+  await dibujarModelo();
+}
+async function lienzoDe(ruta) {
+  if (!ruta) return null;
+  if (!mod.lienzos.has(ruta)) {
+    const bmp = await createImageBitmap(new Blob([mod.texturas[ruta]], { type: 'image/png' }));
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+    mod.lienzos.set(ruta, c);
+  }
+  return mod.lienzos.get(ruta);
+}
+async function dibujarModelo() {
+  const m = mod.modelos[mod.actual];
+  const r = mallaBBS(m.bbs, await lienzoDe($('#selModTex').value));
+  vOrig.poner(r.obj);
+  Vista.encuadrar(r.alto, Math.max(r.caja.max.x - r.caja.min.x, r.caja.max.z - r.caja.min.z));
+  const grupos = Object.keys(m.bbs.model.groups).length, [tw, th] = m.bbs.model.texture;
+  $('#detOrig').textContent = `${m.nombre} · ${r.cubos} cubos · ${grupos} grupos · textura ${tw}×${th} · ${(r.alto * 16).toFixed(0)} px de alto`;
+}
+// exportar: un .zip con una carpeta por modelo (BBS: model.bbs.json + texturas; Blockbench: .bbmodel + .geo.json + texturas + animaciones)
+async function exportarMod() {
+  const cuales = tildados().length ? tildados() : [mod.actual], formato = $('#selFormato').value;
+  estado('Exportando…'); await espera();
+  const { zipSync, strToU8 } = await import('../mocap/importar_lib/libs/fflate.module.js');
+  const arch = {}, limpio = (t) => t.toLowerCase().replace(/[^a-z0-9_\-.]+/g, '_'), usados = new Set();
+  const aDataURL = (b) => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return 'data:image/png;base64,' + btoa(s); };
+  for (const i of cuales) {
+    const m = mod.modelos[i];
+    let carpeta = limpio(m.nombre) || 'modelo'; for (let k = 2; usados.has(carpeta); k++) carpeta = limpio(m.nombre) + '_' + k; usados.add(carpeta);
+    const tex = m.texturas.map((r, k) => ({ ruta: r, nombre: k === 0 ? 'texture.png' : limpio(r.split('/').pop()), bytes: mod.texturas[r] }));
+    if (formato !== 'blockbench') {
+      const dir = formato === 'ambos' ? `bbs/${carpeta}/` : `${carpeta}/`;
+      arch[dir + 'model.bbs.json'] = strToU8(JSON.stringify(m.bbs, null, 1));
+      for (const t of tex) arch[dir + t.nombre] = [t.bytes, { level: 0 }];
+    }
+    if (formato !== 'bbs') {
+      const dir = formato === 'ambos' ? `blockbench/${carpeta}/` : `${carpeta}/`;
+      const texBB = m.texturas.map((r) => { const [w, h] = tamPNG(mod.texturas[r]); return { nombre: limpio(r.split('/').pop()), dataURL: aDataURL(mod.texturas[r]), w, h }; });
+      arch[dir + carpeta + '.bbmodel'] = strToU8(JSON.stringify(bbsABBModel(m.bbs, texBB, carpeta)));
+      if (/\.geo\.json$/i.test(m.ruta)) arch[dir + limpio(m.ruta.split('/').pop())] = m.original;
+      for (const r of m.texturas) arch[dir + limpio(r.split('/').pop())] = [mod.texturas[r], { level: 0 }];
+      for (const r of m.animaciones) arch[dir + limpio(r.split('/').pop())] = mod.animaciones[r];
+    }
+  }
+  const nombre = (cuales.length === 1 ? limpio(mod.modelos[cuales[0]].nombre) : limpio(mod.nombre)) + (formato === 'bbs' ? '_bbs' : formato === 'blockbench' ? '_blockbench' : '') + '.zip';
+  try { estado(await guardarSalida('modelar', nombre, new Blob([zipSync(arch)], { type: 'application/zip' }), 'application/zip')); setTimeout(() => estado(''), 4000); }
+  catch (e) { estado('No se pudo exportar: ' + e.message, true); }
 }
 
 /* ---------- color de la textura en una UV ---------- */
@@ -300,6 +395,10 @@ $('#chkBordes').addEventListener('change', (e) => { const b = vCubos.contenido.g
 $('#btnGuardar').addEventListener('click', guardar);
 $('#btnPng').addEventListener('click', guardarPng);
 $('#btnBBS').addEventListener('click', guardarBBS);
+$('#btnExportar').addEventListener('click', () => exportarMod().catch((e) => estado('No se pudo exportar: ' + e.message, true)));
+$('#selModTex').addEventListener('change', dibujarModelo);
+$('#lmTodos').addEventListener('change', (e) => { $('#lmItems').querySelectorAll('input').forEach((c) => (c.checked = e.target.checked)); contarTildados(); });
+$('#lmPlegar').addEventListener('click', () => { const l = $('#listaMod'); l.classList.toggle('plegada'); $('#lmPlegar').textContent = l.classList.contains('plegada') ? '▸' : '▾'; });
 // soltar un archivo en cualquier parte
 addEventListener('dragover', (e) => { e.preventDefault(); $('#vOrig').classList.add('encima'); });
 addEventListener('dragleave', () => $('#vOrig').classList.remove('encima'));

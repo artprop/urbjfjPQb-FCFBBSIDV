@@ -40,6 +40,26 @@
   /* las partes del modelo: se pueden sacar (el libro, el arma…) */
   #panelPartes { position: absolute; left: 8px; top: 40px; z-index: 3; background: rgba(23,26,33,.95); border: 1px solid var(--borde); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; max-height: calc(100% - 80px); overflow: auto; }
   #panelPartes label { display: flex; gap: 6px; align-items: center; }
+  .grupo { display: contents; }
+  /* lista de modelos del mod: tocá uno para verlo, tildá los que querés exportar */
+  #listaMod { position: absolute; left: 8px; top: 40px; bottom: 34px; width: 270px; z-index: 3; background: rgba(23,26,33,.94); border: 1px solid var(--borde); border-radius: 10px; display: flex; flex-direction: column; overflow: hidden; }
+  #listaMod.plegada { bottom: auto; }
+  #listaMod.plegada #lmItems { display: none; }
+  .lm-cab { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-bottom: 1px solid var(--borde); font-size: 13px; }
+  .lm-cab b { flex: 1; }
+  .lm-cab label { display: flex; gap: 4px; align-items: center; color: var(--suave); }
+  .lm-cab button { padding: 1px 8px; }
+  #lmItems { overflow: auto; flex: 1; }
+  .lm-item { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer; }
+  .lm-item:hover { background: rgba(255,255,255,.04); }
+  .lm-item.activo { background: #2f4a25; }
+  .lm-item input { margin-top: 3px; }
+  .lm-item .n { font-weight: 600; word-break: break-all; }
+  .lm-item .d { font-size: 12px; color: var(--suave); }
+  @media (max-aspect-ratio: 1/1) { #listaMod { left: 6px; right: 6px; width: auto; top: 62px; bottom: auto; max-height: 45%; } }
+  body[data-modo="mod"] .solo-glb, body:not([data-modo="mod"]) .solo-mod { display: none !important; }
+  body[data-modo="mod"] main { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+  body[data-modo="mod"] #vCubos { display: none; }
   body[data-estilo="giradas"] .solo-voxel, body[data-estilo="voxel"] .solo-giradas, body:not([data-estilo]) .solo-voxel { display: none !important; }
   /* versiones (cajas giradas): una barra para pasar de 1 a N cajas y las sugeridas para tocar */
   #versiones { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; background: rgba(23,26,33,.92); border: 1px solid var(--borde); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
@@ -62,8 +82,12 @@
 <body>
 <header id="barra">
   <b class="titulo">🗿 Modelar → Blockbench</b>
-  <label class="boton" title="Un modelo 3D .glb (o el .zip tal como lo bajaste, con el .glb adentro)">📂<span class="txt"> Abrir modelo</span><input type="file" id="inArchivo" accept=".glb,.zip,model/gltf-binary,application/zip" hidden></label>
+  <label class="boton" title="Un modelo 3D .glb (o el .zip tal como lo bajaste), o un modelo de Blockbench / mod: .geo.json, o el .jar del mod (se buscan sus modelos)">📂<span class="txt"> Abrir modelo</span><input type="file" id="inArchivo" accept=".glb,.zip,.jar,.json,model/gltf-binary,application/zip,application/java-archive" hidden></label>
   <span id="nombreArchivo"></span>
+  <span class="grupo solo-mod">
+    <label title="La textura con la que se ve (los mods suelen traer varias: normal, estrella, evolución…; se exportan todas)"><span class="txt">Textura</span> <select id="selModTex"></select></label>
+  </span>
+  <span class="grupo solo-glb">
   <label title="Qué tan alto queda el modelo en Minecraft (Steve mide 2 bloques)"><span class="txt">Alto</span>
     <select id="selAlto"><option value="1">1 bloque</option><option value="1.5">1,5 bloques</option><option value="2" selected>2 bloques</option><option value="2.5">2,5 bloques</option><option value="3">3 bloques</option><option value="4">4 bloques</option></select></label>
   <label title="Cajas giradas: el modelo se arma con cajas que pueden girar (como los modelos hechos a mano en Blockbench), y elegís cuántas. Cubitos: vóxeles derechos, todos del mismo tamaño."><span class="txt">Estilo</span>
@@ -77,18 +101,28 @@
   <button id="btnGirar" title="Girar el modelo 90° (que mire hacia el frente)">↻<span class="txt"> Girar</span></button>
   <button id="btnPartes" title="Elegir qué partes del modelo se pasan">🧩<span class="txt"> Partes</span></button>
   <label class="solo-voxel" title="Rellenar por dentro las partes cerradas (menos cubos sueltos adentro)"><input type="checkbox" id="chkRellenar" checked>🧱<span class="txt"> Rellenar</span></label>
+  </span>
   <span class="sep"></span>
-  <button id="btnGuardar" class="principal" disabled title="El modelo para abrir y seguir editando en Blockbench (la textura va adentro)">💾<span class="txt"> Blockbench</span> .bbmodel</button>
-  <button id="btnBBS" class="principal" disabled title="Un .zip con la carpeta del modelo para BBS (model.bbs.json + texture.png): descomprimila en config/bbs/assets/models">📦<span class="txt"> Para BBS</span> .zip</button>
-  <button id="btnPng" disabled title="Guardar solo la textura (PNG)">🖼<span class="txt"> PNG</span></button>
+  <button id="btnGuardar" class="principal solo-glb" disabled title="El modelo para abrir y seguir editando en Blockbench (la textura va adentro)">💾<span class="txt"> Blockbench</span> .bbmodel</button>
+  <span class="grupo solo-mod">
+    <label title="BBS: una carpeta por modelo con model.bbs.json y sus texturas (para config/bbs/assets/models). Blockbench: el .bbmodel (con todas las texturas adentro), el .geo.json original, las texturas y las animaciones."><span class="txt">Formato</span>
+      <select id="selFormato"><option value="bbs">BBS</option><option value="blockbench">Blockbench</option><option value="ambos">Los dos</option></select></label>
+    <button id="btnExportar" class="principal" title="Exporta los modelos tildados en la lista (o el que estás viendo, si no hay ninguno tildado)">📦 Exportar</button>
+  </span>
+  <button id="btnBBS" class="principal solo-glb" disabled title="Un .zip con la carpeta del modelo para BBS (model.bbs.json + texture.png): descomprimila en config/bbs/assets/models">📦<span class="txt"> Para BBS</span> .zip</button>
+  <button id="btnPng" class="solo-glb" disabled title="Guardar solo la textura (PNG)">🖼<span class="txt"> PNG</span></button>
 </header>
 <main>
   <section class="vista" id="vOrig">
     <div class="cap"><span class="tit">Original</span><span class="det" id="detOrig"></span></div>
     <div id="panelPartes" hidden></div>
+    <div id="listaMod" class="solo-mod">
+      <div class="lm-cab"><b id="lmTitulo">Modelos</b><label title="Tildar todos"><input type="checkbox" id="lmTodos"> todos</label><button id="lmPlegar" title="Achicar / agrandar la lista">▾</button></div>
+      <div id="lmItems"></div>
+    </div>
     <div class="vacio" id="vacioOrig">
-      <b>Soltá acá un modelo 3D (.glb)</b>
-      <p>O tocá 📂. Sirve un .glb con o sin texturas (por ejemplo, uno bajado de Sketchfab, o el .zip tal cual). Se pasa a cubos de Minecraft con su textura pixelada, listo para abrir en Blockbench.</p>
+      <b>Soltá acá un modelo 3D (.glb) o un mod (.jar)</b>
+      <p>O tocá 📂. Un .jar de un mod (o un .geo.json de Blockbench) se abre para mirar sus modelos tal cual, con sus texturas, y pasarlos a BBS. Sirve un .glb con o sin texturas (por ejemplo, uno bajado de Sketchfab, o el .zip tal cual). Se pasa a cubos de Minecraft con su textura pixelada, listo para abrir en Blockbench.</p>
     </div>
     <div class="ayuda">arrastrá para girar · Shift o botón derecho: correr · rueda o dos dedos: acercar · doble toque: de frente</div>
   </section>
