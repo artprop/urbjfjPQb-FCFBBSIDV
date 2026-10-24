@@ -31,9 +31,11 @@ export class Vista {
     this.dibujar();
   }
   /** Encuadra un modelo de cierto alto (en bloques) de frente. */
-  static encuadrar(alto) {
+  static encuadrar(alto, ancho = 0) {
     todas.forEach((v) => (v.alto = alto));
-    camara.objetivo.set(0, alto * 0.5, 0); camara.dist = alto * 2.3 + 0.5; camara.az = Math.PI; camara.el = 0.15; avisar();
+    // que entre a lo alto y a lo ancho (en el celu la vista es angosta)
+    const v = todas[0], asp = v && v.el.clientWidth && v.el.clientHeight ? v.el.clientWidth / v.el.clientHeight : 1;
+    camara.objetivo.set(0, alto * 0.5, 0); camara.dist = Math.max(alto * 2.3 + 0.5, ancho ? (ancho * 2.3 + 0.5) / asp : 0); camara.az = Math.PI; camara.el = 0.15; avisar();
   }
   _arrastre() {
     const c = this.renderer.domElement, toques = new Map(); let distPrev = 0;

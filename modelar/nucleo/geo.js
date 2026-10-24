@@ -54,3 +54,45 @@ export function uvCaja(size, off, mir) {
   u.bottom = r(q1, by, q0, by + d);
   return u;
 }
+
+const uuid = () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = (Math.random() * 16) | 0; return (c === 'x' ? r : (r & 3) | 8).toString(16); });
+const LADO = { front: 'north', back: 'south', right: 'east', left: 'west', top: 'up', bottom: 'down' };
+
+/**
+ * Un modelo de BBS (model.bbs.json, o un .geo.json pasado con geoABBS) como proyecto de Blockbench (.bbmodel, formato «Generic
+ * Model»): los grupos anidados con su pivote y giro, los cubos (con giro, inflado y UV en caja o por cara) y todas las texturas
+ * adentro (la primera es la que usan las caras; las otras quedan para cambiarla).
+ * texturas: [{ nombre, dataURL, w, h }].
+ */
+export function bbsABBModel(bbs, texturas = [], nombre = 'modelo') {
+  const m = bbs.model || bbs, [tw, th] = m.texture || [64, 64];
+  const elements = [], nodos = {};
+  const todoCaja = Object.values(m.groups || {}).every((g) => (g.cubes || []).every((c) => c.box_uv && !(c.uvs && Object.keys(c.uvs).length)));
+  for (const [id, g] of Object.entries(m.groups || {})) {
+    const n = { name: id, origin: g.origin || [0, 0, 0], color: 0, uuid: uuid(), export: true, mirror_uv: false, isOpen: false, locked: false, visibility: true, autouv: 0, children: [] };
+    if ((g.rotate || []).some((x) => x)) n.rotation = g.rotate;
+    for (const c of g.cubes || []) {
+      const size = c.size || [0, 0, 0], from = c.from || [0, 0, 0], caja = c.box_uv && !(c.uvs && Object.keys(c.uvs).length);
+      const uvs = caja ? uvCaja(size, c.box_uv_offset || [0, 0], !!c.box_uv_mirror) : c.uvs || {};
+      const faces = {};
+      for (const [bbsN, bbN] of Object.entries(LADO)) faces[bbN] = uvs[bbsN] ? { uv: uvs[bbsN], texture: 0 } : { uv: [0, 0, 0, 0], texture: null };
+      const e = { name: 'cube', box_uv: caja, rescale: false, locked: false, light_emission: 0, render_order: 'default', allow_mirror_modeling: true,
+        from, to: from.map((f, i) => f + size[i]), autouv: 0, color: 0, origin: c.origin || g.origin || [0, 0, 0], faces, type: 'cube', uuid: uuid() };
+      if (caja) { e.uv_offset = c.box_uv_offset || [0, 0]; if (c.box_uv_mirror) e.mirror_uv = true; }
+      if ((c.rotate || []).some((x) => x)) e.rotation = c.rotate;
+      if (c.offset) e.inflate = c.offset;
+      elements.push(e); n.children.push(e.uuid);
+    }
+    nodos[id] = n;
+  }
+  const outliner = [];
+  for (const [id, g] of Object.entries(m.groups || {})) (g.parent && nodos[g.parent] ? nodos[g.parent].children : outliner).push(nodos[id]);
+  return {
+    meta: { format_version: '4.10', model_format: 'free', box_uv: todoCaja },
+    name: nombre, model_identifier: '', visible_box: [1, 1, 0], variable_placeholders: '', variable_placeholder_buttons: [], timeline_setups: [], unhandled_root_fields: {},
+    resolution: { width: tw, height: th }, elements, outliner,
+    textures: texturas.map((t, i) => ({ path: '', name: t.nombre, folder: '', namespace: '', id: String(i), width: t.w || tw, height: t.h || th, uv_width: tw, uv_height: th,
+      particle: false, use_as_default: i === 0, layers_enabled: false, sync_to_project: '', render_mode: 'default', render_sides: 'auto', frame_time: 1,
+      frame_order_type: 'loop', frame_order: '', frame_interpolate: false, visible: true, internal: true, saved: false, uuid: uuid(), relative_path: t.nombre, source: t.dataURL })),
+  };
+}
