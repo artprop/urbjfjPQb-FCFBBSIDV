@@ -40,6 +40,15 @@
   /* las partes del modelo: se pueden sacar (el libro, el arma…) */
   #panelPartes { position: absolute; left: 8px; top: 40px; z-index: 3; background: rgba(23,26,33,.95); border: 1px solid var(--borde); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; max-height: calc(100% - 80px); overflow: auto; }
   #panelPartes label { display: flex; gap: 6px; align-items: center; }
+  body[data-estilo="giradas"] .solo-voxel, body[data-estilo="voxel"] .solo-giradas, body:not([data-estilo]) .solo-voxel { display: none !important; }
+  /* versiones (cajas giradas): una barra para pasar de 1 a N cajas y las sugeridas para tocar */
+  #versiones { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; background: rgba(23,26,33,.92); border: 1px solid var(--borde); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .ver-fila { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--suave); }
+  .ver-fila input { flex: 1; min-width: 0; accent-color: var(--acento); }
+  #verEstado { font-size: 12px; white-space: nowrap; }
+  #verLista { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: thin; }
+  #verLista button { flex: none; padding: 3px 9px; font-size: 12.5px; }
+  #verLista button.activo { border-color: var(--acento); background: #2f4a25; }
   @media (max-aspect-ratio: 1/1) {
     main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
     #barra { padding: 5px 62px 5px 8px; gap: 5px 6px; }   /* (a la derecha queda lugar para la burbuja del menú) */
@@ -57,11 +66,17 @@
   <span id="nombreArchivo"></span>
   <label title="Qué tan alto queda el modelo en Minecraft (Steve mide 2 bloques)"><span class="txt">Alto</span>
     <select id="selAlto"><option value="1">1 bloque</option><option value="1.5">1,5 bloques</option><option value="2" selected>2 bloques</option><option value="2.5">2,5 bloques</option><option value="3">3 bloques</option><option value="4">4 bloques</option></select></label>
-  <label title="El tamaño de cada cubito. «1 píxel» es como Minecraft; más fino = más detalle y más cubos"><span class="txt">Cubito</span>
+  <label title="Cajas giradas: el modelo se arma con cajas que pueden girar (como los modelos hechos a mano en Blockbench), y elegís cuántas. Cubitos: vóxeles derechos, todos del mismo tamaño."><span class="txt">Estilo</span>
+    <select id="selEstilo"><option value="giradas" selected>Cajas giradas</option><option value="voxel">Cubitos (vóxeles)</option></select></label>
+  <label class="solo-giradas" title="Hasta cuántas cajas probar (más = más versiones para elegir, tarda más)"><span class="txt">Hasta</span>
+    <select id="selMax"><option value="60">60 cajas</option><option value="150" selected>150 cajas</option><option value="300">300 cajas</option></select></label>
+  <label class="solo-giradas" title="Simetría: se arma la mitad del modelo y se copia espejada del otro lado (como se hace a mano en Blockbench)"><input type="checkbox" id="chkEspejo" checked>⇋<span class="txt"> Simetría</span></label>
+  <label class="solo-giradas" title="Dejar que las cajas giren (si no, todas quedan derechas)"><input type="checkbox" id="chkGirar" checked>⤾<span class="txt"> Giros</span></label>
+  <label class="solo-voxel" title="El tamaño de cada cubito. «1 píxel» es como Minecraft; más fino = más detalle y más cubos"><span class="txt">Cubito</span>
     <select id="selDetalle"><option value="2">2 píxeles (grueso)</option><option value="1" selected>1 píxel (Minecraft)</option><option value="0.5">½ píxel (fino)</option><option value="0.25">¼ píxel (muy fino)</option></select></label>
   <button id="btnGirar" title="Girar el modelo 90° (que mire hacia el frente)">↻<span class="txt"> Girar</span></button>
   <button id="btnPartes" title="Elegir qué partes del modelo se pasan">🧩<span class="txt"> Partes</span></button>
-  <label title="Rellenar por dentro las partes cerradas (menos cubos sueltos adentro)"><input type="checkbox" id="chkRellenar" checked>🧱<span class="txt"> Rellenar</span></label>
+  <label class="solo-voxel" title="Rellenar por dentro las partes cerradas (menos cubos sueltos adentro)"><input type="checkbox" id="chkRellenar" checked>🧱<span class="txt"> Rellenar</span></label>
   <span class="sep"></span>
   <button id="btnGuardar" class="principal" disabled title="El modelo para abrir y seguir editando en Blockbench (la textura va adentro)">💾<span class="txt"> Blockbench</span> .bbmodel</button>
   <button id="btnBBS" class="principal" disabled title="Un .zip con la carpeta del modelo para BBS (model.bbs.json + texture.png): descomprimila en config/bbs/assets/models">📦<span class="txt"> Para BBS</span> .zip</button>
@@ -82,6 +97,10 @@
       <label><input type="checkbox" id="chkBordes"> Bordes</label></div>
     <div class="vacio" id="vacioCubos"><p>Acá vas a ver el modelo hecho con cubos.</p></div>
     <div id="estado" hidden></div>
+    <div id="versiones" hidden>
+      <div class="ver-fila"><span>Cubos</span><input type="range" id="verRango" min="1" max="1" step="1" value="1" aria-label="Cuántos cubos"><span id="verEstado"></span></div>
+      <div id="verLista" aria-label="Versiones sugeridas"></div>
+    </div>
   </section>
 </main>
 <script type="module" src="app.js"></script>

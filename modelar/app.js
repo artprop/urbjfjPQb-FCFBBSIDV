@@ -1,11 +1,14 @@
-// Modo «Modelar → Blockbench»: un modelo 3D (.glb) pasado a cubos de Minecraft con textura pixelada, como .bbmodel.
-// Todo son cuentas (sin IA entrenada): se muestrea la superficie en una grilla, se rellena, se juntan los cubitos en cajas y se arma
-// la textura. Ver nucleo/voxel.js y nucleo/cajas.js.
+// Modo «Modelar → Blockbench»: un modelo 3D (.glb) pasado a cubos de Minecraft con textura pixelada, como .bbmodel o carpeta de BBS.
+// Dos estilos: «cajas giradas» (el modelo se arma con cajas que pueden girar, de a una: salen versiones de 1, 2, 3… cajas y se elige
+// una; ver nucleo/ajuste.js, corre en ajuste_worker.js) y «cubitos» (vóxeles derechos, nucleo/cajas.js). Todo son cuentas, sin IA
+// entrenada: se muestrea la superficie en una grilla (nucleo/voxel.js) y de ahí sale todo.
 import * as THREE from '../mocap/three.module.min.js';
 import { leerGLB } from './nucleo/glb.js';
 import { voxelizar, giroDeFrente } from './nucleo/voxel.js';
-import { juntarCajas, armarTextura, CARAS } from './nucleo/cajas.js';
-import { armarBBModel, armarBBS } from './nucleo/bbmodel.js';
+import { juntarCajas, armarTextura } from './nucleo/cajas.js';
+import { armarBBModel, armarBBS, cubosDeVoxeles } from './nucleo/bbmodel.js';
+import { solidoDe } from './nucleo/ajuste.js';
+import { cubosGirados, CARAS_L } from './nucleo/giradas.js';
 import { Vista } from './vista.js';
 import { guardarSalida } from '../comun/plataforma.js';
 
@@ -13,8 +16,9 @@ const $ = (s) => document.querySelector(s);
 const LADO_TEX = 512;   // las texturas del modelo se achican a esto para tomar los colores (alcanza y sobra para cubitos)
 
 const vOrig = new Vista($('#vOrig')), vCubos = new Vista($('#vCubos'));
+document.body.dataset.estilo = $('#selEstilo').value;
 let modelo = null;        // { nombre, partes, texturas: [{ datos: ImageData, lienzo }] }
-let resultado = null;     // { g, cajas, tex, lienzoTex }
+let resultado = null;     // la versión que se ve: { g, cubos, ancho, alto, lienzoTex, altoPx, nombres }
 let giro = 0, visibles = [];
 
 function estado(txt, mal = false) { const e = $('#estado'); e.hidden = !txt; e.textContent = txt || ''; e.classList.toggle('mal', mal); }
@@ -77,29 +81,101 @@ function colorEn(p, i, u, v) {
 }
 
 /* ---------- convertir ---------- */
+const estilo = () => $('#selEstilo').value;
 let reloj = 0;
 function convertirPronto() { clearTimeout(reloj); reloj = setTimeout(convertir, 150); }
 async function convertir() {
   if (!modelo) return;
   if (!visibles.some(Boolean)) { estado('Elegí al menos una parte.', true); return; }
+  document.body.dataset.estilo = estilo();
   estado('Armando los cubos…'); await espera();
   try {
-    const altoPx = altoBloques() * 16, res = Math.max(4, Math.round(altoPx / Number($('#selDetalle').value)));
-    const t0 = performance.now();
-    const g = voxelizar(modelo.partes, { res, giro, rellenar: $('#chkRellenar').checked, color: colorEn, visibles });
-    const todas = juntarCajas(g), tex = armarTextura(g, todas);
-    // las cajas que no se ven por ningún lado (todas sus caras tapadas) no hacen falta
-    const ve = todas.map((c, k) => Object.values(tex.caras[k]).some(Boolean));
-    const cajas = todas.filter((_, k) => ve[k]); tex.caras = tex.caras.filter((_, k) => ve[k]);
-    const lienzoTex = document.createElement('canvas'); lienzoTex.width = tex.ancho; lienzoTex.height = tex.alto;
-    lienzoTex.getContext('2d').putImageData(new ImageData(tex.rgba, tex.ancho, tex.alto), 0, 0);
-    resultado = { g, cajas, tex, lienzoTex, altoPx };
-    vOrig.poner(mallaOriginal(g));
-    vCubos.poner(mallaCubos());
-    $('#detCubos').textContent = `${cajas.length} cubos · textura ${tex.ancho}×${tex.alto} · ${Math.round(performance.now() - t0)} ms`;
-    $('#btnGuardar').disabled = $('#btnPng').disabled = $('#btnBBS').disabled = false;
-    estado('');
+    if (estilo() === 'voxel') convertirVoxeles(); else await convertirGiradas();
   } catch (e) { console.error(e); estado('No se pudo convertir: ' + e.message, true); }
+}
+
+// cubitos derechos (vóxeles)
+function convertirVoxeles() {
+  pararAjuste();
+  const altoPx = altoBloques() * 16, res = Math.max(4, Math.round(altoPx / Number($('#selDetalle').value)));
+  const t0 = performance.now();
+  const g = voxelizar(modelo.partes, { res, giro, rellenar: $('#chkRellenar').checked, color: colorEn, visibles });
+  const todas = juntarCajas(g), tex = armarTextura(g, todas);
+  // las cajas que no se ven por ningún lado (todas sus caras tapadas) no hacen falta
+  const ve = todas.map((c, k) => Object.values(tex.caras[k]).some(Boolean));
+  const cajas = todas.filter((_, k) => ve[k]); tex.caras = tex.caras.filter((_, k) => ve[k]);
+  mostrar({ g, cubos: cubosDeVoxeles(g, cajas, tex, altoPx), ancho: tex.ancho, alto: tex.alto, rgba: tex.rgba, altoPx, nombres: modelo.partes.map((p) => nombreCorto(p.nombre)) });
+  $('#detCubos').textContent = `${cajas.length} cubos · textura ${tex.ancho}×${tex.alto} · ${Math.round(performance.now() - t0)} ms`;
+  estado('');
+}
+
+// cajas giradas: el ajuste corre aparte y va mandando versiones
+let trabajador = null, giradas = null;   // giradas: { g, solido, altoPx, versiones: [{ cajas, parecido }], sugeridas, elegida, listo }
+function pararAjuste() { if (trabajador) { trabajador.terminate(); trabajador = null; } $('#versiones').hidden = true; }
+async function convertirGiradas() {
+  pararAjuste();
+  const altoPx = altoBloques() * 16, res = Math.max(40, Math.min(72, Math.round(altoPx * 1.5)));
+  const g = voxelizar(modelo.partes, { res, giro, rellenar: true, color: colorEn, visibles });
+  const solido = solidoDe(g);
+  giradas = { g, solido, altoPx, versiones: [], sugeridas: [], elegida: 0, listo: false, max: Number($('#selMax').value) };
+  vOrig.poner(mallaOriginal(g));
+  vCubos.poner(null);
+  $('#versiones').hidden = false; $('#verLista').innerHTML = ''; $('#verRango').max = 1; $('#verRango').value = 1;
+  estado('Buscando las cajas…');
+  trabajador = new Worker(new URL('./ajuste_worker.js', import.meta.url), { type: 'module' });
+  trabajador.onmessage = (e) => alMensaje(e.data);
+  trabajador.onerror = (e) => estado('No se pudo armar: ' + (e.message || 'error'), true);
+  trabajador.postMessage({ tipo: 'empezar', solido, partes: g.parte, nx: g.nx, ny: g.ny, nz: g.nz, girar: $('#chkGirar').checked, espejo: $('#chkEspejo').checked, max: giradas.max });
+}
+function alMensaje(m) {
+  if (!giradas) return;
+  if (m.tipo === 'armando') estado(`Buscando las cajas… ${m.n} de ${m.max}`);
+  else if (m.tipo === 'version') {
+    if (!(giradas.versiones[m.n - 1] || {}).pulida) giradas.versiones[m.n - 1] = { cajas: m.cajas, parecido: m.parecido };
+    giradas.sugeridas = m.sugeridas;
+    $('#verRango').max = m.total;
+    estado('');
+    $('#verEstado').textContent = m.n < m.total ? `puliendo ${m.n} de ${m.total}…` : '';
+    pintarSugeridas();
+    // mientras se arma, se ve la última sugerida (hasta que el usuario elija una)
+    if (!giradas.tocada) elegirVersion(m.sugeridas[m.sugeridas.length - 1] || m.n, false);
+  } else if (m.tipo === 'listo') { giradas.listo = true; $('#verEstado').textContent = ''; }
+  else if (m.tipo === 'pulida') {
+    giradas.versiones[m.n - 1] = { cajas: m.cajas, parecido: m.parecido, pulida: true };
+    if (giradas.listo) $('#verEstado').textContent = '';
+    if (giradas.elegida === m.n) elegirVersion(m.n, false);
+    pintarSugeridas();
+  }
+}
+function pintarSugeridas() {
+  const l = $('#verLista');
+  const cuantos = (n) => giradas.versiones[n - 1].cajas.length;
+  l.innerHTML = giradas.sugeridas.filter((n) => giradas.versiones[n - 1]).map((n) => `<button data-n="${n}" class="${n === giradas.elegida ? 'activo' : ''}"><b>${cuantos(n)}</b> cubo${cuantos(n) > 1 ? 's' : ''} · ${Math.round(giradas.versiones[n - 1].parecido * 100)}%</button>`).join('');
+  l.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { giradas.tocada = true; elegirVersion(Number(b.dataset.n)); }));
+}
+let relojPulir = 0;
+function elegirVersion(n, pulir = true) {
+  const v = giradas.versiones[n - 1]; if (!v) return;
+  giradas.elegida = n; $('#verRango').value = n;
+  const t0 = performance.now();
+  const r = cubosGirados(v.cajas, giradas.g, giradas.solido, giradas.altoPx);
+  mostrar({ g: giradas.g, cubos: r.cubos, ancho: r.ancho, alto: r.alto, rgba: r.rgba, altoPx: giradas.altoPx, nombres: [modelo.nombre] }, false);
+  const k = v.cajas.length;
+  $('#detCubos').textContent = `${k} cubo${k > 1 ? 's' : ''} · parecido ${Math.round(v.parecido * 100)}%${v.pulida ? ' (pulido)' : ''} · textura ${r.ancho}×${r.alto} · ${Math.round(performance.now() - t0)} ms`;
+  $('#verLista').querySelectorAll('button').forEach((b) => b.classList.toggle('activo', Number(b.dataset.n) === n));
+  // la elegida se pule más (a prueba y error, un rato más largo)
+  clearTimeout(relojPulir);
+  if (pulir && !v.pulida && trabajador) relojPulir = setTimeout(() => { $('#verEstado').textContent = 'puliendo la elegida…'; trabajador.postMessage({ tipo: 'pulir', n }); }, 400);
+}
+
+// pone una versión en la vista y la deja lista para guardar
+function mostrar(sal, conOriginal = true) {
+  const lienzoTex = document.createElement('canvas'); lienzoTex.width = sal.ancho; lienzoTex.height = sal.alto;
+  lienzoTex.getContext('2d').putImageData(new ImageData(sal.rgba, sal.ancho, sal.alto), 0, 0);
+  resultado = { ...sal, lienzoTex };
+  if (conOriginal) vOrig.poner(mallaOriginal(sal.g));
+  vCubos.poner(mallaCubos());
+  $('#btnGuardar').disabled = $('#btnPng').disabled = $('#btnBBS').disabled = false;
 }
 
 // el original, en el mismo lugar y tamaño que los cubos (en bloques), con el mismo giro
@@ -128,37 +204,39 @@ function mallaOriginal(g) {
   return fuera;
 }
 function centroGrilla(g) {
-  const cajas = resultado ? resultado.cajas : juntarCajas(g);
+  const { nx, nz, parte } = g;
   let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, y0 = Infinity;
-  for (const c of cajas) { x0 = Math.min(x0, c.x0); x1 = Math.max(x1, c.x1); z0 = Math.min(z0, c.z0); z1 = Math.max(z1, c.z1); y0 = Math.min(y0, c.y0); }
+  for (let v = 0; v < parte.length; v++) if (parte[v] >= 0) { const x = v % nx, z = Math.floor(v / nx) % nz, y = Math.floor(v / (nx * nz)); x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); z0 = Math.min(z0, z); z1 = Math.max(z1, z + 1); y0 = Math.min(y0, y); }
   return [(x0 + x1) / 2, (z0 + z1) / 2, y0];
 }
 
-// los cubos, con la misma textura y las mismas UV que van al .bbmodel
+// los cubos, con la misma textura, UV y giros que van al archivo (el giro se rearma desde los grados, como lo hacen Blockbench y BBS)
 function mallaCubos() {
-  const { g, cajas, tex, lienzoTex } = resultado, b = altoBloques() / (g.ny - 2);   // un vóxel en bloques
-  const [cx, cz, y0] = centroGrilla(g);
+  const { cubos, ancho, alto, lienzoTex } = resultado;
   const pos = [], uv = [], ind = [], lineas = [];
-  const P = (x, y, z) => [(x - cx) * b, (y - y0) * b, (z - cz) * b];
-  cajas.forEach((c, k) => {
-    for (const [nombre, f] of Object.entries(CARAS)) {
-      const r = tex.caras[k][nombre]; if (!r) continue;
-      const [w, h] = f.tam(c), [esq, U, V] = MARCO[nombre](c);
-      const q = [esq, esq.map((v, a) => v + U[a] * w), esq.map((v, a) => v + U[a] * w + V[a] * h), esq.map((v, a) => v + V[a] * h)];
+  for (const c of cubos) {
+    const [ax, ay, az] = c.rotation.map((g) => g * Math.PI / 180);
+    const M = new THREE.Matrix4().makeRotationZ(az).multiply(new THREE.Matrix4().makeRotationY(ay)).multiply(new THREE.Matrix4().makeRotationX(ax)).elements;   // (por columnas)
+    const centro = [0, 1, 2].map((i) => (c.from[i] + c.to[i]) / 2), h = [0, 1, 2].map((i) => (c.to[i] - c.from[i]) / 2);
+    const mundo = (l) => { const p = [centro[0] + l[0] - c.origin[0], centro[1] + l[1] - c.origin[1], centro[2] + l[2] - c.origin[2]];
+      return [0, 1, 2].map((f) => (c.origin[f] + M[f] * p[0] + M[4 + f] * p[1] + M[8 + f] * p[2]) / 16); };
+    for (const [nombre, f] of Object.entries(CARAS_L)) {
+      const r = c.uvs[nombre]; if (!r) continue;
+      const esq = f.esq(h), w = 2 * h[f.ej[0]], hh = 2 * h[f.ej[1]];
+      const q = [esq, esq.map((v, a) => v + f.U[a] * w), esq.map((v, a) => v + f.U[a] * w + f.V[a] * hh), esq.map((v, a) => v + f.V[a] * hh)];
       const base = pos.length / 3;
-      q.forEach((p) => pos.push(...P(...p)));
-      const [u0, v0, u1, v1] = r.map((x, i) => x / (i % 2 ? tex.alto : tex.ancho));
+      q.forEach((p) => pos.push(...mundo(p)));
+      const [u0, v0, u1, v1] = r.map((x, i) => x / (i % 2 ? alto : ancho));
       uv.push(u0, 1 - v0, u1, 1 - v0, u1, 1 - v1, u0, 1 - v1);
       // que la cara mire hacia afuera
-      const cr = [U[1] * V[2] - U[2] * V[1], U[2] * V[0] - U[0] * V[2], U[0] * V[1] - U[1] * V[0]];
+      const cr = [f.U[1] * f.V[2] - f.U[2] * f.V[1], f.U[2] * f.V[0] - f.U[0] * f.V[2], f.U[0] * f.V[1] - f.U[1] * f.V[0]];
       if (cr[0] * f.n[0] + cr[1] * f.n[1] + cr[2] * f.n[2] > 0) ind.push(base, base + 1, base + 2, base, base + 2, base + 3);
       else ind.push(base, base + 2, base + 1, base, base + 3, base + 2);
     }
     // bordes de la caja
-    const A = P(c.x0, c.y0, c.z0), B = P(c.x1, c.y1, c.z1);
-    const e = [[A[0], A[1], A[2]], [B[0], A[1], A[2]], [B[0], A[1], B[2]], [A[0], A[1], B[2]], [A[0], B[1], A[2]], [B[0], B[1], A[2]], [B[0], B[1], B[2]], [A[0], B[1], B[2]]];
+    const e = [[-1, -1, -1], [1, -1, -1], [1, -1, 1], [-1, -1, 1], [-1, 1, -1], [1, 1, -1], [1, 1, 1], [-1, 1, 1]].map((s) => mundo(s.map((x, i) => x * h[i])));
     for (const [i, j] of [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]]) lineas.push(...e[i], ...e[j]);
-  });
+  }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(ind);
   geo.computeVertexNormals();
@@ -170,23 +248,13 @@ function mallaCubos() {
   grupo.add(bordes);
   return grupo;
 }
-// cada cara: la esquina de arriba a la izquierda de su imagen y hacia dónde crecen u y v (la misma orientación que CARAS)
-const MARCO = {
-  north: (c) => [[c.x1, c.y1, c.z0], [-1, 0, 0], [0, -1, 0]],
-  south: (c) => [[c.x0, c.y1, c.z1], [1, 0, 0], [0, -1, 0]],
-  east: (c) => [[c.x1, c.y1, c.z1], [0, 0, -1], [0, -1, 0]],
-  west: (c) => [[c.x0, c.y1, c.z0], [0, 0, 1], [0, -1, 0]],
-  up: (c) => [[c.x0, c.y1, c.z0], [1, 0, 0], [0, 0, 1]],
-  down: (c) => [[c.x0, c.y0, c.z1], [1, 0, 0], [0, 0, -1]],
-};
 
 /* ---------- guardar ---------- */
 async function guardar() {
   if (!resultado) return;
   try {
-    const { g, cajas, tex, lienzoTex, altoPx } = resultado;
-    const nombres = modelo.partes.map((p) => nombreCorto(p.nombre));
-    const bb = armarBBModel({ g, cajas, tex, nombres, pngDataURL: lienzoTex.toDataURL('image/png'), altoPx, nombre: modelo.nombre });
+    const { cubos, ancho, alto, lienzoTex, nombres } = resultado;
+    const bb = armarBBModel({ cubos, ancho, alto, nombres, pngDataURL: lienzoTex.toDataURL('image/png'), nombre: modelo.nombre });
     estado(await guardarSalida('modelar', modelo.nombre + '.bbmodel', JSON.stringify(bb), 'application/json'));
     setTimeout(() => estado(''), 3000);
   } catch (e) { estado('No se pudo guardar: ' + e.message, true); }
@@ -195,13 +263,13 @@ async function guardar() {
 async function guardarBBS() {
   if (!resultado) return;
   try {
-    const { g, cajas, tex, lienzoTex, altoPx } = resultado;
-    const nombres = modelo.partes.map((p) => nombreCorto(p.nombre)), carpeta = modelo.nombre.toLowerCase().replace(/[^a-z0-9_\-]+/g, '_') || 'modelo';
+    const { cubos, ancho, alto, lienzoTex, nombres } = resultado;
+    const carpeta = modelo.nombre.toLowerCase().replace(/[^a-z0-9_\-]+/g, '_') || 'modelo';
     const { zipSync, strToU8 } = await import('../mocap/importar_lib/libs/fflate.module.js');
     const png = new Uint8Array(await (await new Promise((ok) => lienzoTex.toBlob(ok, 'image/png'))).arrayBuffer());
-    const bb = armarBBModel({ g, cajas, tex, nombres, pngDataURL: lienzoTex.toDataURL('image/png'), altoPx, nombre: carpeta, rutaTextura: 'texture.png' });
+    const bb = armarBBModel({ cubos, ancho, alto, nombres, pngDataURL: lienzoTex.toDataURL('image/png'), nombre: carpeta, rutaTextura: 'texture.png' });
     const zip = zipSync({
-      [carpeta + '/model.bbs.json']: strToU8(JSON.stringify(armarBBS({ g, cajas, tex, nombres, altoPx }))),
+      [carpeta + '/model.bbs.json']: strToU8(JSON.stringify(armarBBS({ cubos, ancho, alto, nombres }))),
       [carpeta + '/texture.png']: [png, { level: 0 }],
       [carpeta + '/model.bbmodel']: strToU8(JSON.stringify(bb)),
     });
@@ -220,6 +288,11 @@ async function guardarPng() {
 $('#inArchivo').addEventListener('change', (e) => { const f = e.target.files[0]; if (f) abrir(f); e.target.value = ''; });
 $('#selAlto').addEventListener('change', () => { Vista.encuadrar(altoBloques()); convertir(); });
 $('#selDetalle').addEventListener('change', convertir);
+$('#selEstilo').addEventListener('change', convertir);
+$('#selMax').addEventListener('change', convertir);
+$('#chkGirar').addEventListener('change', convertir);
+$('#chkEspejo').addEventListener('change', convertir);
+$('#verRango').addEventListener('input', (e) => { if (giradas) { giradas.tocada = true; elegirVersion(Number(e.target.value)); } });
 $('#chkRellenar').addEventListener('change', convertir);
 $('#btnGirar').addEventListener('click', () => { giro = (giro + 90) % 360; convertir(); });
 $('#btnPartes').addEventListener('click', () => { if (modelo) $('#panelPartes').hidden = !$('#panelPartes').hidden; });

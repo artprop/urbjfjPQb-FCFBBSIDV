@@ -51,14 +51,7 @@ export function armarTextura(g, cajas) {
     }
     return out;
   });
-  // acomodar los rectángulos en estantes (de los más altos a los más bajos), en una textura de lado potencia de 2
-  const area = pedidos.reduce((s, p) => s + p.w * p.h, 0);
-  pedidos.sort((a, b) => b.h - a.h || b.w - a.w);
-  let ancho = 16; while (ancho * ancho < area * 1.25) ancho *= 2;
-  const acomodar = (W) => { let x = 0, y = 0, fila = 0; for (const p of pedidos) { if (p.w > W) return null; if (x + p.w > W) { y += fila; x = 0; fila = 0; } p.u = x; p.v = y; x += p.w; fila = Math.max(fila, p.h); } return y + fila; };
-  let alto = acomodar(ancho);
-  while (alto === null || alto > ancho * 2) { ancho *= 2; alto = acomodar(ancho); }
-  let H = 16; while (H < alto) H *= 2;
+  const { ancho, alto: H } = empacar(pedidos);
   const rgba = new Uint8ClampedArray(ancho * H * 4);
   for (const p of pedidos) {
     const c = cajas[p.k], f = CARAS[p.nombre];
@@ -70,4 +63,16 @@ export function armarTextura(g, cajas) {
     caras[p.k][p.nombre] = [p.u, p.v, p.u + p.w, p.v + p.h];
   }
   return { ancho, alto: H, rgba, caras };
+}
+
+/** Acomoda rectángulos { w, h } en estantes (de los más altos a los más bajos) en una textura de lado potencia de 2; les pone u, v. */
+export function empacar(pedidos) {
+  const area = pedidos.reduce((s, p) => s + p.w * p.h, 0);
+  pedidos.sort((a, b) => b.h - a.h || b.w - a.w);
+  let ancho = 16; while (ancho * ancho < area * 1.25) ancho *= 2;
+  const acomodar = (W) => { let x = 0, y = 0, fila = 0; for (const p of pedidos) { if (p.w > W) return null; if (x + p.w > W) { y += fila; x = 0; fila = 0; } p.u = x; p.v = y; x += p.w; fila = Math.max(fila, p.h); } return y + fila; };
+  let alto = acomodar(ancho);
+  while (alto === null || alto > ancho * 2) { ancho *= 2; alto = acomodar(ancho); }
+  let H = 16; while (H < alto) H *= 2;
+  return { ancho, alto: H };
 }
