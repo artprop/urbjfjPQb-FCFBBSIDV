@@ -9,6 +9,8 @@ import { juntarCajas, armarTextura } from './nucleo/cajas.js';
 import { armarBBModel, armarBBS, cubosDeVoxeles } from './nucleo/bbmodel.js';
 import { solidoDe } from './nucleo/ajuste.js';
 import { cubosGirados, CARAS_L } from './nucleo/giradas.js';
+import { geometrias, geoABBS } from './nucleo/geo.js';
+import { mallaBBS } from './mod.js';
 import { Vista } from './vista.js';
 import { guardarSalida } from '../comun/plataforma.js';
 
@@ -35,12 +37,17 @@ async function abrir(archivo) {
   try {
     estado('Leyendo ' + archivo.name + '…'); await espera();
     let bytes = new Uint8Array(await archivo.arrayBuffer()), nombre = archivo.name;
-    if (/\.zip$/i.test(nombre) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
+    if (/\.json$/i.test(nombre)) return abrirMod({ [nombre]: bytes }, nombre);   // un .geo.json o model.bbs.json suelto
+    if (/\.(zip|jar)$/i.test(nombre) || (bytes[0] === 0x50 && bytes[1] === 0x4b)) {
       const { unzipSync } = await import('../mocap/importar_lib/libs/fflate.module.js');
-      const glbs = Object.entries(unzipSync(bytes)).filter(([n]) => /\.glb$/i.test(n)).sort((a, b) => b[1].length - a[1].length);
-      if (!glbs.length) throw new Error('El .zip no trae ningún .glb.');
+      const todo = unzipSync(bytes);
+      // un mod (.jar) o un zip con modelos de Blockbench/BBS: se miran sus modelos
+      if (Object.keys(todo).some((n) => /\.geo\.json$|\.bbs\.json$/i.test(n))) return abrirMod(todo, nombre);
+      const glbs = Object.entries(todo).filter(([n]) => /\.glb$/i.test(n)).sort((a, b) => b[1].length - a[1].length);
+      if (!glbs.length) throw new Error('El archivo no trae ningún .glb ni modelos de Blockbench (.geo.json).');
       [nombre, bytes] = glbs[0];
     }
+    document.body.dataset.modo = 'glb';
     const { partes, imagenes } = leerGLB(bytes);
     if (!partes.length) throw new Error('El archivo no trae mallas.');
     estado('Leyendo las texturas…'); await espera();
@@ -69,6 +76,70 @@ function pintarPartes() {
   const p = $('#panelPartes');
   p.innerHTML = '<b>Partes</b>' + modelo.partes.map((x, i) => `<label><input type="checkbox" data-i="${i}" ${visibles[i] ? 'checked' : ''}> ${nombreCorto(x.nombre)}</label>`).join('');
   p.querySelectorAll('input').forEach((c) => c.addEventListener('change', () => { visibles[Number(c.dataset.i)] = c.checked; convertirPronto(); }));
+}
+
+/* ---------- mirar los modelos de un mod (.jar) o de Blockbench (.geo.json / model.bbs.json) ---------- */
+let mod = null;   // { nombre, modelos: [{ ruta, nombre, bbs }], texturas: [{ ruta, nombre, bytes, w, h }], lienzos: Map }
+const tamPNG = (b) => (b.length > 24 && b[1] === 0x50 ? [(b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0] : [0, 0]);
+const base = (ruta) => ruta.split('/').pop().replace(/\.(geo|bbs)\.json$|\.json$|\.png$/i, '');
+async function abrirMod(archivos, nombre) {
+  pararAjuste(); modelo = null; resultado = null;
+  const txt = (b) => JSON.parse(new TextDecoder().decode(b));
+  const modelos = [];
+  for (const [ruta, b] of Object.entries(archivos)) {
+    if (!/\.json$/i.test(ruta) || /\.animation\.json$/i.test(ruta)) continue;
+    let j; try { j = txt(b); } catch { continue; }
+    if (j && j.model && j.model.groups) modelos.push({ ruta, nombre: ruta.split('/').slice(-2).join('/'), bbs: j });
+    else if (j && (j['minecraft:geometry'] || Object.keys(j).some((k) => k.startsWith('geometry.')))) {
+      const gs = geometrias(j);
+      gs.forEach((g, i) => modelos.push({ ruta, nombre: base(ruta) + (gs.length > 1 ? ' · ' + ((g.description && g.description.identifier) || i + 1) : ''), bbs: geoABBS(g) }));
+    }
+  }
+  if (!modelos.length) throw new Error('No encontré modelos (.geo.json o model.bbs.json) en ' + nombre + '.');
+  const texturas = Object.entries(archivos).filter(([r]) => /\.png$/i.test(r) && !/\/(gui|particle|mob_effect|item|font)\//i.test(r))
+    .map(([ruta, bytes]) => { const [w, h] = tamPNG(bytes); return { ruta, nombre: ruta.split('/').pop(), bytes, w, h }; });
+  mod = { nombre: nombre.split('/').pop().replace(/\.[^.]+$/, ''), modelos, texturas, lienzos: new Map() };
+  document.body.dataset.modo = 'mod';
+  $('#nombreArchivo').textContent = nombre.split('/').pop();
+  $('#vacioOrig').hidden = true; $('#panelPartes').hidden = true; estado('');
+  $('#selModMod').innerHTML = modelos.map((m, i) => `<option value="${i}">${m.nombre}</option>`).join('');
+  $('#btnBBS').disabled = false;
+  await elegirModelo(0);
+}
+async function elegirModelo(i) {
+  const m = mod.modelos[i], [tw, th] = m.bbs.model.texture || [64, 64], b = base(m.ruta);
+  // texturas: primero la que se llama como el modelo, después las que empiezan igual, después las del mismo tamaño
+  const puntaje = (t) => (base(t.ruta) === b ? 0 : base(t.ruta).startsWith(b) ? 1 : t.w === tw && t.h === th ? 2 : 3);
+  const lista = mod.texturas.map((t, k) => ({ t, k })).sort((x, y) => puntaje(x.t) - puntaje(y.t) || x.t.nombre.localeCompare(y.t.nombre));
+  $('#selModTex').innerHTML = '<option value="-1">(sin textura)</option>' + lista.map(({ t, k }) => `<option value="${k}">${t.nombre}${t.w ? ` (${t.w}×${t.h})` : ''}</option>`).join('');
+  $('#selModTex').value = lista.length && puntaje(lista[0].t) < 3 ? String(lista[0].k) : '-1';
+  await dibujarModelo();
+}
+async function lienzoDe(k) {
+  if (k < 0) return null;
+  if (!mod.lienzos.has(k)) {
+    const t = mod.texturas[k], bmp = await createImageBitmap(new Blob([t.bytes], { type: 'image/png' }));
+    const c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height; c.getContext('2d').drawImage(bmp, 0, 0);
+    mod.lienzos.set(k, c);
+  }
+  return mod.lienzos.get(k);
+}
+async function dibujarModelo() {
+  const m = mod.modelos[Number($('#selModMod').value)], k = Number($('#selModTex').value);
+  const r = mallaBBS(m.bbs, await lienzoDe(k));
+  vOrig.poner(r.obj);
+  Vista.encuadrar(r.alto);
+  const grupos = Object.keys(m.bbs.model.groups).length, [tw, th] = m.bbs.model.texture;
+  $('#detOrig').textContent = `${r.cubos} cubos · ${grupos} grupos · textura ${tw}×${th} · ${(r.alto * 16).toFixed(0)} px de alto`;
+}
+async function guardarModBBS() {
+  const m = mod.modelos[Number($('#selModMod').value)], k = Number($('#selModTex').value);
+  const carpeta = (base(m.ruta) || 'modelo').toLowerCase().replace(/[^a-z0-9_\-]+/g, '_');
+  const { zipSync, strToU8 } = await import('../mocap/importar_lib/libs/fflate.module.js');
+  const arch = { [carpeta + '/model.bbs.json']: strToU8(JSON.stringify(m.bbs)) };
+  if (k >= 0) arch[carpeta + '/texture.png'] = [mod.texturas[k].bytes, { level: 0 }];
+  estado(await guardarSalida('modelar', carpeta + '_bbs.zip', new Blob([zipSync(arch)], { type: 'application/zip' }), 'application/zip'));
+  setTimeout(() => estado(''), 4000);
 }
 
 /* ---------- color de la textura en una UV ---------- */
@@ -299,7 +370,9 @@ $('#btnPartes').addEventListener('click', () => { if (modelo) $('#panelPartes').
 $('#chkBordes').addEventListener('change', (e) => { const b = vCubos.contenido.getObjectByName('bordes'); if (b) { b.visible = e.target.checked; vCubos.dibujar(); } });
 $('#btnGuardar').addEventListener('click', guardar);
 $('#btnPng').addEventListener('click', guardarPng);
-$('#btnBBS').addEventListener('click', guardarBBS);
+$('#btnBBS').addEventListener('click', () => (document.body.dataset.modo === 'mod' ? guardarModBBS() : guardarBBS()).catch((e) => estado('No se pudo guardar: ' + e.message, true)));
+$('#selModMod').addEventListener('change', (e) => elegirModelo(Number(e.target.value)));
+$('#selModTex').addEventListener('change', dibujarModelo);
 // soltar un archivo en cualquier parte
 addEventListener('dragover', (e) => { e.preventDefault(); $('#vOrig').classList.add('encima'); });
 addEventListener('dragleave', () => $('#vOrig').classList.remove('encima'));
