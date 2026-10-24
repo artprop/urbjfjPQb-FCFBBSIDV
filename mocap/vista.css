@@ -108,7 +108,7 @@ body[data-modo="dedos"] .solo-cuerpo, body[data-modo="dedos"] .solo-cara { displ
 .v3-opc > summary { display: none; }
 
 /* modo Dedos: guia transparente encima de la camara + panel con las manos de Minecraft (al lado en la compu, abajo en el celu) */
-#guia-dedos { transform: scaleX(-1); opacity: .5; pointer-events: none; }
+#guia-dedos { transform: scaleX(-1); opacity: .8; pointer-events: none; }
 .dedos-lado { flex: 0 0 34%; min-width: 220px; max-width: 380px; display: flex; flex-direction: column; gap: 6px; }
 .dedos-manos { display: flex; gap: 4px; }
 .dedos-manos button { flex: 1; min-width: 0; padding: 5px 4px; font-size: 13px; border-radius: 6px; border: 1px solid var(--linea); background: var(--panel); color: var(--texto); cursor: pointer; }

@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Modelar → Blockbench</title>
+<link rel="icon" href="../icono.svg">
+<style>
+  :root { --fondo: #171a21; --panel: #20242d; --panel2: #2a2f3a; --borde: #3a4150; --texto: #e8ebf0; --suave: #9aa3b2; --acento: #6fb24a; --aviso: #f0b44c; --error: #e06b6b; --azul: #3b82f6; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { display: flex; flex-direction: column; background: var(--fondo); color: var(--texto); font: 14px/1.4 system-ui, "Segoe UI", Roboto, sans-serif; }
+  button, .boton, select { font: inherit; color: var(--texto); background: var(--panel2); border: 1px solid var(--borde); border-radius: 7px; padding: 5px 10px; }
+  button, .boton { cursor: pointer; white-space: nowrap; }
+  button:hover, .boton:hover { border-color: var(--acento); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.principal { background: var(--azul); border-color: var(--azul); font-weight: 600; }
+  select { padding: 4px 6px; max-width: 13em; }
+  #barra { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--borde); }
+  #barra b.titulo { font-size: 15px; margin-right: 4px; }
+  #barra label { display: flex; align-items: center; gap: 4px; color: var(--suave); font-size: 13px; }
+  #barra .sep { flex: 1; }
+  #nombreArchivo { color: var(--suave); font-size: 13px; max-width: 11em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  main { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--borde); }
+  .vista { position: relative; min-height: 0; min-width: 0; background: #111317; }
+  .vista canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  .cap { position: absolute; left: 8px; top: 8px; right: 8px; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; pointer-events: none; z-index: 2; }
+  .cap > * { pointer-events: auto; }
+  .cap .tit { background: rgba(23,26,33,.85); border-radius: 6px; padding: 2px 8px; font-weight: 600; }
+  .cap .det { background: rgba(23,26,33,.85); border-radius: 6px; padding: 2px 8px; color: var(--suave); font-size: 12.5px; }
+  .cap label { background: rgba(23,26,33,.85); border-radius: 6px; padding: 2px 8px; font-size: 12.5px; color: var(--suave); display: flex; gap: 4px; align-items: center; }
+  .ayuda { position: absolute; left: 8px; bottom: 8px; font-size: 12px; color: var(--suave); background: rgba(23,26,33,.8); border-radius: 6px; padding: 2px 8px; pointer-events: none; z-index: 2; }
+  .vacio { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; color: var(--suave); z-index: 3; background: #111317; }
+  .vacio b { color: var(--texto); font-size: 16px; }
+  .vacio p { margin: 0; max-width: 34em; }
+  #vOrig.encima { outline: 3px dashed var(--acento); outline-offset: -6px; }
+  #estado { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4; background: rgba(23,26,33,.94); border: 1px solid var(--borde); border-radius: 10px; padding: 10px 14px; }
+  .mal { color: var(--error) !important; }
+  /* las partes del modelo: se pueden sacar (el libro, el arma…) */
+  #panelPartes { position: absolute; left: 8px; top: 40px; z-index: 3; background: rgba(23,26,33,.95); border: 1px solid var(--borde); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; max-height: calc(100% - 80px); overflow: auto; }
+  #panelPartes label { display: flex; gap: 6px; align-items: center; }
+  body[data-estilo="giradas"] .solo-voxel, body[data-estilo="voxel"] .solo-giradas, body:not([data-estilo]) .solo-voxel { display: none !important; }
+  /* versiones (cajas giradas): una barra para pasar de 1 a N cajas y las sugeridas para tocar */
+  #versiones { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; background: rgba(23,26,33,.92); border: 1px solid var(--borde); border-radius: 10px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .ver-fila { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--suave); }
+  .ver-fila input { flex: 1; min-width: 0; accent-color: var(--acento); }
+  #verEstado { font-size: 12px; white-space: nowrap; }
+  #verLista { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: thin; }
+  #verLista button { flex: none; padding: 3px 9px; font-size: 12.5px; }
+  #verLista button.activo { border-color: var(--acento); background: #2f4a25; }
+  @media (max-aspect-ratio: 1/1) {
+    main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+    #barra { padding: 5px 62px 5px 8px; gap: 5px 6px; }   /* (a la derecha queda lugar para la burbuja del menú) */
+    #barra b.titulo, #barra .txt { display: none; }
+    #nombreArchivo { max-width: 8em; }
+    select { max-width: 9.5em; }
+    .ayuda { display: none; }
+  }
+</style>
+</head>
+<body>
+<header id="barra">
+  <b class="titulo">🗿 Modelar → Blockbench</b>
+  <label class="boton" title="Un modelo 3D .glb (o el .zip tal como lo bajaste, con el .glb adentro)">📂<span class="txt"> Abrir modelo</span><input type="file" id="inArchivo" accept=".glb,.zip,model/gltf-binary,application/zip" hidden></label>
+  <span id="nombreArchivo"></span>
+  <label title="Qué tan alto queda el modelo en Minecraft (Steve mide 2 bloques)"><span class="txt">Alto</span>
+    <select id="selAlto"><option value="1">1 bloque</option><option value="1.5">1,5 bloques</option><option value="2" selected>2 bloques</option><option value="2.5">2,5 bloques</option><option value="3">3 bloques</option><option value="4">4 bloques</option></select></label>
+  <label title="Cajas giradas: el modelo se arma con cajas que pueden girar (como los modelos hechos a mano en Blockbench), y elegís cuántas. Cubitos: vóxeles derechos, todos del mismo tamaño."><span class="txt">Estilo</span>
+    <select id="selEstilo"><option value="giradas" selected>Cajas giradas</option><option value="voxel">Cubitos (vóxeles)</option></select></label>
+  <label class="solo-giradas" title="Hasta cuántas cajas probar (más = más versiones para elegir, tarda más)"><span class="txt">Hasta</span>
+    <select id="selMax"><option value="60">60 cajas</option><option value="150" selected>150 cajas</option><option value="300">300 cajas</option></select></label>
+  <label class="solo-giradas" title="Simetría: se arma la mitad del modelo y se copia espejada del otro lado (como se hace a mano en Blockbench)"><input type="checkbox" id="chkEspejo" checked>⇋<span class="txt"> Simetría</span></label>
+  <label class="solo-giradas" title="Dejar que las cajas giren (si no, todas quedan derechas)"><input type="checkbox" id="chkGirar" checked>⤾<span class="txt"> Giros</span></label>
+  <label class="solo-voxel" title="El tamaño de cada cubito. «1 píxel» es como Minecraft; más fino = más detalle y más cubos"><span class="txt">Cubito</span>
+    <select id="selDetalle"><option value="2">2 píxeles (grueso)</option><option value="1" selected>1 píxel (Minecraft)</option><option value="0.5">½ píxel (fino)</option><option value="0.25">¼ píxel (muy fino)</option></select></label>
+  <button id="btnGirar" title="Girar el modelo 90° (que mire hacia el frente)">↻<span class="txt"> Girar</span></button>
+  <button id="btnPartes" title="Elegir qué partes del modelo se pasan">🧩<span class="txt"> Partes</span></button>
+  <label class="solo-voxel" title="Rellenar por dentro las partes cerradas (menos cubos sueltos adentro)"><input type="checkbox" id="chkRellenar" checked>🧱<span class="txt"> Rellenar</span></label>
+  <span class="sep"></span>
+  <button id="btnGuardar" class="principal" disabled title="El modelo para abrir y seguir editando en Blockbench (la textura va adentro)">💾<span class="txt"> Blockbench</span> .bbmodel</button>
+  <button id="btnBBS" class="principal" disabled title="Un .zip con la carpeta del modelo para BBS (model.bbs.json + texture.png): descomprimila en config/bbs/assets/models">📦<span class="txt"> Para BBS</span> .zip</button>
+  <button id="btnPng" disabled title="Guardar solo la textura (PNG)">🖼<span class="txt"> PNG</span></button>
+</header>
+<main>
+  <section class="vista" id="vOrig">
+    <div class="cap"><span class="tit">Original</span><span class="det" id="detOrig"></span></div>
+    <div id="panelPartes" hidden></div>
+    <div class="vacio" id="vacioOrig">
+      <b>Soltá acá un modelo 3D (.glb)</b>
+      <p>O tocá 📂. Sirve un .glb con o sin texturas (por ejemplo, uno bajado de Sketchfab, o el .zip tal cual). Se pasa a cubos de Minecraft con su textura pixelada, listo para abrir en Blockbench.</p>
+    </div>
+    <div class="ayuda">arrastrá para girar · Shift o botón derecho: correr · rueda o dos dedos: acercar · doble toque: de frente</div>
+  </section>
+  <section class="vista" id="vCubos">
+    <div class="cap"><span class="tit">Minecraft</span><span class="det" id="detCubos"></span>
+      <label><input type="checkbox" id="chkBordes"> Bordes</label></div>
+    <div class="vacio" id="vacioCubos"><p>Acá vas a ver el modelo hecho con cubos.</p></div>
+    <div id="estado" hidden></div>
+    <div id="versiones" hidden>
+      <div class="ver-fila"><span>Cubos</span><input type="range" id="verRango" min="1" max="1" step="1" value="1" aria-label="Cuántos cubos"><span id="verEstado"></span></div>
+      <div id="verLista" aria-label="Versiones sugeridas"></div>
+    </div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
