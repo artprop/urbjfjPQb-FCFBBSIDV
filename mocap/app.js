@@ -10,6 +10,7 @@ import * as BP from './nucleo/boca_pixel.js';
 import { iniciarSimulacion, alPoseCamara } from './simulacion.js';
 import { iniciarCel } from './cel.js';
 import { DedosVivo } from './dedos_vivo.js';
+import { dibujarGuiaHumana } from './mano_humana.js';
 import { iniciarMoveUI } from './psmove_ui.js';
 import { moveHub } from './local/psmove_hub.js';
 import { persistir } from './local/almacen.js';
@@ -392,7 +393,9 @@ function bucle(ts) {
 
 // guia de manos (modo Dedos): las manos de Minecraft con la palma hacia la cámara, encima de la cámara (transparente) y en el panel;
 // al grabar se mueven como tus dedos
-let guia = null, guiaCfg = '';
+let guia = null, guiaCfg = '', guiaCurls = { L: null, R: null };
+const ladosGuia = () => ((cfg.dedos_manos || 'ambas') === 'izq' ? ['L'] : (cfg.dedos_manos || 'ambas') === 'der' ? ['R'] : ['R', 'L']);
+function pintarGuiaHumana() { dibujarGuiaHumana($('#guia-dedos'), ladosGuia(), guiaCurls); }
 function elegidasDedos() { return { LA: cfg.dedos_la, LC: cfg.dedos_lc, RA: cfg.dedos_ra, RC: cfg.dedos_rc }; }
 function ajustarLienzo(c) {
   const r = c.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);
@@ -404,16 +407,17 @@ async function reconfigurarGuia() {
   if (cfg.modo !== 'dedos') return;
   if (!guia) {
     guia = new DedosVivo();
-    guia.conectar({ overlay: $('#guia-dedos'), panel: $('#dedos-panel') });
+    guia.conectar({ panel: $('#dedos-panel') });
     let url = null; try { url = localStorage.getItem('skin3d'); } catch { /* sin almacenamiento */ }
     guia.ponerSkin(url || './skin_default.png');
-    const ro = new ResizeObserver(() => { const a = ajustarLienzo($('#guia-dedos')), b = ajustarLienzo($('#dedos-panel')); if (a || b) guia.dibujar(); });
+    const ro = new ResizeObserver(() => { const a = ajustarLienzo($('#guia-dedos')), b = ajustarLienzo($('#dedos-panel')); if (a || b) { guia.dibujar(); pintarGuiaHumana(); } });
     ro.observe($('#guia-dedos')); ro.observe($('#dedos-panel'));
     addEventListener('skin-cambiada', () => { let u = null; try { u = localStorage.getItem('skin3d'); } catch { /* */ } guia.ponerSkin(u || './skin_default.png'); });
   }
   ajustarLienzo($('#guia-dedos')); ajustarLienzo($('#dedos-panel'));
   const manos = cfg.dedos_manos || 'ambas';
   const clave = JSON.stringify([cfg.dedos_modelo, cfg.modelo, manos, elegidasDedos()]);
+  pintarGuiaHumana();
   if (clave === guiaCfg) { guia.dibujar(); return; }
   guiaCfg = clave;
   try { await guia.configurar({ sel: cfg.dedos_modelo || 'dedos', cuerpo: cfg.modelo === 'emoticons_steve' ? 'emoticons/steve' : 'player/steve_bends', manos, elegidas: elegidasDedos() }); }
@@ -446,7 +450,9 @@ function bucleDedos(ts, v, c) {
   }
   const dd = dedosDeResultado(r);
   pintarDedosVivo(dd);
-  if (guia) guia.poner({ L: dd.L || null, R: dd.R || null });
+  guiaCurls = { L: dd.L || null, R: dd.R || null };
+  if (guia) guia.poner(guiaCurls);
+  pintarGuiaHumana();
 }
 function pintarDedosVivo(d) {
   const caja = $('#dedos-vivo');
