@@ -10,7 +10,7 @@ import { Escena, TICKS_POR_S } from '../mocap/escena3d.js';
 import { guardarSalida, esPC, abrirCarpetaSalida } from '../comun/plataforma.js';
 import { VistaOriginal } from './original.js';
 import { cargarModeloDedos } from '../mocap/dedos3d.js';
-import { MODELOS_DEDOS, ponerMano, suavizar, pistasParaVista, reposoParaVista, posesMano, modeloDedosPara, cuerpoDe } from '../mocap/nucleo/dedos.js';
+import { MODELOS_DEDOS, ponerMano, suavizar, pistasParaVista, reposoParaVista, posesMano, posesUsables, modeloDedosPara, cuerpoDe } from '../mocap/nucleo/dedos.js';
 import { opcionesConversion, pistasDeActor, tipoDeRig, nombreSalida, nombreParte, nombreCorto, FILAS_PANEL, ORDEN_PARTES,
   desplazamiento, ponerDesplazamiento } from './nucleo.js';
 
@@ -312,8 +312,7 @@ async function pintarPanelDedos() {
   const cuerpo = modeloCuerpoElegido(), id = modeloDedosPara(sel, cuerpo);
   for (const lado of ['L', 'R']) {
     const datos = await cargarModeloDedos(id, lado);
-    const otro = lado === 'L' ? 'R_' : 'L_';
-    const nombres = Object.keys(datos.poses).filter((n) => !n.startsWith(otro)).sort();
+    const nombres = posesUsables(datos.poses, lado);
     for (const ext of ['A', 'C']) {
       const s = $('#dedo' + lado + ext);
       s.innerHTML = '<option value="">Ajustada (automática)</option>' + nombres.map((n) => `<option>${n.replace(/[<>&]/g, '')}</option>`).join('');

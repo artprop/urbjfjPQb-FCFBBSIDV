@@ -52,9 +52,25 @@ export function cuerpoDe(modeloCuerpo) {
 export function posesMano(datos, modeloCuerpo, lado, elegidaA = '', elegidaC = '') {
   const aj = (datos.ajustes || {})[cuerpoDe(modeloCuerpo)];
   const deAjuste = aj && aj[lado];
-  const pose = (n, ext) => (n && datos.poses[n] ? datos.poses[n].pose || datos.poses[n]
+  const pose = (n, ext) => (n && datos.poses[n] && poseUsable(datos.poses[n]) ? datos.poses[n].pose || datos.poses[n]
     : deAjuste ? deAjuste[ext] : (datos.poses[datos.cfg.defecto[lado][ext === 'abierta' ? 0 : 1]] || {}).pose);
   return { abierta: pose(elegidaA, 'abierta'), cerrada: pose(elegidaC, 'cerrada'), transform: deAjuste ? deAjuste.transform || {} : {} };
+}
+
+/**
+ * ¿Sirve esta pose de la biblioteca para una mano que se mueve? No sirven las poses que ESCONDEN la mano (como «NULL» en la
+ * biblioteca del usuario: tiene el Anchor 10 píxeles más abajo, y la mano queda tirada en el piso).
+ */
+export function poseUsable(p) {
+  const pose = (p && p.pose) || p || {};
+  const a = pose.Anchor;
+  const ty = a && a.t ? Number(a.t[1]) : 0;
+  return !(ty <= -5);
+}
+/** Nombres de las poses de la biblioteca que se pueden elegir para una mano ('L' o 'R'): las de ese lado, sin las escondidas. */
+export function posesUsables(poses, lado) {
+  const otro = lado === 'L' ? 'R_' : 'L_';
+  return Object.keys(poses || {}).filter((n) => !n.startsWith(otro) && !/^null$/i.test(n) && poseUsable(poses[n])).sort();
 }
 
 /** Hueso del muñeco del que cuelga la mano: el del ítem (steve/alex_bends) o la punta del antebrazo (emoticons). */

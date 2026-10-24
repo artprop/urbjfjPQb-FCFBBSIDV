@@ -43,6 +43,7 @@ export const OPCIONES = {
   // dedos (ver nucleo/dedos.js): modelo de dedos y poses de mano abierta / cerrada de cada lado ('' = las de fabrica);
   // dedos_move: el gatillo del Move cierra la mano (de la abierta a la cerrada)
   dedos_modelo: 'dedos', dedos_la: '', dedos_lc: '', dedos_ra: '', dedos_rc: '', dedos_move: true,
+  dedos_manos: 'ambas',   // qué manos se animan: 'ambas', 'izq' o 'der'
   ojos_modo: 'poses', boca_labios: true, boca_muecas: false, cara_arrugas: false, arrugas_escala: 2, modelo_boca: 'Man_2', boca_estilo: 'clasico',   // ojos_modo: 'poses' (prediseñadas, a saltos) o 'vivo' (siguen tu cara)
 };
 

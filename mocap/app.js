@@ -9,6 +9,7 @@ import { paqueteZip } from './paquete_modelos.js';
 import * as BP from './nucleo/boca_pixel.js';
 import { iniciarSimulacion, alPoseCamara } from './simulacion.js';
 import { iniciarCel } from './cel.js';
+import { DedosVivo } from './dedos_vivo.js';
 import { iniciarMoveUI } from './psmove_ui.js';
 import { moveHub } from './local/psmove_hub.js';
 import { persistir } from './local/almacen.js';
@@ -78,7 +79,8 @@ function pintarAjustes() {
   document.querySelectorAll('#partes input').forEach((c) => (c.checked = elegidas.includes(c.dataset.parte)));
   $('#poses_fijas').value = (cfg.poses_fijas || '').split(';').map((s) => s.trim()).filter(Boolean).join('\n');
   $('#dedos_modelo').value = cfg.dedos_modelo || 'dedos';
-  pintarPosesDedos();
+  pintarPosesDedos().then(reconfigurarGuia);
+  pintarManosDedos();
   ponerModo(cfg.estilo || 'minecraft', false);
 }
 
@@ -133,9 +135,13 @@ function enlazarAjustes() {
     cfg.dedos_modelo = e.target.value;
     for (const k of POSES_DEDOS) cfg[k] = '';   // otro modelo, otras poses: vuelven las de fabrica
     guardar({ dedos_modelo: cfg.dedos_modelo, ...Object.fromEntries(POSES_DEDOS.map((k) => [k, ''])) });
-    pintarPosesDedos();
+    pintarPosesDedos().then(reconfigurarGuia);
   });
-  for (const k of POSES_DEDOS) $('#' + k).addEventListener('change', (e) => { cfg[k] = e.target.value; guardar({ [k]: cfg[k] }); });
+  for (const k of POSES_DEDOS) $('#' + k).addEventListener('change', (e) => { cfg[k] = e.target.value; guardar({ [k]: cfg[k] }); reconfigurarGuia(); });
+  document.querySelectorAll('.dedos-manos button').forEach((b) => b.addEventListener('click', () => {
+    cfg.dedos_manos = b.dataset.manos; guardar({ dedos_manos: cfg.dedos_manos }); pintarManosDedos(); reconfigurarGuia();
+    if (vista && vista.activa()) vista.alTerminar();
+  }));
 }
 
 // las poses del modelo de dedos elegido, para la mano abierta y la cerrada de cada lado
@@ -162,6 +168,7 @@ function ponerModoApp(modo, save = true) {
   document.querySelectorAll('#modos button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.modo === cfg.modo)));
   if (!$('#btn-convertir').disabled || $('#btn-convertir').textContent.startsWith('Convertir')) $('#btn-convertir').textContent = textoConvertir();
   if (save) guardar({ modo: cfg.modo });
+  if (cfg.modo === 'dedos') reconfigurarGuia();
   if (!$('#sel-film').value) actualizarDestino();   // el texto de «film nuevo» cambia según el modo
   if (cfg.modo !== 'cara' && $('#vivo-fab').getAttribute('aria-pressed') === 'true') prenderVivo(false);
   if (vista && vista.activa()) vista.alTerminar();   // la vista 3D se re-arma (en modo cara enfoca la cara)
@@ -383,6 +390,41 @@ function bucle(ts) {
   requestAnimationFrame(bucle);
 }
 
+// guia de manos (modo Dedos): las manos de Minecraft con la palma hacia la cámara, encima de la cámara (transparente) y en el panel;
+// al grabar se mueven como tus dedos
+let guia = null, guiaCfg = '';
+function elegidasDedos() { return { LA: cfg.dedos_la, LC: cfg.dedos_lc, RA: cfg.dedos_ra, RC: cfg.dedos_rc }; }
+function ajustarLienzo(c) {
+  const r = c.getBoundingClientRect(), d = Math.min(devicePixelRatio || 1, 2);
+  const w = Math.max(2, Math.round(r.width * d)), h = Math.max(2, Math.round(r.height * d));
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; return true; }
+  return false;
+}
+async function reconfigurarGuia() {
+  if (cfg.modo !== 'dedos') return;
+  if (!guia) {
+    guia = new DedosVivo();
+    guia.conectar({ overlay: $('#guia-dedos'), panel: $('#dedos-panel') });
+    let url = null; try { url = localStorage.getItem('skin3d'); } catch { /* sin almacenamiento */ }
+    guia.ponerSkin(url || './skin_default.png');
+    const ro = new ResizeObserver(() => { const a = ajustarLienzo($('#guia-dedos')), b = ajustarLienzo($('#dedos-panel')); if (a || b) guia.dibujar(); });
+    ro.observe($('#guia-dedos')); ro.observe($('#dedos-panel'));
+    addEventListener('skin-cambiada', () => { let u = null; try { u = localStorage.getItem('skin3d'); } catch { /* */ } guia.ponerSkin(u || './skin_default.png'); });
+  }
+  ajustarLienzo($('#guia-dedos')); ajustarLienzo($('#dedos-panel'));
+  const manos = cfg.dedos_manos || 'ambas';
+  const clave = JSON.stringify([cfg.dedos_modelo, cfg.modelo, manos, elegidasDedos()]);
+  if (clave === guiaCfg) { guia.dibujar(); return; }
+  guiaCfg = clave;
+  try { await guia.configurar({ sel: cfg.dedos_modelo || 'dedos', cuerpo: cfg.modelo === 'emoticons_steve' ? 'emoticons/steve' : 'player/steve_bends', manos, elegidas: elegidasDedos() }); }
+  catch (e) { guiaCfg = ''; console.warn(e); }
+}
+function pintarManosDedos() {
+  const m = cfg.dedos_manos || 'ambas';
+  document.querySelectorAll('.dedos-manos button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.manos === m)));
+  $('#dedos-guia-msg').textContent = m === 'izq' ? 'Poné solo tu mano izquierda, abierta y con la palma hacia la cámara.' : m === 'der' ? 'Poné solo tu mano derecha, abierta y con la palma hacia la cámara.' : 'Poné las dos manos abiertas, con las palmas hacia la cámara, como la guía.';
+}
+
 // modo Dedos: las manos que ve la camara, dibujadas encima, y cuánto cierra cada dedo (lo mismo que va a leer la conversion)
 let manosVivo = null, pidiendoManos = false, ultimaManos = 0, relojManos = 0;
 const CONEX_MANO = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20]];
@@ -402,7 +444,9 @@ function bucleDedos(ts, v, c) {
   for (const lm of r.landmarks || []) {
     for (const [a, b] of CONEX_MANO) { ctx.beginPath(); ctx.moveTo(lm[a].x * c.width, lm[a].y * c.height); ctx.lineTo(lm[b].x * c.width, lm[b].y * c.height); ctx.stroke(); }
   }
-  pintarDedosVivo(dedosDeResultado(r));
+  const dd = dedosDeResultado(r);
+  pintarDedosVivo(dd);
+  if (guia) guia.poner({ L: dd.L || null, R: dd.R || null });
 }
 function pintarDedosVivo(d) {
   const caja = $('#dedos-vivo');

@@ -6,7 +6,7 @@ import { Ojos3D } from './ojos3d.js';
 import { Boca3D, capasEn, grillaEn } from './boca3d.js';
 import { crearModelo } from './modelo3d.js';
 import { Mano3D } from './dedos3d.js';
-import { huesoMano } from './nucleo/dedos.js';
+import { huesoMano, posesMano } from './nucleo/dedos.js';
 
 const TICKS_POR_S = 20;
 const SKIN_DEFECTO = new URL('./skin_default.png', import.meta.url).href;   // junto a este archivo (sirve desde otros modos)
@@ -99,10 +99,11 @@ export class Escena {
   }
   vista(nombre) {
     // la persona mira hacia -Z: "frente" es mirarla desde -Z
-    this.az = { frente: Math.PI, lado: Math.PI / 2, atras: 0, tres_cuartos: Math.PI * 0.8, cara: Math.PI }[nombre] ?? Math.PI;
+    this.az = { frente: Math.PI, lado: Math.PI / 2, atras: 0, tres_cuartos: Math.PI * 0.8, cara: Math.PI, manos: Math.PI }[nombre] ?? Math.PI;
     const cara = nombre === 'cara';   // primer plano de la cabeza (para revisar los ojos)
-    this.objetivo.set(0, cara ? 1.73 : 1, 0);
-    this.el_ = cara ? 0.04 : 0.12; this.dist = cara ? 1.05 : 4.4; this._camara(); this.dibujar();
+    const manos = nombre === 'manos';   // primer plano de las manos en alto
+    this.objetivo.set(0, cara ? 1.73 : manos ? 1.6 : 1, 0);
+    this.el_ = cara ? 0.04 : manos ? 0.05 : 0.12; this.dist = cara ? 1.05 : manos ? 3.2 : 4.4; this._camara(); this.dibujar();
   }
   _camara() {
     this.el_ = Math.max(-1.4, Math.min(1.4, this.el_));
@@ -206,11 +207,7 @@ export class Escena {
       if (this.bocaDatos.tipo === 'pixel') this.boca.aplicarGrilla(grillaEn(this.bocaDatos, tick));
       else this.boca.aplicar(capasEn(this.bocaDatos, tick));
     }
-    const v = this.tmp, rel = this.modelo.restRel;   // emoticons/steve: cada hueso tiene su orientacion de reposo
-    const poner = (b, g, x, y, z) => {
-      if (rel) g.quaternion.copy(rel[b]).multiply(this._q.setFromEuler(new THREE.Euler(x, y, z, 'ZYX')));
-      else g.rotation.set(x, y, z, 'ZYX');
-    };
+    const v = this.tmp, poner = (b, g, x, y, z) => this._poner(b, g, x, y, z);
     for (const [b, g] of Object.entries(this.huesos)) {
       const kfs = this.anim && this.anim[b];
       if (this.poseFija) { const r = this.poseFija[b] || [0, 0, 0]; poner(b, g, r[0], r[1], r[2]); }
@@ -218,8 +215,80 @@ export class Escena {
       else if (kfs && kfs.length) { muestrear(kfs, tick, v); poner(b, g, v.x, v.y, v.z); }
       else poner(b, g, 0, 0, 0);
     }
+    if (this.manosAlto && this.manos && this.manos.length) this._brazosEnAlto();
     this.dibujar();
   }
+  // emoticons/steve: cada hueso tiene su orientacion de reposo
+  _poner(b, g, x, y, z) {
+    const rel = this.modelo.restRel;
+    if (rel) g.quaternion.copy(rel[b]).multiply(this._q.setFromEuler(new THREE.Euler(x, y, z, 'ZYX')));
+    else g.rotation.set(x, y, z, 'ZYX');
+  }
+
+  // «Manos en alto»: la pose de referencia del modo Dedos. Los brazos suben con la palma mirando a la cámara y los dedos hacia
+  // arriba (como la guía de la cámara); los dedos hacen los gestos. Los giros del brazo se buscan con cuentas (sirven para cualquier
+  // muñeco: steve, alex o emoticons) y se guardan.
+  verManosAlto(si) { this.manosAlto = !!si; this.ir(this.tick || 0); }
+  _brazosEnAlto() {
+    for (const m of this.manos) {
+      const lado = m.lado, side = lado === 'L' ? 'left' : 'right';
+      const A = this.huesos[side + '_arm'], E = this.huesos[this.modelo.restRel ? `low_${side}_arm` : `${side}_elbow`];
+      if (!A || !E) continue;
+      const clave = this.nombreModelo + ':' + lado;
+      this._solBrazos = this._solBrazos || {};
+      const sol = (this._solBrazos[clave] ??= this._resolverBrazo(m, A, E, side));
+      this._poner(side + '_arm', A, sol[0], sol[1], sol[2]);
+      this._poner(this.modelo.restRel ? `low_${side}_arm` : `${side}_elbow`, E, sol[3], 0, 0);
+    }
+  }
+  _resolverBrazo(m, A, E, side) {
+    const nodo = m.raiz.parent, nA = side + '_arm', nE = this.modelo.restRel ? `low_${side}_arm` : `${side}_elbow`;
+    const D = Math.PI / 180, up = new THREE.Vector3(0, 1, 0), frente = new THREE.Vector3(0, 0, -1);
+    // reposo (brazo colgando): hacia dónde apuntan los dedos y hacia dónde cierran, en el marco de la mano
+    this._poner(nA, A, 0, 0, 0); this._poner(nE, E, 0, 0, 0);
+    this.scene.updateMatrixWorld(true);
+    const estado = (pose) => Object.fromEntries(Object.entries(pose || {}).map(([h, v]) => [h, { t: v.t || [0, 0, 0], s: v.s || [1, 1, 1], r: v.r || [0, 0, 0], r2: v.r2 }]));
+    const poses = posesMano(m.d.datos, this.nombreModelo === 'emoticons_steve' ? 'emoticons/steve' : this.nombreModelo === 'alex_bends' ? 'player/alex_bends' : 'player/steve_bends', m.lado, '', '');
+    const centro = (pose) => { m.aplicar(estado(pose)); this.scene.updateMatrixWorld(true); return new THREE.Box3().setFromObject(m.raiz).getCenter(new THREE.Vector3()); };
+    const cAb = centro(poses.abierta), cCe = centro(poses.cerrada);
+    const fMundo = new THREE.Vector3(0, -1, 0);
+    const dMundo = cCe.clone().sub(cAb); dMundo.addScaledVector(fMundo, -dMundo.dot(fMundo));
+    const posMano = nodo.getWorldPosition(new THREE.Vector3());
+    if (dMundo.lengthSq() < 1e-8) dMundo.set(posMano.x > 0 ? -1 : 1, 0, 0);
+    dMundo.normalize();
+    const hombro = A.getWorldPosition(new THREE.Vector3());
+    const qInv = nodo.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const fLoc = fMundo.clone().applyQuaternion(qInv), dLoc = dMundo.clone().applyQuaternion(qInv);
+    this._aplicarPoses(m);   // vuelve a la pose de dedos actual (se pisa al terminar el cuadro)
+    const q = new THREE.Quaternion(), pos = new THREE.Vector3(), f = new THREE.Vector3(), d = new THREE.Vector3();
+    const costo = (v) => {
+      this._poner(nA, A, v[0], v[1], v[2]); this._poner(nE, E, v[3], 0, 0);
+      nodo.updateWorldMatrix(true, false);
+      nodo.matrixWorld.decompose(pos, q, f.set(1, 1, 1));
+      f.copy(fLoc).applyQuaternion(q); d.copy(dLoc).applyQuaternion(q);
+      const a = 1 - f.dot(up), b = 1 - d.dot(frente);
+      const x = pos.x - hombro.x, y = pos.y - hombro.y, z = pos.z - hombro.z;
+      // la mano a la altura del hombro + un poco, delante del cuerpo y sin cruzarse
+      return 2 * a + 2 * b + 0.02 * (Math.abs(v[0]) + Math.abs(v[1]) + Math.abs(v[2]) + Math.abs(v[3])) + 1.2 * x * x + 6 * (y - 0.4) * (y - 0.4) + 2 * (z + 0.45) * (z + 0.45);
+    };
+    let mejor = null, cm = Infinity;
+    for (let a = -180; a <= 30; a += 15) for (let b = -90; b <= 90; b += 30) for (let c = -120; c <= 120; c += 15) for (let e = -150; e <= 150; e += 15) {
+      const v = [a * D, b * D, c * D, e * D], k = costo(v);
+      if (k < cm) { cm = k; mejor = v; }
+    }
+    for (let paso = 8; paso >= 1; paso /= 2) {   // afinar de a poquito
+      for (let it = 0; it < 12; it++) {
+        let mejora = false;
+        for (let i = 0; i < 4; i++) for (const sg of [-1, 1]) {
+          const v = mejor.slice(); v[i] += sg * paso * D; const k = costo(v);
+          if (k < cm - 1e-9) { cm = k; mejor = v; mejora = true; }
+        }
+        if (!mejora) break;
+      }
+    }
+    return mejor;
+  }
+  _aplicarPoses() { this._dedos(this.tick || 0); }
   mostrarEjes(si) { this.ejesVisibles = si; this.ejes.forEach((a) => (a.visible = si)); this.dibujar(); }
   // posicion de los ojos (px, visto de frente): ver Ojos3D.mover
   moverOjos(dx, dy) { this.ojosPos = [dx, dy]; this.ojos.mover(dx, dy); this.dibujar(); }

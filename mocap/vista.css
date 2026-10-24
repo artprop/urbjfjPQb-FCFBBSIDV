@@ -106,3 +106,11 @@ body[data-modo="dedos"] .solo-cuerpo, body[data-modo="dedos"] .solo-cara { displ
 /* opciones de la vista 3D: en la compu siempre a la vista; en el celu se abren con un toque */
 .v3-opc { display: flex; flex-direction: column; gap: 10px; }
 .v3-opc > summary { display: none; }
+
+/* modo Dedos: guia transparente encima de la camara + panel con las manos de Minecraft (al lado en la compu, abajo en el celu) */
+#guia-dedos { transform: scaleX(-1); opacity: .5; pointer-events: none; }
+.dedos-lado { flex: 0 0 34%; min-width: 220px; max-width: 380px; display: flex; flex-direction: column; gap: 6px; }
+.dedos-manos { display: flex; gap: 4px; }
+.dedos-manos button { flex: 1; min-width: 0; padding: 5px 4px; font-size: 13px; border-radius: 6px; border: 1px solid var(--linea); background: var(--panel); color: var(--texto); cursor: pointer; }
+.dedos-manos button[aria-pressed="true"] { background: var(--pasto-osc); border-color: var(--pasto); color: #fff; }
+#dedos-panel { display: block; width: 100%; aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--linea); background: #111317; transform: scaleX(-1); }

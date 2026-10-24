@@ -100,7 +100,7 @@ export function crearVista(ctx) {
     if (datos.dedos) {
       const pedido = datos;
       Promise.all(Object.entries(datos.dedos).map(async ([l, d]) => [l, { ...d, datos: await cargarModeloDedos(d.modelo, l) }]))
-        .then((manos) => { if (datos === pedido) escena.ponerDedos(Object.fromEntries(manos)); })
+        .then((manos) => { if (datos === pedido) { escena.ponerDedos(Object.fromEntries(manos)); escena.verManosAlto(ctx.modo && ctx.modo() === 'dedos' && $('#v3-manos-alto').checked); } })
         .catch((e) => console.warn('dedos:', e));
     }
     if (ctx.modo && ctx.modo() !== modoVista) {   // al cambiar entre cuerpo y cara, la camara se acomoda sola
@@ -329,6 +329,7 @@ export function crearVista(ctx) {
       video.playbackRate = velocidad;
     }));
     $('#v3-repetir').addEventListener('change', (e) => (repetir = e.target.checked));
+    $('#v3-manos-alto').addEventListener('change', (e) => escena && escena.verManosAlto(e.target.checked && ctx.modo && ctx.modo() === 'dedos'));
     $('#v3-ejes').addEventListener('change', (e) => escena && escena.mostrarEjes(e.target.checked));
     document.querySelectorAll('#v3-camara button').forEach((b) => b.addEventListener('click', () => escena && escena.vista(b.dataset.c)));
   }
